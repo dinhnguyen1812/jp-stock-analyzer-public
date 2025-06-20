@@ -1,7 +1,9 @@
 from fastapi import FastAPI
-from app.db import init_db
+from app.api import stocks
 
 app = FastAPI()
+
+app.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 
 @app.get("/")
 def read_root():
@@ -10,3 +12,4 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
