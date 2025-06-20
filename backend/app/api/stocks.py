@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.schemas import Stock as StockSchema
-from app.models import Stock as StockModel
-from app.db.db import SessionLocal
-
-from app.utils.news_scraper import scrape_yahoo_news
-from sqlalchemy import insert
-from app.models import News as NewsModel
 from fastapi.responses import JSONResponse
 
+from sqlalchemy.orm import Session
+from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
+
+from app.schemas import Stock as StockSchema
+from app.models import Stock as StockModel
+from app.models import News as NewsModel
+from app.db.db import SessionLocal
+from app.utils.news_scraper import scrape_yahoo_news
+from app.utils.gpt import analyze_news_with_gpt
+from app.utils.yahoo_financials import scrape_yahoo_financials
 from app.models import Stock, News
 
 router = APIRouter()
@@ -23,11 +25,11 @@ def get_db():
         db.close()
 
 @router.get("/{ticker}", response_model=StockSchema)
-def get_stock(ticker: str, db: Session = Depends(get_db)):
-    stock = db.query(StockModel).filter(StockModel.ticker == ticker).first()
-    if not stock:
-        raise HTTPException(status_code=404, detail="Stock not found")
-    return stock
+def get_stock_realtime(ticker: str):
+    scraped = scrape_yahoo_financials(ticker)
+    if not scraped or not scraped["name"]:
+        raise HTTPException(status_code=404, detail="Stock not found or not scrappable")
+    return scraped
 
 @router.get("/{ticker}/news")
 def get_stock_news(ticker: str, db: Session = Depends(get_db)):
@@ -56,3 +58,13 @@ def get_stock_news(ticker: str, db: Session = Depends(get_db)):
 
     db.commit()
     return news_items
+
+@router.get("/{ticker}/analysis")
+def analyze_stock_news(ticker: str):
+    news_items = scrape_yahoo_news(ticker)
+    summary, sentiment = analyze_news_with_gpt(news_items)
+    return {
+        "summary": summary,
+        "sentiment": sentiment,
+        "headlines": news_items  # optional: include for display/debug
+    }
