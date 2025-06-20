@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+
+# Node
+node_modules/
+dist/
+build/
+
+# Docker
+*.log
+*.pid
+*.sock
+*.db
+*.sqlite3
+.env.docker
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VSCode or JetBrains
+.vscode/
+.idea/
+
+# Python virtual env
+venv/
+.env/
+
+# React build
+frontend/build/
+
+# Byte-compiled files
+*.pyc
+
+# Docker volumes (optional)
+pgdata/
+
