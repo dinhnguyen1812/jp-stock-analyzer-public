@@ -12,3 +12,5 @@ class Stock(BaseModel):
     eps: Optional[float] = None
     market_cap: Optional[int] = None
 
+    class Config:
+        orm_mode = True

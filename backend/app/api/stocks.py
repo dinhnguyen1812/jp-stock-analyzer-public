@@ -1,38 +1,58 @@
-from fastapi import APIRouter, HTTPException
-from app.schemas import Stock
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.schemas import Stock as StockSchema
+from app.models import Stock as StockModel
+from app.db.db import SessionLocal
+
+from app.utils.news_scraper import scrape_yahoo_news
+from sqlalchemy import insert
+from app.models import News as NewsModel
+from fastapi.responses import JSONResponse
+
+from sqlalchemy.exc import IntegrityError
+from app.models import Stock, News
 
 router = APIRouter()
 
-# Dummy in-memory data for testing
-dummy_stocks = {
-    "5255": {
-        "ticker": "5255",
-        "name": "Monstarlab",
-        "market": "TSE Growth",
-        "price": 145.3,
-        "per": 15.2,
-        "pbr": 0.8,
-        "roe": 9.5,
-        "eps": 9.6,
-        "market_cap": 15000000000,
-    },
-    "3350": {
-        "ticker": "3350",
-        "name": "MetaPlanet",
-        "market": "TSE Mothers",
-        "price": 210.0,
-        "per": 12.5,
-        "pbr": 0.7,
-        "roe": 11.0,
-        "eps": 8.5,
-        "market_cap": 12000000000,
-    }
-}
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-@router.get("/{ticker}", response_model=Stock)
-async def get_stock(ticker: str):
-    stock = dummy_stocks.get(ticker)
+@router.get("/{ticker}", response_model=StockSchema)
+def get_stock(ticker: str, db: Session = Depends(get_db)):
+    stock = db.query(StockModel).filter(StockModel.ticker == ticker).first()
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
     return stock
 
+@router.get("/{ticker}/news")
+def get_stock_news(ticker: str, db: Session = Depends(get_db)):
+    # Ensure stock exists before inserting news
+    stock = db.query(Stock).filter(Stock.ticker == ticker).first()
+    if not stock:
+        # Insert minimal stock row (you can fetch full data elsewhere)
+        stock = Stock(ticker=ticker, name="", market="", price=0)
+        db.add(stock)
+        db.commit()
+
+    news_items = scrape_yahoo_news(ticker)
+
+    for item in news_items:
+        exists = db.query(News).filter(News.url == item["url"]).first()
+        if not exists:
+            try:
+                db.add(News(
+                    stock_ticker=ticker,
+                    headline=item["headline"],
+                    url=item["url"],
+                    published_at=item["published_at"]
+                ))
+            except IntegrityError:
+                db.rollback()
+
+    db.commit()
+    return news_items
