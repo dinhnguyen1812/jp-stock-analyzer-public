@@ -11,7 +11,7 @@ from app.models import News as NewsModel
 from app.db.db import SessionLocal
 from app.utils.news_scraper import scrape_yahoo_news
 from app.utils.gpt import analyze_news_with_gpt
-from app.utils.yahoo_financials import scrape_yahoo_financials
+from app.utils.yahoo_financials import fetch_yahoo_financials
 from app.models import Stock, News
 
 router = APIRouter()
@@ -26,7 +26,7 @@ def get_db():
 
 @router.get("/{ticker}", response_model=StockSchema)
 def get_stock_realtime(ticker: str):
-    scraped = scrape_yahoo_financials(ticker)
+    scraped = fetch_yahoo_financials(ticker)
     if not scraped or not scraped["name"]:
         raise HTTPException(status_code=404, detail="Stock not found or not scrappable")
     return scraped
