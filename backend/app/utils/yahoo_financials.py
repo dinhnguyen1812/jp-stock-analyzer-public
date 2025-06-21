@@ -2,8 +2,11 @@ import httpx
 from bs4 import BeautifulSoup
 import json
 import re
+from app.utils.ir_bank import fetch_debt_ratio
 
 def fetch_yahoo_financials(ticker: str):
+    debt_ratio = fetch_debt_ratio(ticker)
+    print(f"====debt_ratio={debt_ratio}")
     url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -39,12 +42,15 @@ def fetch_yahoo_financials(ticker: str):
         stock_board = json.loads(board_match.group(1))
 
         price_board = stock_board.get("priceBoard", {})
+        industry_board = price_board.get("industry", {})
 
         return {
             "ticker": ticker,
             "name": price_board.get("name", ""),
             "market": price_board.get("marketName", ""),
+            "industry": industry_board.get("industryName", ""),
             "price": to_float(reference_index.get("minPurchasePrice")),
+            "dividend_yield": to_float(reference_index.get("shareDividendYield")),
             "per": to_float(reference_index.get("per")),
             "pbr": to_float(reference_index.get("pbr")),
             "eps": to_float(reference_index.get("eps")),

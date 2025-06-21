@@ -24,7 +24,7 @@ def get_db():
     finally:
         db.close()
 
-@router.get("/{ticker}", response_model=StockSchema)
+@router.get("/{ticker}/indicators", response_model=StockSchema)
 def get_stock_realtime(ticker: str):
     scraped = fetch_yahoo_financials(ticker)
     if not scraped or not scraped["name"]:
