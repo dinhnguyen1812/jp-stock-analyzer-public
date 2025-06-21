@@ -2,11 +2,11 @@ import httpx
 from bs4 import BeautifulSoup
 import json
 import re
-from app.utils.ir_bank import fetch_debt_ratio
+from app.utils.ir_bank import fetch_debt_ratio_ir_bank
 
 def fetch_yahoo_financials(ticker: str):
-    debt_ratio = fetch_debt_ratio(ticker)
-    print(f"====debt_ratio={debt_ratio}")
+    debt_ratio = fetch_debt_ratio_ir_bank(ticker)
+
     url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -56,6 +56,7 @@ def fetch_yahoo_financials(ticker: str):
             "eps": to_float(reference_index.get("eps")),
             "roe": to_float(reference_index.get("roe")),
             "market_cap": to_float(reference_index.get("totalPrice")),
+            "debt_ratio": debt_ratio,
         }
 
     except Exception as e:

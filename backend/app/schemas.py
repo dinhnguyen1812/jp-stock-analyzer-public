@@ -13,6 +13,7 @@ class Stock(BaseModel):
     roe: Optional[float] = None
     eps: Optional[float] = None
     market_cap: Optional[int] = None
+    debt_ratio: Optional[float] = None
 
     class Config:
         orm_mode = True
