@@ -8,11 +8,13 @@ from sqlalchemy.exc import IntegrityError
 from app.schemas import Stock as StockSchema
 from app.models import Stock as StockModel
 from app.models import News as NewsModel
+from app.models import Stock, News, IndustryIndicator
 from app.db.db import SessionLocal
+
 from app.utils.news_scraper import scrape_yahoo_news
 from app.utils.gpt import analyze_news_with_gpt
 from app.utils.yahoo_financials import fetch_yahoo_financials
-from app.models import Stock, News
+from app.utils.jpx_perpbr_his import update_industry_indicators
 
 router = APIRouter()
 
@@ -68,3 +70,28 @@ def analyze_stock_news(ticker: str):
         "sentiment": sentiment,
         "headlines": news_items  # optional: include for display/debug
     }
+
+@router.get("/stocks/{industry}")
+def get_industry_indicators(industry: str, db: Session = Depends(get_db)):
+    # Only update if needed (already checked inside)
+    update_industry_indicators(db)
+
+    # Fetch all matching records
+    results = db.query(IndustryIndicator).filter(
+        IndustryIndicator.industry.like(f"%{industry}%")
+    ).all()
+
+    if not results:
+        raise HTTPException(status_code=404, detail="Industry not found")
+
+    return [
+        {
+            "industry": rec.industry,
+            "section": rec.section,
+            "per": rec.per,
+            "pbr": rec.pbr,
+            "roe": rec.roe,
+            "fetched_at": rec.fetched_at,
+        }
+        for rec in results
+    ]

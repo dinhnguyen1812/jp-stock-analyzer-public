@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Numeric, BIGINT, TIMESTAMP, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, BIGINT, TIMESTAMP, Date, ForeignKey, Float, PrimaryKeyConstraint
 from sqlalchemy.ext.declarative import declarative_base
+import datetime
 
 Base = declarative_base()
 
@@ -53,3 +54,16 @@ class TechnicalIndicator(Base):
     pattern = Column(String)  # e.g., "breakout", "double bottom"
     created_at = Column(TIMESTAMP)
 
+class IndustryIndicator(Base):
+    __tablename__ = "industry_indicators"
+
+    industry = Column(String, index=True)
+    section = Column(String, index=True)  # Add this field
+    per = Column(Float)
+    pbr = Column(Float)
+    roe = Column(Float)
+    fetched_at = Column(TIMESTAMP, default=datetime.datetime.utcnow)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("industry", "section"),  # Composite primary key
+    )
