@@ -4,7 +4,7 @@ import json
 import re
 from app.utils.jpx_debt_ratio import fetch_debt_ratio_ir_bank
 
-def fetch_yahoo_financials(ticker: str):
+def fetch_current_indicators(ticker: str):
     debt_ratio = fetch_debt_ratio_ir_bank(ticker)
 
     url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
@@ -16,6 +16,11 @@ def fetch_yahoo_financials(ticker: str):
     try:
         response = httpx.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
+
+        # Extract current real-time price from visible <span>
+        current_price_span = soup.select_one("span.StyledNumber__value__3rXW")
+        current_price = to_float(current_price_span.text if current_price_span else None)
+
 
         # Find the <script> tag containing embedded financial JSON
         script_tag = next((s for s in soup.find_all("script") if "referenceIndex" in s.text), None)
@@ -47,13 +52,15 @@ def fetch_yahoo_financials(ticker: str):
         return {
             "ticker": ticker,
             "name": price_board.get("name", ""),
+            "current_price": current_price,
             "market": price_board.get("marketName", ""),
             "industry": industry_board.get("industryName", ""),
-            "price": to_float(reference_index.get("minPurchasePrice")),
+            "min_price": to_float(reference_index.get("minPurchasePrice")),
             "dividend_yield": to_float(reference_index.get("shareDividendYield")),
             "per": to_float(reference_index.get("per")),
             "pbr": to_float(reference_index.get("pbr")),
             "eps": to_float(reference_index.get("eps")),
+            "bps": to_float(reference_index.get("bps")),
             "roe": to_float(reference_index.get("roe")),
             "market_cap": to_float(reference_index.get("totalPrice")),
             "debt_ratio": debt_ratio,

@@ -16,6 +16,7 @@ class Stock(Base):
     pbr = Column(Numeric)
     roe = Column(Numeric)
     eps = Column(Numeric)
+    bps = Column(Numeric)
     market_cap = Column(BIGINT)
     created_at = Column(TIMESTAMP)
 

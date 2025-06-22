@@ -13,7 +13,7 @@ from app.db.db import SessionLocal
 
 from app.utils.news_scraper import scrape_yahoo_news
 from app.utils.gpt import analyze_news_with_gpt
-from app.utils.yahoo_financials import fetch_yahoo_financials
+from app.utils.yahoo_indicators import fetch_current_indicators
 from app.utils.jpx_perpbr_industry import update_industry_indicators
 from app.utils.jpx_perpbr_history import save_historical_to_csv, fetch_historical_indicators_irbank
 
@@ -29,7 +29,7 @@ def get_db():
 
 @router.get("/{ticker}/indicators", response_model=StockSchema)
 def get_stock_realtime(ticker: str):
-    scraped = fetch_yahoo_financials(ticker)
+    scraped = fetch_current_indicators(ticker)
     if not scraped or not scraped["name"]:
         raise HTTPException(status_code=404, detail="Stock not found or not scrappable")
     return scraped
