@@ -9,7 +9,7 @@ from sqlalchemy import delete
 
 from app.models import IndustryIndicator
 
-DOWNLOAD_DIR = "./downloads"
+DOWNLOAD_DIR = "app/db/industries"
 BASE_URL = "https://www.jpx.co.jp"
 TARGET_URL = f"{BASE_URL}/markets/statistics-equities/misc/04.html"
 

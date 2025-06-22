@@ -2,7 +2,7 @@ import httpx
 from bs4 import BeautifulSoup
 import json
 import re
-from app.utils.ir_bank import fetch_debt_ratio_ir_bank
+from app.utils.jpx_debt_ratio import fetch_debt_ratio_ir_bank
 
 def fetch_yahoo_financials(ticker: str):
     debt_ratio = fetch_debt_ratio_ir_bank(ticker)

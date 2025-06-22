@@ -2,7 +2,6 @@ from typing import Optional
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
-
 def fetch_debt_ratio_ir_bank(ticker: str) -> Optional[float]:
     try:
         with sync_playwright() as p:
@@ -48,3 +47,4 @@ def parse_percentage(text: str) -> float:
         return float(text.replace("%", "").replace(",", "").strip())
     except:
         return 0.0
+

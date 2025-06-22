@@ -8,13 +8,14 @@ from sqlalchemy.exc import IntegrityError
 from app.schemas import Stock as StockSchema
 from app.models import Stock as StockModel
 from app.models import News as NewsModel
-from app.models import Stock, News, IndustryIndicator
+from app.models import Stock, News, IndustryIndicator, HistoricalIndicator
 from app.db.db import SessionLocal
 
 from app.utils.news_scraper import scrape_yahoo_news
 from app.utils.gpt import analyze_news_with_gpt
 from app.utils.yahoo_financials import fetch_yahoo_financials
-from app.utils.jpx_perpbr_his import update_industry_indicators
+from app.utils.jpx_perpbr_industry import update_industry_indicators
+from app.utils.jpx_perpbr_history import save_historical_to_csv, fetch_historical_indicators_irbank
 
 router = APIRouter()
 
@@ -71,7 +72,7 @@ def analyze_stock_news(ticker: str):
         "headlines": news_items  # optional: include for display/debug
     }
 
-@router.get("/stocks/{industry}")
+@router.get("/{industry}")
 def get_industry_indicators(industry: str, db: Session = Depends(get_db)):
     # Only update if needed (already checked inside)
     update_industry_indicators(db)
@@ -95,3 +96,34 @@ def get_industry_indicators(industry: str, db: Session = Depends(get_db)):
         }
         for rec in results
     ]
+
+@router.get("/{ticker}/historical_indicators")
+def get_historical_indicators(ticker: str, db: Session = Depends(get_db)):
+    # 1. Scrape and update CSV
+    scraped = fetch_historical_indicators_irbank(ticker)
+    save_historical_to_csv(ticker, scraped)
+
+    # 2. Sync new records to DB
+    inserted = 0
+    for row in scraped:
+        date = row["date"]
+        existing = db.query(HistoricalIndicator).filter_by(ticker=ticker, date=date).first()
+        if existing:
+            continue
+        db.add(HistoricalIndicator(
+            ticker=ticker,
+            date=date,
+            per=row.get("per"),
+            pbr=row.get("pbr")
+        ))
+        inserted += 1
+    db.commit()
+
+    # 3. Return last 12 months (or all)
+    results = db.query(HistoricalIndicator)\
+        .filter(HistoricalIndicator.ticker == ticker)\
+        .order_by(HistoricalIndicator.date.desc())\
+        .limit(12)\
+        .all()
+
+    return results[::-1]  # return oldest first
