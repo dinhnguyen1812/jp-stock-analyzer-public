@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import stocks
+from app.api import stock_apis
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -12,6 +12,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
+app.include_router(stock_apis.router, prefix="/stocks", tags=["stocks"])
 
 

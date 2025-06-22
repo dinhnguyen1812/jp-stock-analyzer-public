@@ -6,13 +6,11 @@ from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
 
 from app.schemas import Stock as StockSchema
-from app.models import Stock as StockModel
-from app.models import News as NewsModel
-from app.models import Stock, News, IndustryIndicator, HistoricalIndicator
+from app.models import IndustryIndicator, HistoricalIndicator
 from app.db.db import SessionLocal
 
-from app.utils.news_scraper import scrape_yahoo_news
-from app.utils.gpt import analyze_news_with_gpt
+from app.utils.news_scraper import get_relevant_news
+# from app.utils.gpt import analyze_news_with_gpt
 from app.utils.yahoo_indicators import fetch_current_indicators
 from app.utils.jpx_perpbr_industry import update_industry_indicators
 from app.utils.jpx_perpbr_history import save_historical_to_csv, fetch_historical_indicators_irbank
@@ -35,42 +33,20 @@ def get_stock_realtime(ticker: str):
     return scraped
 
 @router.get("/{ticker}/news")
-def get_stock_news(ticker: str, db: Session = Depends(get_db)):
-    # Ensure stock exists before inserting news
-    stock = db.query(Stock).filter(Stock.ticker == ticker).first()
-    if not stock:
-        # Insert minimal stock row (you can fetch full data elsewhere)
-        stock = Stock(ticker=ticker, name="", market="", price=0)
-        db.add(stock)
-        db.commit()
+def get_stock_news(ticker: str):
+    ranked_news = get_relevant_news(ticker)
 
-    news_items = scrape_yahoo_news(ticker)
+    return ranked_news
 
-    for item in news_items:
-        exists = db.query(News).filter(News.url == item["url"]).first()
-        if not exists:
-            try:
-                db.add(News(
-                    stock_ticker=ticker,
-                    headline=item["headline"],
-                    url=item["url"],
-                    published_at=item["published_at"]
-                ))
-            except IntegrityError:
-                db.rollback()
-
-    db.commit()
-    return news_items
-
-@router.get("/{ticker}/analysis")
-def analyze_stock_news(ticker: str):
-    news_items = scrape_yahoo_news(ticker)
-    summary, sentiment = analyze_news_with_gpt(news_items)
-    return {
-        "summary": summary,
-        "sentiment": sentiment,
-        "headlines": news_items  # optional: include for display/debug
-    }
+# @router.get("/{ticker}/analysis")
+# def analyze_stock_news(ticker: str):
+#     news_items = scrape_yahoo_news(ticker)
+#     summary, sentiment = analyze_news_with_gpt(news_items)
+#     return {
+#         "summary": summary,
+#         "sentiment": sentiment,
+#         "headlines": news_items  # optional: include for display/debug
+#     }
 
 @router.get("/{industry}")
 def get_industry_indicators(industry: str, db: Session = Depends(get_db)):
