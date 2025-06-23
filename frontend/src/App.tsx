@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Container, Spinner, Alert } from "react-bootstrap";
+import { useState, useEffect } from "react";
+import { Container, Spinner, Alert, Row, Col } from "react-bootstrap";
 import { StockSearch } from "./components/StockSearch";
 import { SummaryCard } from "./components/SummaryCard";
 import { IndicatorsCard } from "./components/IndicatorsCard";
@@ -13,6 +13,10 @@ function App() {
   const [error, setError] = useState("");
   const [data, setData] = useState<any>(null);
 
+  useEffect(() => {
+    document.title = "JP Stock Analyzer";
+  }, []);
+
   const handleSearch = async (ticker: string) => {
     setLoading(true);
     setError("");
@@ -21,7 +25,7 @@ function App() {
     try {
       const result = await fetchStockAnalysis(ticker);
 
-      // Safety check: if summary is a stringified JSON, try to parse it
+      // Handle possible JSON string in `summary`
       let summaryData = result;
       if (typeof result.summary === "string" && result.summary.includes("{")) {
         try {
@@ -48,24 +52,42 @@ function App() {
 
   return (
     <Container className="py-4">
-      <h2 className="mb-4">JP Stock Analyzer</h2>
-      <StockSearch onSearch={handleSearch} />
-      {loading && <Spinner animation="border" />}
-      {error && <Alert variant="danger">{error}</Alert>}
-      {data && (
-        <>
-          <SummaryCard
-            summary={data.summary}
-            sentiment={data.sentiment}
-            epsOutlook={data.eps_outlook}
-            reasoning={data.reasoning}
-          />
-          <IndicatorsCard indicators={data.stock_data} />
-          <IndustryCard industry={data.industry_data?.[0]} />
-          <HistoricalChart data={data.historical} />
-          <NewsCard news={data.news} />
-        </>
-      )}
+      <Row>
+        {/* Left Column: 1/3 width */}
+        <Col md={4}>
+          {data && (
+            <SummaryCard
+              summary={data.summary}
+              sentiment={data.sentiment}
+              epsOutlook={data.eps_outlook}
+              reasoning={data.reasoning}
+            />
+          )}
+        </Col>
+
+        {/* Middle Column: 1/3 width */}
+        <Col md={4}>
+          <StockSearch onSearch={handleSearch} />
+          {loading && <Spinner animation="border" />}
+          {error && <Alert variant="danger">{error}</Alert>}
+          {data && (
+            <>
+              <IndicatorsCard indicators={data.stock_data} />
+              <IndustryCard height="160px" industry={data.industry_data?.[0]} />
+            </>
+          )}
+        </Col>
+
+        {/* Right Column: 1/3 width */}
+        <Col md={4}>
+          {data && (
+            <>
+              <HistoricalChart data={data.historical} />
+              <NewsCard height="350px" news={data.news} />
+            </>
+          )}
+        </Col>
+      </Row>
     </Container>
   );
 }

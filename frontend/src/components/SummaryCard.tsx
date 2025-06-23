@@ -21,7 +21,17 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
       : "secondary";
 
   return (
-    <Card className="mb-3">
+    <Card
+      className="mb-3"
+      style={{
+        maxHeight: "710px",
+        overflowY: "auto",
+        border: "1px solid #ced4da",
+        borderRadius: "8px",
+        padding: "1rem",
+        backgroundColor: "#fff",
+      }}
+    >
       <Card.Header>📈 GPT Stock Summary</Card.Header>
       <Card.Body>
         <p style={{ whiteSpace: "pre-line" }}>{summary}</p>
@@ -29,7 +39,11 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         {reasoning && (
           <>
             <hr />
-            <p><strong>📌 GPT Reasoning:</strong><br />{reasoning}</p>
+            <p>
+              <strong>📌 GPT Reasoning:</strong>
+              <br />
+              {reasoning}
+            </p>
           </>
         )}
 
@@ -40,7 +54,8 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
           <Badge bg={color}>{sentiment}</Badge>
         </p>
         <p>
-          <strong>EPS Outlook:</strong><br />
+          <strong>EPS Outlook:</strong>
+          <br />
           <span style={{ whiteSpace: "pre-line" }}>{epsOutlook}</span>
         </p>
       </Card.Body>

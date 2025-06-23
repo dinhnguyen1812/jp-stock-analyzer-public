@@ -1,5 +1,7 @@
 <!-- - Fix historical chart -->
-- Fix component positioning
+<!-- - Fix component positioning -->
 - Add "give expected price" function
 - Add progress bar
 - Add indicator explanation
+<!-- - No price in real time indicator -->
+- Add numbers to right vertical axis of chart

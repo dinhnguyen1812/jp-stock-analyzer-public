@@ -1,7 +1,12 @@
 import { Card, ListGroup } from "react-bootstrap";
 
-export const NewsCard = ({ news }: any) => (
-  <Card className="mb-3">
+interface NewsCardProps {
+  news: any[];
+  height?: string | number;  // e.g. "400px" or 400
+}
+
+export const NewsCard: React.FC<NewsCardProps> = ({ news, height }) => (
+  <Card className="mb-3" style={height ? { height, overflowY: "auto" } : undefined}>
     <Card.Header>📰 Relevant News</Card.Header>
     <ListGroup variant="flush">
       {news.map((item: any, idx: number) => (

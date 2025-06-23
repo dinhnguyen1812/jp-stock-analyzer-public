@@ -1,7 +1,15 @@
 import { Card } from "react-bootstrap";
 
-export const IndustryCard = ({ industry }: any) => (
-  <Card className="mb-3">
+interface IndustryCardProps {
+  industry: any;
+  height?: string | number;  // e.g. "300px" or 300
+}
+
+export const IndustryCard: React.FC<IndustryCardProps> = ({ industry, height }) => (
+  <Card 
+    className="mb-3" 
+    style={height ? { height, overflowY: "auto" } : undefined}
+  >
     <Card.Header>🏭 Industry Averages</Card.Header>
     <Card.Body>
       {industry ? (

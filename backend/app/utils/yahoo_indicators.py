@@ -74,4 +74,4 @@ def to_float(val):
     try:
         return float(str(val).replace(",", "").replace("%", "").strip())
     except (ValueError, AttributeError):
-        return 0.0
+        return "-"

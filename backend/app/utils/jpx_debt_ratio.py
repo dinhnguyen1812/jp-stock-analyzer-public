@@ -46,5 +46,5 @@ def parse_percentage(text: str) -> float:
     try:
         return float(text.replace("%", "").replace(",", "").strip())
     except:
-        return 0.0
+        return "-"
 

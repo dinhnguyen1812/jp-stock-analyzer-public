@@ -1,6 +1,13 @@
 import { Card } from "react-bootstrap";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
 } from "recharts";
 
 interface HistoricalItem {
@@ -28,11 +35,16 @@ export const HistoricalChart: React.FC<HistoricalChartProps> = ({ data }) => {
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" />
-            <YAxis />
+            <YAxis yAxisId="left" label={{ value: 'PER', angle: -90, position: 'insideLeft' }} />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              label={{ value: 'PBR', angle: 90, position: 'insideRight' }}
+            />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="per" stroke="#8884d8" name="PER" />
-            <Line type="monotone" dataKey="pbr" stroke="#82ca9d" name="PBR" />
+            <Line type="monotone" dataKey="per" stroke="#8884d8" name="PER" yAxisId="left" />
+            <Line type="monotone" dataKey="pbr" stroke="#82ca9d" name="PBR" yAxisId="right" />
           </LineChart>
         </ResponsiveContainer>
       </Card.Body>
