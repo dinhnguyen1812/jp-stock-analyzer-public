@@ -28,14 +28,7 @@ def build_prompt(
         industry_name = industry_per = industry_pbr = industry_roe = "N/A"
 
     # Format historical data as JSON string (abbreviate for prompt length)
-    hist_str = json.dumps([
-      {
-          "date": h.date.isoformat(),
-          "per": float(h.per) if h.per is not None else None,
-          "pbr": float(h.pbr) if h.pbr is not None else None
-      }
-      for h in historical_data
-    ], indent=2, ensure_ascii=False)
+    hist_str = json.dumps(historical_data, indent=2, ensure_ascii=False)
 
     news_str = "\n".join(
         [f"- {item['headline']} ({item['published_at']})" for item in news_items]
@@ -97,11 +90,18 @@ def ask_gpt_for_analysis(prompt: str, model="gpt-4o") -> Dict:
         # Expect JSON formatted string from GPT
         return json.loads(content)
     except Exception:
-        # Fallback: return raw text under summary
+        # Optional fallback if it's not valid JSON
+        import re
+        json_match = re.search(r"{.*}", content, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(0))
+            except:
+                pass
         return {"summary": content, "sentiment": "Unknown", "eps_outlook": "N/A"}
 
 
-def analyze_stock_with_gpt(ticker: str, db_session) -> Dict:
+def analyze_stock_with_gpt(ticker: str, db) -> Dict:
     # 1. Fetch stock realtime indicators
     stock_data = fetch_current_indicators(ticker)
     if not stock_data:
@@ -109,13 +109,21 @@ def analyze_stock_with_gpt(ticker: str, db_session) -> Dict:
 
     # 2. Fetch industry averages from DB
     industry_name = stock_data.get("industry", "")
-    industry_data = update_and_get_industry_indicators(industry_name, db_session)
+    industry_data = update_and_get_industry_indicators(industry_name, db)
 
     # 3. Fetch recent relevant news
     news_items = get_relevant_news(ticker)
 
     # 4. Fetch historical indicators (limit 12 months)
-    historical_data = update_and_get_historical_indicators(ticker, db_session)[:12]
+    historical_models = update_and_get_historical_indicators(ticker, db)[:12]
+    historical_data = [
+        {
+            "date": h.date.isoformat(),
+            "per": float(h.per) if h.per is not None else None,
+            "pbr": float(h.pbr) if h.pbr is not None else None
+        }
+        for h in historical_models
+    ]
 
     # 5. Build prompt and query GPT
     prompt = build_prompt(ticker, stock_data, industry_data, news_items, historical_data)

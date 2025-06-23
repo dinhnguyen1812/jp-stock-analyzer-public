@@ -64,7 +64,6 @@ def get_stock_analysis(ticker: str, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        # raise HTTPException(status_code=500, detail="Internal server error")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Industry fetch failed: {e}")
