@@ -10,10 +10,10 @@ from app.models import IndustryIndicator, HistoricalIndicator
 from app.db.db import SessionLocal
 
 from app.utils.news_scraper import get_relevant_news
-# from app.utils.gpt import analyze_news_with_gpt
 from app.utils.yahoo_indicators import fetch_current_indicators
-from app.utils.jpx_perpbr_industry import update_industry_indicators
-from app.utils.jpx_perpbr_history import save_historical_to_csv, fetch_historical_indicators_irbank
+from app.utils.jpx_perpbr_industry import update_and_get_industry_indicators
+from app.utils.jpx_perpbr_history import update_and_get_historical_indicators
+from app.utils.analyze_stock_with_gpt import analyze_stock_with_gpt
 
 router = APIRouter()
 
@@ -32,74 +32,40 @@ def get_stock_realtime(ticker: str):
         raise HTTPException(status_code=404, detail="Stock not found or not scrappable")
     return scraped
 
+
 @router.get("/{ticker}/news")
 def get_stock_news(ticker: str):
-    ranked_news = get_relevant_news(ticker)
+    return get_relevant_news(ticker)
 
-    return ranked_news
-
-# @router.get("/{ticker}/analysis")
-# def analyze_stock_news(ticker: str):
-#     news_items = scrape_yahoo_news(ticker)
-#     summary, sentiment = analyze_news_with_gpt(news_items)
-#     return {
-#         "summary": summary,
-#         "sentiment": sentiment,
-#         "headlines": news_items  # optional: include for display/debug
-#     }
 
 @router.get("/{industry}")
 def get_industry_indicators(industry: str, db: Session = Depends(get_db)):
-    # Only update if needed (already checked inside)
-    update_industry_indicators(db)
-
-    # Fetch all matching records
-    results = db.query(IndustryIndicator).filter(
-        IndustryIndicator.industry.like(f"%{industry}%")
-    ).all()
-
+    results = update_and_get_industry_indicators(industry, db)
     if not results:
         raise HTTPException(status_code=404, detail="Industry not found")
+    return results
 
-    return [
-        {
-            "industry": rec.industry,
-            "section": rec.section,
-            "per": rec.per,
-            "pbr": rec.pbr,
-            "roe": rec.roe,
-            "fetched_at": rec.fetched_at,
-        }
-        for rec in results
-    ]
 
 @router.get("/{ticker}/historical_indicators")
 def get_historical_indicators(ticker: str, db: Session = Depends(get_db)):
-    # 1. Scrape and update CSV
-    scraped = fetch_historical_indicators_irbank(ticker)
-    save_historical_to_csv(ticker, scraped)
+    try:
+        results = update_and_get_historical_indicators(ticker, db)
+        if not results:
+            raise HTTPException(status_code=404, detail="Historical indicators not found")
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # 2. Sync new records to DB
-    inserted = 0
-    for row in scraped:
-        date = row["date"]
-        existing = db.query(HistoricalIndicator).filter_by(ticker=ticker, date=date).first()
-        if existing:
-            continue
-        db.add(HistoricalIndicator(
-            ticker=ticker,
-            date=date,
-            per=row.get("per"),
-            pbr=row.get("pbr")
-        ))
-        inserted += 1
-    db.commit()
 
-    # 3. Return last 12 months (or all)
-    results = db.query(HistoricalIndicator)\
-        .filter(HistoricalIndicator.ticker == ticker)\
-        .order_by(HistoricalIndicator.date.desc())\
-        .limit(12)\
-        .all()
-
-    return results[::-1]  # return oldest first
+@router.get("/{ticker}/analysis")
+def get_stock_analysis(ticker: str, db: Session = Depends(get_db)):
+    try:
+        result = analyze_stock_with_gpt(ticker, db)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        # raise HTTPException(status_code=500, detail="Internal server error")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Industry fetch failed: {e}")
+    return result

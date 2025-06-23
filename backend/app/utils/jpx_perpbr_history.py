@@ -5,6 +5,11 @@ import datetime
 import os
 import csv
 
+from typing import List
+from sqlalchemy.orm import Session
+
+from app.models import HistoricalIndicator
+
 def parse_indicator_table(soup, label) -> dict:
     data = {}
     table_div = soup.find("div", {"aria-label": label})
@@ -92,3 +97,30 @@ def save_historical_to_csv(ticker: str, records: list[dict]):
                 "per": r.get("per", ""),
                 "pbr": r.get("pbr", "")
             })
+
+def update_and_get_historical_indicators(ticker: str, db: Session) -> List[HistoricalIndicator]:
+    scraped = fetch_historical_indicators_irbank(ticker)
+    save_historical_to_csv(ticker, scraped)
+
+    inserted = 0
+    for row in scraped:
+        date = row["date"]
+        existing = db.query(HistoricalIndicator).filter_by(ticker=ticker, date=date).first()
+        if existing:
+            continue
+        db.add(HistoricalIndicator(
+            ticker=ticker,
+            date=date,
+            per=row.get("per"),
+            pbr=row.get("pbr")
+        ))
+        inserted += 1
+    db.commit()
+
+    results = db.query(HistoricalIndicator)\
+        .filter(HistoricalIndicator.ticker == ticker)\
+        .order_by(HistoricalIndicator.date.desc())\
+        .limit(12)\
+        .all()
+
+    return results[::-1]

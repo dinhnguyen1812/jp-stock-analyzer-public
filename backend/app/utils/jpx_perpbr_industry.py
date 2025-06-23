@@ -1,13 +1,14 @@
 import os
 import httpx
+import datetime
+from fastapi import HTTPException
 from bs4 import BeautifulSoup
 import pandas as pd
-import datetime
 
 from sqlalchemy.orm import Session
-from sqlalchemy import delete
 
 from app.models import IndustryIndicator
+from app.db.db import SessionLocal
 
 DOWNLOAD_DIR = "app/db/industries"
 BASE_URL = "https://www.jpx.co.jp"
@@ -26,7 +27,6 @@ def download_latest_excel() -> str:
 
     file_url = BASE_URL + link_tag["href"]
     filename = os.path.basename(file_url)
-    # filename = f"perpbr{}{}.xlsx"
     local_path = os.path.join(DOWNLOAD_DIR, filename)
 
     # ✅ Check if this file already exists
@@ -85,17 +85,27 @@ def parse_excel(filepath: str) -> list[dict]:
 
     return results
 
+# File to persist last loaded filename
+LAST_LOADED_FILE = ".last_loaded_filename"
 
-_last_loaded_filename = None  # Global or persistent tracking
+def load_last_loaded_filename():
+    if os.path.exists(LAST_LOADED_FILE):
+        with open(LAST_LOADED_FILE, "r") as f:
+            return f.read().strip()
+    return None
+
+def save_last_loaded_filename(filename: str):
+    with open(LAST_LOADED_FILE, "w") as f:
+        f.write(filename)
 
 def update_industry_indicators(db: Session):
-    global _last_loaded_filename
-
     filepath = download_latest_excel()
     filename = os.path.basename(filepath)
 
+    last_loaded_filename = load_last_loaded_filename()
+
     # Skip update if this file was already processed
-    if _last_loaded_filename == filename:
+    if last_loaded_filename == filename:
         print(f"⏩ Skipping update — already processed {filename}")
         return
 
@@ -103,13 +113,38 @@ def update_industry_indicators(db: Session):
     records = parse_excel(filepath)
 
     # 🚨 Delete all existing rows (full replace)
-    db.execute(delete(IndustryIndicator))
+    db.query(IndustryIndicator).delete()
     db.commit()
 
     # Insert new records
     for rec in records:
         db.add(IndustryIndicator(**rec))
-
     db.commit()
-    _last_loaded_filename = filename
+
+    # Persist filename to disk
+    save_last_loaded_filename(filename)
     print(f"✅ Replaced all rows with {len(records)} new industry indicators.")
+
+def update_and_get_industry_indicators(industry: str, db: Session):
+    # Only update if needed (already checked inside)
+    update_industry_indicators(db)
+
+    # Fetch all matching records
+    results = db.query(IndustryIndicator).filter(
+        IndustryIndicator.industry.like(f"%{industry}%")
+    ).all()
+
+    if not results:
+        raise HTTPException(status_code=404, detail="Industry not found")
+
+    return [
+        {
+            "industry": rec.industry,
+            "section": rec.section,
+            "per": rec.per,
+            "pbr": rec.pbr,
+            "roe": rec.roe,
+            "fetched_at": rec.fetched_at,
+        }
+        for rec in results
+    ]
