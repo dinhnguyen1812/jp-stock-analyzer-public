@@ -4,6 +4,7 @@ interface SummaryCardProps {
   summary: string;
   sentiment: string;
   epsOutlook: string;
+  expectedPrice?: number;
   reasoning?: string;
 }
 
@@ -11,6 +12,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   summary,
   sentiment,
   epsOutlook,
+  expectedPrice,
   reasoning,
 }) => {
   const color =
@@ -53,6 +55,13 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
           <strong>Sentiment:</strong>{" "}
           <Badge bg={color}>{sentiment}</Badge>
         </p>
+
+        {expectedPrice !== undefined && expectedPrice !== null && (
+          <p>
+            <strong>Expected Price:</strong> ¥{expectedPrice.toLocaleString()}
+          </p>
+        )}
+
         <p>
           <strong>EPS Outlook:</strong>
           <br />

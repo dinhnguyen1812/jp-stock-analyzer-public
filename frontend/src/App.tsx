@@ -60,6 +60,7 @@ function App() {
               summary={data.summary}
               sentiment={data.sentiment}
               epsOutlook={data.eps_outlook}
+              expectedPrice={data.expected_price}
               reasoning={data.reasoning}
             />
           )}
@@ -73,7 +74,7 @@ function App() {
           {data && (
             <>
               <IndicatorsCard indicators={data.stock_data} />
-              <IndustryCard height="160px" industry={data.industry_data?.[0]} />
+              <IndustryCard industry={data.industry_data?.[0]} />
             </>
           )}
         </Col>

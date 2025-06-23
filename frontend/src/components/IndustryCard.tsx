@@ -17,7 +17,7 @@ export const IndustryCard: React.FC<IndustryCardProps> = ({ industry, height }) 
           <li>Industry: {industry.industry}</li>
           <li>PER: {industry.per}</li>
           <li>PBR: {industry.pbr}</li>
-          <li>ROE: {industry.roe}</li>
+          {/* <li>ROE: {industry.roe}</li> */}
         </ul>
       ) : (
         <p>No industry data found</p>

@@ -3,7 +3,6 @@ import json
 import openai
 from typing import List, Dict, Optional
 
-# Import your utilities to fetch data
 from app.utils.yahoo_indicators import fetch_current_indicators
 from app.utils.news_scraper import get_relevant_news
 from app.utils.jpx_perpbr_industry import update_and_get_industry_indicators
@@ -27,9 +26,8 @@ def build_prompt(
     else:
         industry_name = industry_per = industry_pbr = industry_roe = "N/A"
 
-    # Format historical data as JSON string (abbreviate for prompt length)
+    # Format historical data
     hist_str = json.dumps(historical_data, indent=2, ensure_ascii=False)
-
     news_str = "\n".join(
         [f"- {item['headline']} ({item['published_at']})" for item in news_items]
     ) or "No recent news."
@@ -41,7 +39,7 @@ You are a professional Japanese stock market analyst. Given the following inform
 2. An assessment of the stock's valuation relative to industry averages.
 3. A sentiment rating: Bullish, Neutral, or Bearish, with reasoning.
 4. An outlook on EPS growth potential based on recent news.
-5. Provide the expected stock price.
+5. Provide the expected stock price. This is your fair value estimate based on valuation metrics, EPS growth, and industry averages.
 
 Stock Data:
 - Current Price: ¥{stock_data.get('current_price', 'N/A')}
@@ -67,10 +65,13 @@ Historical Indicators (Last 12 months):
 Recent News Headlines:
 {news_str}
 
-Provide your response in JSON format with keys: summary, sentiment, eps_outlook.
+Provide your response in JSON format with the following keys:
+- summary
+- sentiment
+- eps_outlook
+- expected_price
 """
     return prompt
-
 
 def ask_gpt_for_analysis(prompt: str, model="gpt-4o") -> Dict:
     client = openai.OpenAI()
@@ -87,10 +88,8 @@ def ask_gpt_for_analysis(prompt: str, model="gpt-4o") -> Dict:
 
     content = response.choices[0].message.content
     try:
-        # Expect JSON formatted string from GPT
         return json.loads(content)
     except Exception:
-        # Optional fallback if it's not valid JSON
         import re
         json_match = re.search(r"{.*}", content, re.DOTALL)
         if json_match:
@@ -98,23 +97,23 @@ def ask_gpt_for_analysis(prompt: str, model="gpt-4o") -> Dict:
                 return json.loads(json_match.group(0))
             except:
                 pass
-        return {"summary": content, "sentiment": "Unknown", "eps_outlook": "N/A"}
-
+        return {
+            "summary": content,
+            "sentiment": "Unknown",
+            "eps_outlook": "N/A",
+            "expected_price": None
+        }
 
 def analyze_stock_with_gpt(ticker: str, db) -> Dict:
-    # 1. Fetch stock realtime indicators
     stock_data = fetch_current_indicators(ticker)
     if not stock_data:
         raise ValueError(f"Could not fetch indicators for {ticker}")
 
-    # 2. Fetch industry averages from DB
     industry_name = stock_data.get("industry", "")
     industry_data = update_and_get_industry_indicators(industry_name, db)
 
-    # 3. Fetch recent relevant news
     news_items = get_relevant_news(ticker)
 
-    # 4. Fetch historical indicators (limit 12 months)
     historical_models = update_and_get_historical_indicators(ticker, db)[:12]
     historical_data = [
         {
@@ -125,15 +124,14 @@ def analyze_stock_with_gpt(ticker: str, db) -> Dict:
         for h in historical_models
     ]
 
-    # 5. Build prompt and query GPT
     prompt = build_prompt(ticker, stock_data, industry_data, news_items, historical_data)
     analysis = ask_gpt_for_analysis(prompt)
 
-    # 6. Return combined result
     return {
         "summary": analysis.get("summary", ""),
         "sentiment": analysis.get("sentiment", ""),
         "eps_outlook": analysis.get("eps_outlook", ""),
+        "expected_price": analysis.get("expected_price", None),
         "stock_data": stock_data,
         "industry_data": industry_data,
         "news": news_items,
