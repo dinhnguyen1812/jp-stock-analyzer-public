@@ -1,19 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 
 from sqlalchemy.orm import Session
 from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
 
 from app.schemas import Stock as StockSchema
-from app.models import IndustryIndicator, HistoricalIndicator
 from app.db.db import SessionLocal
 
-from app.utils.news_scraper import get_relevant_news
-from app.utils.yahoo_indicators import fetch_current_indicators
-from app.utils.jpx_perpbr_industry import update_and_get_industry_indicators
-from app.utils.jpx_perpbr_history import update_and_get_historical_indicators
-from app.utils.analyze_stock_with_gpt import analyze_stock_with_gpt
+from app.utils.longterm.news_scraper import get_relevant_news
+from app.utils.longterm.yahoo_indicators import fetch_current_indicators
+from app.utils.longterm.jpx_perpbr_industry import update_and_get_industry_indicators
+from app.utils.longterm.jpx_perpbr_history import update_and_get_historical_indicators
+from app.utils.longterm.analyze_stock_with_gpt import analyze_stock_with_gpt
 
 router = APIRouter()
 

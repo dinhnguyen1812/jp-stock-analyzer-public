@@ -86,7 +86,7 @@ def parse_excel(filepath: str) -> list[dict]:
     return results
 
 # File to persist last loaded filename
-LAST_LOADED_FILE = ".last_loaded_filename"
+LAST_LOADED_FILE = "app/utils/longterm/.last_loaded_filename"
 
 def load_last_loaded_filename():
     if os.path.exists(LAST_LOADED_FILE):

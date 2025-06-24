@@ -3,10 +3,10 @@ import json
 import openai
 from typing import List, Dict, Optional
 
-from app.utils.yahoo_indicators import fetch_current_indicators
-from app.utils.news_scraper import get_relevant_news
-from app.utils.jpx_perpbr_industry import update_and_get_industry_indicators
-from app.utils.jpx_perpbr_history import update_and_get_historical_indicators
+from app.utils.longterm.yahoo_indicators import fetch_current_indicators
+from app.utils.longterm.news_scraper import get_relevant_news
+from app.utils.longterm.jpx_perpbr_industry import update_and_get_industry_indicators
+from app.utils.longterm.jpx_perpbr_history import update_and_get_historical_indicators
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
