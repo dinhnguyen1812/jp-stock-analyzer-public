@@ -1,10 +1,12 @@
 from bs4 import BeautifulSoup
+import re
 import httpx
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
-from app.models import VolumeSnapshot
-import re
+from app.models import VolumeSnapshot, AverageVolume
+from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
+from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 
 JP_TZ = ZoneInfo("Asia/Tokyo")
 JP_OPEN = time(9, 0)  # 9:00 AM JST
@@ -12,7 +14,10 @@ JP_OPEN = time(9, 0)  # 9:00 AM JST
 def parse_volume(text: str) -> int:
     return int(text.replace(",", "").replace("株", "").strip())
 
-def fetch_volume_page(page: int = 1):
+def parse_price(text: str) -> float:
+    return float(text.replace(",", "").strip())
+
+def fetch_volume_page(db: Session, page: int = 1):
     url = f"https://finance.yahoo.co.jp/stocks/ranking/volume?market=all&term=daily&page={page}"
     headers = {
         "User-Agent": "Mozilla/5.0",
@@ -39,30 +44,50 @@ def fetch_volume_page(page: int = 1):
                 volume_str = volume_td.get_text(strip=True)
                 current_volume = parse_volume(volume_str)
 
-                # Approximate average volume: not provided here, use placeholder or skip
-                avg_volume_5d = current_volume // 3 if current_volume else 0
-                if avg_volume_5d == 0:
+                price_td = row.select("td")[1]
+                price_value_span = price_td.select_one("span.StyledNumber__value__3rXW")
+                if not price_value_span:
+                    raise ValueError("Could not find price span")
+                price_str = price_value_span.text.strip()
+                current_price = parse_price(price_str)
+
+                # Fetch or update avg_volume_5d
+                avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
+
+                if not avg_record or avg_record.avg_5d_volume == 0:
+                    print(f"ℹ️ No avg_5d_volume for {ticker}, trying to scrape history and update...")
+                    volume_data = fetch_daily_volume_history(ticker)
+                    if volume_data:
+                        save_daily_volumes(db, ticker, volume_data)
+                        update_avg_volume_for_ticker(db, ticker)
+                        avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
+                    else:
+                        print(f"❌ Failed to fetch volume history for {ticker}, skipping.")
+                        continue
+
+                if not avg_record or avg_record.avg_5d_volume == 0:
+                    print(f"⏩ Still no avg_5d_volume for {ticker} after update, skipping.")
                     continue
+
+                avg_volume_5d = avg_record.avg_5d_volume
 
                 now = datetime.now(JP_TZ)
                 market_open = now.replace(hour=JP_OPEN.hour, minute=JP_OPEN.minute, second=0, microsecond=0)
-                trading_hours_passed = max((now - market_open).total_seconds() / 3600, 0.5)  # Avoid div by 0
+                market_close = now.replace(hour=15, minute=0, second=0, microsecond=0)  # 15:00 JST
 
-                expected_volume_by_now = (avg_volume_5d / 5) * (trading_hours_passed / 6)
+                if now <= market_open or now >= market_close:
+                    expected_volume_by_now = avg_volume_5d
+                else:
+                    trading_hours_passed = max((now - market_open).total_seconds() / 3600, 0.5)  # Avoid div by 0
+                    expected_volume_by_now = avg_volume_5d * (trading_hours_passed / 6)
+
                 volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
-
-                print({
-                    "ticker": ticker,
-                    "name": name,
-                    "current_volume": current_volume,
-                    "avg_volume_5d": avg_volume_5d,
-                    "volume_rate": round(volume_rate, 2),
-                    "timestamp": now,
-                })
+                print(f"{current_volume}, {expected_volume_by_now}, {volume_rate}")
 
                 results.append({
                     "ticker": ticker,
                     "name": name,
+                    "current_price": current_price,
                     "current_volume": current_volume,
                     "avg_volume_5d": avg_volume_5d,
                     "volume_rate": round(volume_rate, 2),
@@ -77,16 +102,16 @@ def fetch_volume_page(page: int = 1):
         print(f"❌ Error fetching volume page {page}: {e}")
         return []
 
-def scan_and_save_volume_surges(db: Session, threshold: float = 2.0, pages: int = 3):
+def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1):
     all_results = []
     for page in range(1, pages + 1):
-        page_data = fetch_volume_page(page)
+        page_data = fetch_volume_page(db, page)
         all_results.extend(page_data)
 
     now = datetime.now(JP_TZ)
     count = 0
     for stock in all_results:
-        if stock["volume_rate"] >= threshold:
+        if stock["volume_rate"] >= surge_threshold and stock["current_price"] <= price_threshold:
             snapshot = VolumeSnapshot(
                 ticker=stock["ticker"],
                 name=stock["name"],

@@ -1,9 +1,15 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import distinct
+from sqlalchemy.sql import func
+from sqlalchemy.orm import aliased
 from sqlalchemy.orm import Session
 from app.db.db import SessionLocal
-from app.utils.shortterm.volume_scraper import scan_and_save_volume_surges
 from app.models import VolumeSnapshot
 from datetime import datetime, timedelta
+
+from app.utils.shortterm.volume_scraper import scan_and_save_volume_surges
+from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
+from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 
 router = APIRouter()
 
@@ -16,19 +22,35 @@ def get_db():
         db.close()
 
 @router.post("/volume_scan")
-def trigger_volume_scan(db: Session = Depends(get_db)):
+def trigger_volume_scan(db: Session = Depends(get_db), surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1):
     """Run a scan to detect volume surge stocks (default threshold = 2x)."""
-    scan_and_save_volume_surges(db)
+    scan_and_save_volume_surges(db, surge_threshold, price_threshold, pages)
     return {"message": "Volume scan triggered and stored."}
 
 @router.get("/volume_surges")
 def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
     """Return stocks with volume surges in the last `hours`."""
     since = datetime.utcnow() - timedelta(hours=hours)
-    results = db.query(VolumeSnapshot).filter(
-        VolumeSnapshot.detected_at >= since
-    ).order_by(VolumeSnapshot.volume_rate.desc()).all()
 
+    # Subquery: get the max detected_at per ticker
+    subquery = (
+        db.query(
+            VolumeSnapshot.ticker,
+            func.max(VolumeSnapshot.detected_at).label("latest_time")
+        )
+        .filter(VolumeSnapshot.detected_at >= since)
+        .group_by(VolumeSnapshot.ticker)
+        .subquery()
+    )
+
+    # Join back to get full VolumeSnapshot rows
+    VS = aliased(VolumeSnapshot)
+    results = (
+        db.query(VS)
+        .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
+        .order_by(VS.volume_rate.desc())
+        .all()
+    )
     return [
         {
             "ticker": r.ticker,
@@ -40,3 +62,19 @@ def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
         }
         for r in results
     ]
+
+@router.post("/volume/{ticker}/history")
+def update_volume_history(ticker: str, db: Session = Depends(get_db)):
+    """Scrape and store the past 5 daily volumes from Yahoo."""
+    volume_data = fetch_daily_volume_history(ticker)
+    if not volume_data:
+        raise HTTPException(status_code=404, detail="Failed to fetch volume data")
+    
+    save_daily_volumes(db, ticker, volume_data)
+    return {"message": f"Volume history updated for {ticker}", "records": len(volume_data)}
+
+@router.post("/volume/{ticker}/average")
+def update_volume_average(ticker: str, db: Session = Depends(get_db)):
+    """Recalculate and store the 5-day average volume using shared updater."""
+    update_avg_volume_for_ticker(db, ticker)
+    return {"message": f"5-day average volume check complete for {ticker}"}

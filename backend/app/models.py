@@ -47,3 +47,21 @@ class VolumeSnapshot(Base):
     __table_args__ = (
         PrimaryKeyConstraint("id"),
     )
+
+class DailyVolume(Base):
+    __tablename__ = "daily_volumes"
+
+    ticker = Column(String, primary_key=True, index=True)
+    date = Column(Date, primary_key=True, index=True)
+    volume = Column(Integer, nullable=False)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("ticker", "date"),
+    )
+
+class AverageVolume(Base):
+    __tablename__ = "average_volumes"
+
+    ticker = Column(String, primary_key=True, index=True)
+    avg_5d_volume = Column(Integer, nullable=False)
+    updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False)
