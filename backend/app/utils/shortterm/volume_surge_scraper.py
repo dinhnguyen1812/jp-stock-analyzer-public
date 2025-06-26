@@ -39,7 +39,7 @@ def fetch_volume_page(db: Session, page: int = 1):
                 name_tag = row.select_one("td:nth-of-type(1) a")
                 name = name_tag.text.strip()
                 href = name_tag.get("href")
-                match = re.search(r"quote/(\d+)\.T", href)
+                match = re.search(r"quote/([\dA-Za-z]+)\.T", href)
                 if not match:
                     raise ValueError(f"Ticker not found in href: {href}")
                 ticker = match.group(1)

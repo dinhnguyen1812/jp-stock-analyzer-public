@@ -114,9 +114,13 @@ def analyze_stock_surge_with_news(
     db: Session,
     ticker: str,
     news_items: List[Dict],
-    user_prompt: str = "Based on recent volume surge and news headlines, explain why this stock is suddenly attracting attention from traders or investors.",
+    user_prompt: str = (
+        "Summarize why this stock is experiencing a volume surge and recent news impact. "
+        "Then, give a clear investment recommendation: buy, hold, or sell. "
+        "Explain your recommendation with key risks and potential rewards."
+    ),
     top_n: int = 5,
-    model: str = "gpt-3.5-turbo"
+    model: str = "gpt-4o"
 ) -> Dict:
     if not news_items or not openai.api_key:
         return {

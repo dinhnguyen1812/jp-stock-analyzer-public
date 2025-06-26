@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict
-from app.db.db import SessionLocal
+from pydantic import BaseModel
 
+from app.db.db import SessionLocal
 from app.utils.shortterm.volume_surge_scraper import scan_and_save_volume_surges, get_latest_volume_surges
 from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
 from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
@@ -60,10 +61,22 @@ def update_money_flow_average(ticker: str, db: Session = Depends(get_db)):
     update_avg_money_flow_for_ticker(db, ticker)
     return {"message": f"5-day average money flow check complete for {ticker}"}
 
+class ScanParams(BaseModel):
+    surge_threshold: float = 2.0
+    price_threshold: float = 300.0
+    pages: int = 1
+
 @router.post("/volume_scan")
-def trigger_volume_scan(db: Session = Depends(get_db), surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1):
-    """Run a scan to detect volume surge stocks (default threshold = 2x)."""
-    scan_and_save_volume_surges(db, surge_threshold, price_threshold, pages)
+def trigger_volume_scan(
+    params: ScanParams,
+    db: Session = Depends(get_db)
+):
+    scan_and_save_volume_surges(
+        db=db,
+        surge_threshold=params.surge_threshold,
+        price_threshold=params.price_threshold,
+        pages=params.pages
+    )
     return {"message": "Volume scan triggered and stored."}
 
 @router.get("/volume_surges")
@@ -80,7 +93,11 @@ async def get_kabutan_news_analysis(
     ticker: str,
     limit: int = 30,
     top_n: int = 10,
-    user_prompt: str = "Based on recent volume surge and news headlines, explain why this stock is suddenly attracting attention from traders or investors.",
+    user_prompt: str = (
+        "Summarize why this stock is experiencing a volume surge and recent news impact. "
+        "Then, give a clear investment recommendation: buy, hold, or sell. "
+        "Explain your recommendation with key risks and potential rewards."
+    ),
     db: Session = Depends(get_db)
 ):
     news = scrape_kabutan_news(ticker, limit)
