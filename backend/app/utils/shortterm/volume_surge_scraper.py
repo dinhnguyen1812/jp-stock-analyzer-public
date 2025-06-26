@@ -1,12 +1,15 @@
 from bs4 import BeautifulSoup
+from typing import Optional
 import re
 import httpx
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
-from app.models import VolumeSnapshot, AverageVolume
+from app.models import VolumeSnapshot, AverageVolume, AverageMoneyFlow
 from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
+from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
+from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
 
 JP_TZ = ZoneInfo("Asia/Tokyo")
 JP_OPEN = time(9, 0)  # 9:00 AM JST
@@ -82,7 +85,37 @@ def fetch_volume_page(db: Session, page: int = 1):
                     expected_volume_by_now = avg_volume_5d * (trading_hours_passed / 6)
 
                 volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
-                print(f"{current_volume}, {expected_volume_by_now}, {volume_rate}")
+
+                # Parse high and low
+                current_price, high, low = fetch_intraday_prices(ticker)
+
+                if not all([current_price, high, low]):
+                    print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
+                    continue
+
+                # Estimate typical price intraday
+                typical_price_now = (high + low + current_price) / 3
+                raw_money_flow_now = typical_price_now * current_volume
+
+                # Get or update avg_5d_money_flow
+                moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
+
+                if not moneyflow_record or moneyflow_record.avg_5d_money_flow == 0:
+                    print(f"ℹ️ No avg_5d_money_flow for {ticker}, trying to scrape history and update...")
+                    flow_data = fetch_daily_money_flow_history(ticker)
+                    if flow_data:
+                        save_daily_money_flows(db, ticker, flow_data)
+                        update_avg_money_flow_for_ticker(db, ticker)
+                        moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
+                    else:
+                        print(f"❌ Failed to fetch money flow history for {ticker}, skipping money flow.")
+                        moneyflow_record = None
+
+                # Calculate money flow rate
+                if moneyflow_record and moneyflow_record.avg_5d_money_flow > 0:
+                    money_flow_rate = raw_money_flow_now / moneyflow_record.avg_5d_money_flow
+                else:
+                    money_flow_rate = None
 
                 results.append({
                     "ticker": ticker,
@@ -91,6 +124,7 @@ def fetch_volume_page(db: Session, page: int = 1):
                     "current_volume": current_volume,
                     "avg_volume_5d": avg_volume_5d,
                     "volume_rate": round(volume_rate, 2),
+                    "money_flow_rate": round(money_flow_rate, 2) if money_flow_rate is not None else None,
                     "timestamp": now,
                 })
 
@@ -118,6 +152,7 @@ def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price
                 current_volume=stock["current_volume"],
                 avg_volume_5d=stock["avg_volume_5d"],
                 volume_rate=stock["volume_rate"],
+                money_flow_rate=stock["money_flow_rate"],
                 detected_at=now,
             )
             db.add(snapshot)
@@ -125,3 +160,38 @@ def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price
 
     db.commit()
     print(f"📈 Volume surge scan complete. {len(all_results)} stocks scanned, {count} saved.")
+
+def fetch_intraday_prices(ticker: str):
+    url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "ja,en;q=0.9",
+    }
+
+    try:
+        resp = httpx.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        def get_value_by_label(label_ja: str) -> Optional[float]:
+            dl_tags = soup.select("dl.DataListItem__38iJ")
+            for dl in dl_tags:
+                term = dl.find("dt")
+                if term and label_ja in term.get_text():
+                    value_tag = dl.find("span", class_="DataListItem__value__11kV")
+                    if value_tag:
+                        try:
+                            return parse_price(value_tag.text)
+                        except ValueError:
+                            return None
+            return None
+
+        current = get_value_by_label("現在値") or get_value_by_label("終値")
+        high = get_value_by_label("高値")
+        low = get_value_by_label("安値")
+
+        return current, high, low
+
+    except Exception as e:
+        print(f"❌ Failed to fetch quote info for {ticker}: {e}")
+        return None, None, None

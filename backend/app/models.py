@@ -42,6 +42,7 @@ class VolumeSnapshot(Base):
     current_volume = Column(Integer)
     avg_volume_5d = Column(Integer)
     volume_rate = Column(Float)
+    money_flow_rate = Column(Float, nullable=True)  # NEW COLUMN
     detected_at = Column(TIMESTAMP, default=datetime.datetime.utcnow)
 
     __table_args__ = (

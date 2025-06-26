@@ -23,48 +23,6 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/volume_scan")
-def trigger_volume_scan(db: Session = Depends(get_db), surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1):
-    """Run a scan to detect volume surge stocks (default threshold = 2x)."""
-    scan_and_save_volume_surges(db, surge_threshold, price_threshold, pages)
-    return {"message": "Volume scan triggered and stored."}
-
-@router.get("/volume_surges")
-def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
-    """Return stocks with volume surges in the last `hours`."""
-    since = datetime.utcnow() - timedelta(hours=hours)
-
-    # Subquery: get the max detected_at per ticker
-    subquery = (
-        db.query(
-            VolumeSnapshot.ticker,
-            func.max(VolumeSnapshot.detected_at).label("latest_time")
-        )
-        .filter(VolumeSnapshot.detected_at >= since)
-        .group_by(VolumeSnapshot.ticker)
-        .subquery()
-    )
-
-    # Join back to get full VolumeSnapshot rows
-    VS = aliased(VolumeSnapshot)
-    results = (
-        db.query(VS)
-        .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
-        .order_by(VS.volume_rate.desc())
-        .all()
-    )
-    return [
-        {
-            "ticker": r.ticker,
-            "name": r.name,
-            "volume_rate": r.volume_rate,
-            "current_volume": r.current_volume,
-            "avg_volume_5d": r.avg_volume_5d,
-            "detected_at": r.detected_at.isoformat(),
-        }
-        for r in results
-    ]
-
 @router.post("/volume/{ticker}/history")
 def update_volume_history(ticker: str, db: Session = Depends(get_db)):
     """Scrape and store the past 5 daily volumes from Yahoo."""
@@ -103,3 +61,46 @@ def update_money_flow_average(ticker: str, db: Session = Depends(get_db)):
     """
     update_avg_money_flow_for_ticker(db, ticker)
     return {"message": f"5-day average money flow check complete for {ticker}"}
+
+@router.post("/volume_scan")
+def trigger_volume_scan(db: Session = Depends(get_db), surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1):
+    """Run a scan to detect volume surge stocks (default threshold = 2x)."""
+    scan_and_save_volume_surges(db, surge_threshold, price_threshold, pages)
+    return {"message": "Volume scan triggered and stored."}
+
+@router.get("/volume_surges")
+def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
+    """Return stocks with volume surges in the last `hours`."""
+    since = datetime.utcnow() - timedelta(hours=hours)
+
+    # Subquery: get the max detected_at per ticker
+    subquery = (
+        db.query(
+            VolumeSnapshot.ticker,
+            func.max(VolumeSnapshot.detected_at).label("latest_time")
+        )
+        .filter(VolumeSnapshot.detected_at >= since)
+        .group_by(VolumeSnapshot.ticker)
+        .subquery()
+    )
+
+    # Join back to get full VolumeSnapshot rows
+    VS = aliased(VolumeSnapshot)
+    results = (
+        db.query(VS)
+        .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
+        .order_by(VS.volume_rate.desc())
+        .all()
+    )
+    return [
+        {
+            "ticker": r.ticker,
+            "name": r.name,
+            "volume_rate": r.volume_rate,
+            "money_flow_rate": r.money_flow_rate,
+            "current_volume": r.current_volume,
+            "avg_volume_5d": r.avg_volume_5d,
+            "detected_at": r.detected_at.isoformat(),
+        }
+        for r in results
+    ]
