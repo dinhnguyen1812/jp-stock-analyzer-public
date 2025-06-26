@@ -7,9 +7,11 @@ from app.db.db import SessionLocal
 from app.models import VolumeSnapshot
 from datetime import datetime, timedelta
 
-from app.utils.shortterm.volume_scraper import scan_and_save_volume_surges
+from app.utils.shortterm.volume_surge_scraper import scan_and_save_volume_surges
 from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
+from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
+from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
 
 router = APIRouter()
 
@@ -78,3 +80,26 @@ def update_volume_average(ticker: str, db: Session = Depends(get_db)):
     """Recalculate and store the 5-day average volume using shared updater."""
     update_avg_volume_for_ticker(db, ticker)
     return {"message": f"5-day average volume check complete for {ticker}"}
+
+@router.post("/moneyflow/{ticker}/history")
+def update_moneyflow_history(ticker: str, db: Session = Depends(get_db)):
+    """
+    Scrape and store the past 5 daily money flow records from Yahoo.
+    """
+    flow_data = fetch_daily_money_flow_history(ticker)
+    if not flow_data:
+        raise HTTPException(status_code=404, detail="Failed to fetch money flow data")
+
+    save_daily_money_flows(db, ticker, flow_data)
+    return {
+        "message": f"Money flow history updated for {ticker}",
+        "records": len(flow_data)
+    }
+
+@router.post("/moneyflow/{ticker}/average")
+def update_money_flow_average(ticker: str, db: Session = Depends(get_db)):
+    """
+    Recalculate and store the 5-day average money flow for a given ticker.
+    """
+    update_avg_money_flow_for_ticker(db, ticker)
+    return {"message": f"5-day average money flow check complete for {ticker}"}

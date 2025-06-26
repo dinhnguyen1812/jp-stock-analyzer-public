@@ -65,3 +65,23 @@ class AverageVolume(Base):
     ticker = Column(String, primary_key=True, index=True)
     avg_5d_volume = Column(Integer, nullable=False)
     updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False)
+
+class DailyMoneyFlow(Base):
+    __tablename__ = "daily_money_flows"
+
+    ticker = Column(String, primary_key=True, index=True)
+    date = Column(Date, primary_key=True, index=True)
+    typical_price = Column(Float, nullable=False)
+    volume = Column(Integer, nullable=False)
+    money_flow = Column(Float, nullable=False)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("ticker", "date"),
+    )
+
+class AverageMoneyFlow(Base):
+    __tablename__ = "average_money_flows"
+
+    ticker = Column(String, primary_key=True, index=True)
+    avg_5d_money_flow = Column(Float, nullable=False)
+    updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False)
