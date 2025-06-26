@@ -40,11 +40,6 @@ def fetch_daily_volume_history(ticker: str, days: int = 5):
 
                 volume_str = cols[4].get_text(strip=True)  # 5th column (0-indexed)
                 volume = parse_volume(volume_str)
-                print({
-                    "ticker": ticker,
-                    "date": date_obj,
-                    "volume": volume,
-                })
 
                 results.append({
                     "ticker": ticker,

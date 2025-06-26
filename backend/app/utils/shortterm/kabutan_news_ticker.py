@@ -5,10 +5,9 @@ from typing import List, Dict
 import os
 import openai
 
-# Optional: Set your OpenAI API key via environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Keywords indicating news that might affect stock price
+# Use same or tailored keywords for Kabutan news
 KEYWORDS = [
     # Earnings & financial performance
     "決算", "業績", "売上", "増益", "減益", "黒字", "赤字",
@@ -36,98 +35,76 @@ ASK_GPT = True
 def relevance_score(headline: str) -> int:
     return sum(1 for kw in KEYWORDS if kw in headline)
 
-def scrape_yahoo_news(ticker: str, limit: int = 50) -> List[Dict]:
-    url = f"https://finance.yahoo.co.jp/quote/{ticker}.T/news"
+def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
+    url = f"https://kabutan.jp/stock/news?code={ticker}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "User-Agent": "Mozilla/5.0",
         "Accept-Language": "ja,en;q=0.9"
     }
 
     try:
         resp = httpx.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        a_tags = soup.find_all("a")
+        resp.raise_for_status()
 
-        article_links = [
-            a for a in a_tags
-            if "/news/" in a.get("href", "") and a.get_text(strip=True)
-        ]
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        news_table = soup.find("table", class_="s_news_list mgbt0")
+        if not news_table:
+            print("❌ Could not find news table on Kabutan page")
+            return []
 
         news_items = []
-        seen_urls = set()
+        rows = news_table.find_all("tr")
 
-        for a_tag in article_links:
-            headline = a_tag.get_text(strip=True)
-            url = a_tag["href"]
-            if not url.startswith("http"):
-                url = f"https://finance.yahoo.co.jp{url}"
-
-            if url in seen_urls:
+        for row in rows:
+            time_td = row.find("td", class_="news_time")
+            if not time_td:
                 continue
-            seen_urls.add(url)
+            time_tag = time_td.find("time")
+            if not time_tag or not time_tag.has_attr("datetime"):
+                continue
+
+            published_at = time_tag["datetime"]  # ISO 8601 format, e.g. 2025-06-25T17:00:03+09:00
+
+            # category is in second td, inside div.newslist_ctg
+            category_td = time_td.find_next_sibling("td")
+            category_div = category_td.find("div", class_="newslist_ctg") if category_td else None
+            category = category_div.text.strip() if category_div else None
+
+            # headline and url in third td with <a>
+            headline_td = category_td.find_next_sibling("td") if category_td else None
+            if not headline_td:
+                continue
+            a_tag = headline_td.find("a")
+            if not a_tag or not a_tag.text.strip():
+                continue
+
+            headline = a_tag.text.strip()
+            href = a_tag.get("href")
+            if href and not href.startswith("http"):
+                href = f"https://kabutan.jp{href}"
 
             score = relevance_score(headline)
 
             news_items.append({
+                "published_at": published_at,
+                "category": category,
                 "headline": headline,
-                "url": url,
-                "published_at": datetime.now().isoformat(),
+                "url": href,
                 "score": score
             })
 
             if len(news_items) >= limit:
                 break
 
-        if ASK_GPT:
-            return news_items
+        # Sort news by relevance score desc, then published_at desc
+        news_items.sort(key=lambda x: (x["score"], x["published_at"]), reverse=True)
 
-        # Sort by score (descending)
-        news_items.sort(key=lambda x: x["score"], reverse=True)
         return news_items
 
     except Exception as e:
-        print(f"❌ Error scraping Yahoo Finance News for {ticker}: {e}")
+        print(f"❌ Error scraping Kabutan news: {e}")
         return []
-
-def rerank_news_with_gpt(news_items: List[Dict], ticker: str, top_n: int = 5, model = "gpt-3.5-turbo") -> List[Dict]:
-    if not news_items or not openai.api_key:
-        return news_items[:top_n]  # fallback if GPT can't be used
-
-    headlines = [item["headline"] for item in news_items]
-
-    prompt = (
-        f"The following are recent news headlines about company that has ticker: {ticker}. "
-        f"Please select the {top_n} most relevant headlines that are likely to affect the company's stock price, "
-        f"especially based on earnings, performance, forecasts, dividends, or market-moving events.\n\n"
-        + "\n".join(f"{i+1}. {hl}" for i, hl in enumerate(headlines)) +
-        f"\n\nReturn a list of the most relevant headlines in original form."
-    )
-
-    try:
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-        )
-
-        selected_text = response["choices"][0]["message"]["content"]
-        selected_headlines = [line.strip("1234567890. ").strip() for line in selected_text.strip().split("\n") if line.strip()]
-        
-        # Match selected headlines back to original news_items
-        selected = []
-        for h in selected_headlines:
-            match = next((item for item in news_items if h in item["headline"]), None)
-            if match and match not in selected:
-                selected.append(match)
-            if len(selected) >= top_n:
-                break
-
-        return selected or news_items[:top_n]
-
-    except Exception as e:
-        print(f"❌ GPT reranking failed: {e}")
-        return news_items[:top_n]
-
 
 def ask_gpt_to_get_relevant_news(news_items: List[Dict], ticker: str, top_n: int = 5, model: str = "gpt-3.5-turbo") -> List[Dict]:
     if not news_items or not openai.api_key:
@@ -174,7 +151,6 @@ def ask_gpt_to_get_relevant_news(news_items: List[Dict], ticker: str, top_n: int
         print(f"❌ GPT news relevance filtering failed: {e}")
         return news_items[:top_n]
 
-
-def get_relevant_news(ticker: str) -> List[Dict]:
-    news = scrape_yahoo_news(ticker)
+def get_relevant_kabutan_news(ticker: str) -> List[Dict]:
+    news = scrape_kabutan_news(ticker)
     return ask_gpt_to_get_relevant_news(news, ticker)

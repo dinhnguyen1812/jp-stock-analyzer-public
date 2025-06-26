@@ -3,6 +3,7 @@ from sqlalchemy import distinct
 from sqlalchemy.sql import func
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm import Session
+from typing import List, Dict
 from app.db.db import SessionLocal
 from app.models import VolumeSnapshot
 from datetime import datetime, timedelta
@@ -12,6 +13,8 @@ from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_
 from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
+from app.utils.shortterm.yahoo_general_news import scrape_yahoo_general_market_news, rerank_news_with_gpt
+from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, ask_gpt_to_get_relevant_news
 
 router = APIRouter()
 
@@ -104,3 +107,37 @@ def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
         }
         for r in results
     ]
+
+@router.get("/shortterm/news_signals", response_model=List[Dict])
+def get_news_signals(db: Session = Depends(get_db)):
+    try:
+        # Step 1: Scrape general market news (limit 30)
+        news_items = scrape_yahoo_general_market_news(limit_per_category=10)
+        if not news_items:
+            raise HTTPException(status_code=500, detail="Failed to fetch market news.")
+
+        # Step 2: Use GPT to rerank top 10 impactful news
+        top_news = rerank_news_with_gpt(news_items, top_n=10)
+
+        # Step 3: Return results
+        return [
+            {
+                "headline": item["headline"],
+                "url": item["url"],
+                "published_at": item["published_at"],
+                "score": item["score"],
+            }
+            for item in top_news
+        ]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching news signals: {e}")
+
+@router.get("/shortterm/kabutan_news", response_model=List[Dict])
+async def get_kabutan_news(ticker: str, limit: int = 30, top_n: int = 10):
+    news = scrape_kabutan_news(ticker, limit)
+    if not news:
+        raise HTTPException(status_code=404, detail="No news found")
+
+    top_news = ask_gpt_to_get_relevant_news(news, ticker, top_n=top_n)
+    return top_news
