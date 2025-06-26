@@ -21,3 +21,13 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Add indicator explanation
 <!-- - No price in real time indicator -->
 <!-- - Add numbers to right vertical axis of chart -->
+
+# Short term
+## 6/26:
+- Add ticker info (volume surge...) for GPT to decide relevant news
+- Add endpoint where GPT provide explanation for volume surge
+- Use the news with the info to ask GPT to verdict if it's time for make a move (still needs some extra information)
+
+### UI
+- Scan volume surge (options: surge_threshold, price_threshold, pages) => Get volume surge stocks (a list with information)
+- Each row has a button: Analyze => Call the kabutan_news_analysis endpoint for that ticker

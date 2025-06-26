@@ -2,9 +2,10 @@ from bs4 import BeautifulSoup
 from typing import Optional
 import re
 import httpx
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy import func
 from app.models import VolumeSnapshot, AverageVolume, AverageMoneyFlow
 from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
@@ -53,6 +54,14 @@ def fetch_volume_page(db: Session, page: int = 1):
                     raise ValueError("Could not find price span")
                 price_str = price_value_span.text.strip()
                 current_price = parse_price(price_str)
+
+                price_change_td = row.select("td")[2]
+                value_spans = price_change_td.select("span.StyledNumber__value__3rXW")
+                if len(value_spans) < 2:
+                    raise ValueError("Expected 2 value spans (price change and percentage), but got fewer.")
+                percent_change_str = value_spans[1].text.strip()  # +0.50
+                percent_change_str = percent_change_str.replace("%", "")
+                percent_change = float(percent_change_str)
 
                 # Fetch or update avg_volume_5d
                 avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
@@ -121,6 +130,7 @@ def fetch_volume_page(db: Session, page: int = 1):
                     "ticker": ticker,
                     "name": name,
                     "current_price": current_price,
+                    "price_change": percent_change,
                     "current_volume": current_volume,
                     "avg_volume_5d": avg_volume_5d,
                     "volume_rate": round(volume_rate, 2),
@@ -149,6 +159,8 @@ def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price
             snapshot = VolumeSnapshot(
                 ticker=stock["ticker"],
                 name=stock["name"],
+                current_price=stock["current_price"],
+                price_change=stock["price_change"],
                 current_volume=stock["current_volume"],
                 avg_volume_5d=stock["avg_volume_5d"],
                 volume_rate=stock["volume_rate"],
@@ -195,3 +207,39 @@ def fetch_intraday_prices(ticker: str):
     except Exception as e:
         print(f"❌ Failed to fetch quote info for {ticker}: {e}")
         return None, None, None
+
+def get_latest_volume_surges(db: Session, hours: int = 24) -> list[dict]:
+    since = datetime.utcnow() - timedelta(hours=hours)
+
+    subquery = (
+        db.query(
+            VolumeSnapshot.ticker,
+            func.max(VolumeSnapshot.detected_at).label("latest_time")
+        )
+        .filter(VolumeSnapshot.detected_at >= since)
+        .group_by(VolumeSnapshot.ticker)
+        .subquery()
+    )
+
+    VS = aliased(VolumeSnapshot)
+    results = (
+        db.query(VS)
+        .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
+        .order_by(VS.volume_rate.desc())
+        .all()
+    )
+
+    return [
+        {
+            "ticker": r.ticker,
+            "name": r.name,
+            "current_price": r.current_price,
+            "price_change": r.price_change,
+            "volume_rate": r.volume_rate,
+            "money_flow_rate": r.money_flow_rate,
+            "current_volume": r.current_volume,
+            "avg_volume_5d": r.avg_volume_5d,
+            "detected_at": r.detected_at.isoformat(),
+        }
+        for r in results
+    ]

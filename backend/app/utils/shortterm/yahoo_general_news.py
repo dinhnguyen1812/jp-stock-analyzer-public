@@ -1,4 +1,5 @@
 import httpx
+from fastapi import HTTPException
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -161,3 +162,26 @@ def rerank_news_with_gpt(news_items: List[Dict], top_n: int = 10, model: str = "
     except Exception as e:
         print(f"❌ GPT reranking failed: {e}")
         return sorted(news_items, key=lambda x: x.get("score", 0), reverse=True)[:top_n]
+
+def fetch_news_signals(limit_per_category: int = 10, top_n: int = 10) -> List[Dict]:
+    try:
+        # Step 1: Scrape general market news
+        news_items = scrape_yahoo_general_market_news(limit_per_category=limit_per_category)
+        if not news_items:
+            raise ValueError("Failed to fetch market news.")
+
+        # Step 2: Use GPT to rerank top impactful news
+        top_news = rerank_news_with_gpt(news_items, top_n=top_n)
+
+        # Step 3: Return formatted results
+        return [
+            {
+                "headline": item["headline"],
+                "url": item["url"],
+                "published_at": item["published_at"],
+                "score": item["score"],
+            }
+            for item in top_news
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching news signals: {e}")

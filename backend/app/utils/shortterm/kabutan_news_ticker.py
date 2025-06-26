@@ -4,6 +4,10 @@ from datetime import datetime
 from typing import List, Dict
 import os
 import openai
+from datetime import datetime, timedelta
+from sqlalchemy import func
+from sqlalchemy.orm import Session, aliased
+from app.models import VolumeSnapshot
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -106,51 +110,129 @@ def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
         print(f"❌ Error scraping Kabutan news: {e}")
         return []
 
-def ask_gpt_to_get_relevant_news(news_items: List[Dict], ticker: str, top_n: int = 5, model: str = "gpt-3.5-turbo") -> List[Dict]:
+def analyze_stock_surge_with_news(
+    db: Session,
+    ticker: str,
+    news_items: List[Dict],
+    user_prompt: str = "Based on recent volume surge and news headlines, explain why this stock is suddenly attracting attention from traders or investors.",
+    top_n: int = 5,
+    model: str = "gpt-3.5-turbo"
+) -> Dict:
     if not news_items or not openai.api_key:
-        return news_items[:top_n]
+        return {
+            "ticker": ticker,
+            "volume_info": None,
+            "top_news": news_items[:top_n],
+            "gpt_summary": "News or OpenAI API not available."
+        }
+
+    # Step 1: Query volume snapshot (latest in last 24h)
+    since = datetime.utcnow() - timedelta(hours=24)
+
+    subquery = (
+        db.query(
+            VolumeSnapshot.ticker,
+            func.max(VolumeSnapshot.detected_at).label("latest_time")
+        )
+        .filter(VolumeSnapshot.detected_at >= since)
+        .group_by(VolumeSnapshot.ticker)
+        .subquery()
+    )
+
+    VS = aliased(VolumeSnapshot)
+    volume_info = (
+        db.query(VS)
+        .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
+        .filter(VS.ticker == ticker)
+        .first()
+    )
+
+    if not volume_info:
+        return {
+            "ticker": ticker,
+            "volume_info": None,
+            "top_news": [],
+            "gpt_summary": f"Ticker {ticker} does not have recent volume surge data."
+        }
+
+    # Step 2: Format volume snapshot data
+    volume_summary = (
+        f"Ticker: {volume_info.ticker}\n"
+        f"Name: {volume_info.name}\n"
+        f"Current Price: {volume_info.current_price} JPY\n"
+        f"Price Change: {volume_info.price_change}%\n"
+        f"Volume Surge: {volume_info.volume_rate}x\n"
+        f"Estimated Money Flow: {volume_info.money_flow_rate} B JPY\n"
+        f"Current Volume: {volume_info.current_volume}\n"
+        f"5-Day Avg Volume: {volume_info.avg_volume_5d}\n"
+        f"Detected At: {volume_info.detected_at.isoformat()}"
+    )
 
     headlines = [item["headline"] for item in news_items]
 
+    # Step 3: Build GPT prompt
     prompt = (
-        f"You are an AI assistant analyzing stock news for the Japanese company that has ticker: {ticker}.\n"
-        f"Below are recent news headlines. Your task is to select the {top_n} most relevant news headlines "
-        f"that could potentially impact the company's stock price, even if the company name is not directly mentioned. "
-        f"Consider earnings, product announcements, industry-wide developments, macroeconomic changes, and other impactful topics.\n\n"
-        + "\n".join([f"{i+1}. {headline}" for i, headline in enumerate(headlines)]) +
-        "\n\nReturn the list of the most relevant headlines in their original wording. Do not include explanations."
+        f"You are a financial assistant analyzing trading activity of Japanese stock {ticker}.\n"
+        f"Here is the recent volume/price activity:\n{volume_summary}\n\n"
+        f"And here are recent news headlines. {user_prompt}\n\n"
+        + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
+        f"\n\nReturn the top {top_n} most relevant headlines, followed by a short paragraph summarizing the likely reason for the volume surge. "
+        f"Format:\n\nHeadline List:\n1. ...\n2. ...\n\nSummary:\n..."
     )
 
     try:
         response = openai.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=0.4,
         )
 
         reply = response.choices[0].message.content.strip()
 
-        # Extract selected headlines (assumes GPT returns numbered list)
-        selected_lines = [
-            line.strip("1234567890. ").strip()
-            for line in reply.split("\n") if line.strip()
-        ]
+        # Split headlines and summary
+        headline_lines = []
+        summary_lines = []
+        in_summary = False
 
-        # Match selected lines to original items
+        for line in reply.split("\n"):
+            if "summary:" in line.lower():
+                in_summary = True
+                continue
+            if in_summary:
+                summary_lines.append(line.strip())
+            else:
+                headline_lines.append(line.strip("1234567890. ").strip())
+
         selected_items = []
-        for selected_headline in selected_lines:
-            match = next((item for item in news_items if selected_headline in item["headline"]), None)
+        for h in headline_lines:
+            match = next((item for item in news_items if h in item["headline"]), None)
             if match and match not in selected_items:
                 selected_items.append(match)
             if len(selected_items) >= top_n:
                 break
 
-        return selected_items or news_items[:top_n]
+        return {
+            "ticker": ticker,
+            "volume_info": {
+                "ticker": volume_info.ticker,
+                "name": volume_info.name,
+                "current_price": volume_info.current_price,
+                "price_change": volume_info.price_change,
+                "volume_rate": volume_info.volume_rate,
+                "money_flow_rate": volume_info.money_flow_rate,
+                "current_volume": volume_info.current_volume,
+                "avg_volume_5d": volume_info.avg_volume_5d,
+                "detected_at": volume_info.detected_at.isoformat(),
+            },
+            "top_news": selected_items or news_items[:top_n],
+            "gpt_summary": "\n".join(summary_lines).strip() or "(No summary returned)"
+        }
 
     except Exception as e:
-        print(f"❌ GPT news relevance filtering failed: {e}")
-        return news_items[:top_n]
-
-def get_relevant_kabutan_news(ticker: str) -> List[Dict]:
-    news = scrape_kabutan_news(ticker)
-    return ask_gpt_to_get_relevant_news(news, ticker)
+        print(f"❌ GPT analysis failed: {e}")
+        return {
+            "ticker": ticker,
+            "volume_info": volume_summary,
+            "top_news": news_items[:top_n],
+            "gpt_summary": "GPT call failed."
+        }

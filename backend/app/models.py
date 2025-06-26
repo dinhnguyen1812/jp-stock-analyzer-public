@@ -39,10 +39,12 @@ class VolumeSnapshot(Base):
     id = Column(Integer, primary_key=True)
     ticker = Column(String, index=True)
     name = Column(String)
+    current_price = Column(Float)
+    price_change = Column(Float)
     current_volume = Column(Integer)
     avg_volume_5d = Column(Integer)
     volume_rate = Column(Float)
-    money_flow_rate = Column(Float, nullable=True)  # NEW COLUMN
+    money_flow_rate = Column(Float, nullable=True)
     detected_at = Column(TIMESTAMP, default=datetime.datetime.utcnow)
 
     __table_args__ = (
