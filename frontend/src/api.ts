@@ -49,3 +49,19 @@ export async function fetchSavedAnalysis(ticker: string) {
   if (!res.ok) throw new Error("Failed to fetch saved analysis");
   return await res.json(); // Same structure as KabutanNewsAnalysis but no top_news
 }
+
+export async function starStock(ticker: string) {
+  const res = await fetch(`${BASE_URL}/shortterm/${ticker}/star`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to star stock");
+  return await res.json();
+}
+
+export async function unstarStock(ticker: string) {
+  const res = await fetch(`${BASE_URL}/shortterm/${ticker}/star`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to unstar stock");
+  return await res.json();
+}

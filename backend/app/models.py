@@ -49,6 +49,7 @@ class VolumeSnapshot(Base):
     reasoning = Column(Text, nullable=True)
     recommendation = Column(String, nullable=True)  # "Buy", "Hold", "Sell"
     promising_score = Column(Integer, nullable=True)  # 0-100
+    top_news_json = Column(Text, nullable=True)
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),

@@ -1,5 +1,6 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
-from app.models import VolumeSnapshot
+from app.models import VolumeSnapshot, StarredStock
 from sqlalchemy.orm import Session
 from typing import List, Dict
 from pydantic import BaseModel
@@ -117,6 +118,13 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
     if not vs:
         raise HTTPException(status_code=404, detail="No saved analysis found")
 
+    top_news = []
+    if vs.top_news_json:
+        try:
+            top_news = json.loads(vs.top_news_json)
+        except Exception:
+            top_news = []
+
     return {
         "volume_info": {
             "ticker": vs.ticker,
@@ -131,6 +139,7 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
             "reasoning": vs.reasoning,
             "recommendation": vs.recommendation,
             "promising_score": vs.promising_score,
+            "top_news": top_news,
         }
     }
 
@@ -144,6 +153,25 @@ def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
 @router.get("/news_signals", response_model=List[Dict])
 def get_news_signals(db: Session = Depends(get_db)):
     return fetch_news_signals()
+
+# For Use
+@router.post("/{ticker}/star")
+def star_stock(ticker: str, db: Session = Depends(get_db)):
+    existing = db.query(StarredStock).filter_by(ticker=ticker).first()
+    if not existing:
+        new_star = StarredStock(ticker=ticker)
+        db.add(new_star)
+        db.commit()
+    return {"status": "starred"}
+
+# For Use
+@router.delete("/{ticker}/star")
+def unstar_stock(ticker: str, db: Session = Depends(get_db)):
+    existing = db.query(StarredStock).filter_by(ticker=ticker).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+    return {"status": "unstarred"}
 
 # For testing
 @router.get("/{ticker}/kabutan_news_analysis", response_model=Dict)

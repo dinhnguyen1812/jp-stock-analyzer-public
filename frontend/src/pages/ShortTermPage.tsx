@@ -8,7 +8,7 @@ import { Button, Spinner } from "react-bootstrap";
 
 const ShortTermPage: React.FC = () => {
   useEffect(() => {
-    document.title = "Short term Stock Analyzer";
+    document.title = "Volume Surge Scanner";
   }, []);
 
   const [surgeThreshold, setSurgeThreshold] = useState(2.0);
@@ -49,8 +49,6 @@ const ShortTermPage: React.FC = () => {
 
   return (
     <Container className="py-4">
-      <h2>Volume Surge Scanner</h2>
-
       <ScanForm
         surgeThreshold={surgeThreshold}
         priceThreshold={priceThreshold}

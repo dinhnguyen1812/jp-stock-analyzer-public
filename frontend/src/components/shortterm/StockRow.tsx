@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { Button, Modal, Spinner } from "react-bootstrap";
+import React, { useState, useCallback } from "react";
+import { Button, Modal, Spinner, Badge } from "react-bootstrap";
 import type { VolumeSurgeStock } from "../../types";
-import { fetchSavedAnalysis } from "../../api";
+import { fetchSavedAnalysis, starStock, unstarStock } from "../../api";
 
 interface StockRowProps {
   stock: VolumeSurgeStock;
@@ -12,8 +12,10 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [starLoading, setStarLoading] = useState(false);
+  const [, setForceUpdate] = useState(0);
 
-  const handleAnalyzeClick = async () => {
+  const handleAnalyzeClick = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -25,55 +27,126 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
     } finally {
       setLoading(false);
     }
+  }, [stock.ticker]);
+
+  const handleToggleStar = useCallback(async () => {
+    setStarLoading(true);
+    try {
+      if (stock.starred) {
+        await unstarStock(stock.ticker);
+        stock.starred = false;
+      } else {
+        await starStock(stock.ticker);
+        stock.starred = true;
+      }
+      setForceUpdate((prev) => prev + 1);
+    } catch {
+      alert("Failed to update star status.");
+    } finally {
+      setStarLoading(false);
+    }
+  }, [stock]);
+
+  const recommendationVariant = (rec?: string) => {
+    switch (rec) {
+      case "Buy":
+        return "success";
+      case "Sell":
+        return "danger";
+      default:
+        return "secondary";
+    }
   };
 
   return (
     <>
       <tr>
-        <td>
+        <td className="text-center align-middle" style={{ width: 40 }}>
           <Button
             variant={stock.starred ? "warning" : "outline-secondary"}
             size="sm"
-            title="Toggle favorite"
-            onClick={() => {
-              // Optional: call API to mark/unmark star
-              alert("TODO: Toggle star for " + stock.ticker);
-            }}
+            title={stock.starred ? "Unstar stock" : "Star stock"}
+            aria-pressed={stock.starred}
+            onClick={handleToggleStar}
+            disabled={starLoading}
+            className="p-0 d-flex justify-content-center align-items-center"
+            style={{ width: 32, height: 32 }}
           >
-            ★
+            {starLoading ? (
+              <Spinner animation="border" size="sm" />
+            ) : (
+              <span
+                style={{
+                  fontSize: "1.25rem",
+                  lineHeight: 1,
+                  userSelect: "none",
+                  color: stock.starred ? "#ffc107" : "#6c757d",
+                  pointerEvents: "none",
+                }}
+                aria-hidden="true"
+              >
+                ★
+              </span>
+            )}
           </Button>
         </td>
-        <td>{stock.ticker}</td>
-        <td>{stock.name}</td>
-        <td>{stock.current_price.toFixed(2)}</td>
-        <td>{stock.price_change.toFixed(2)}</td>
-        <td>{stock.volume_rate.toFixed(2)}</td>
-        <td>{stock.money_flow_rate.toFixed(2)}</td>
-        <td>{stock.current_volume.toLocaleString()}</td>
-        <td>{stock.avg_volume_5d.toLocaleString()}</td>
-        <td>{new Date(stock.detected_at).toLocaleString()}</td>
-        <td>
-          <div className="d-flex flex-column align-items-start">
+        <td className="align-middle">{stock.ticker}</td>
+        <td className="align-middle">{stock.name}</td>
+        <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
+        <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td>
+        <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
+        <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
+        <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
+        <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td>
+        <td className="align-middle">{new Date(stock.detected_at).toLocaleString()}</td>
+        <td className="align-middle">
+          <div className="d-flex flex-column align-items-center justify-content-center gap-2">
+            {stock.recommendation && (
+              <div>
+                <Badge
+                  pill
+                  bg={recommendationVariant(stock.recommendation)}
+                  className="me-2"
+                >
+                  {stock.recommendation}
+                </Badge>
+                <Badge bg="light" text="dark" className="border">
+                  {stock.promising_score ?? "?"}
+                </Badge>
+              </div>
+            )}
             <Button
-              variant="outline-primary"
+              style={{
+                backgroundColor: "rgb(0, 123, 255)", // Bootstrap primary blue
+                color: "white",                      // Make sure text contrasts
+                border: "none",
+                minWidth: 100
+              }}
               size="sm"
               onClick={handleAnalyzeClick}
               disabled={loading}
+              aria-label={`View analysis for ${stock.ticker}`}
             >
-              {loading ? <Spinner animation="border" size="sm" /> : "Analyze"}
+              {loading ? (
+                <Spinner animation="border" size="sm" />
+              ) : (
+                "Analysis"
+              )}
             </Button>
-            {stock.recommendation && (
-              <small className="mt-1">
-                <strong>{stock.recommendation}</strong> ({stock.promising_score ?? "?"})
-              </small>
-            )}
           </div>
         </td>
+
       </tr>
 
-      <Modal size="lg" show={showModal} onHide={() => setShowModal(false)}>
+      <Modal
+        size="lg"
+        show={showModal}
+        onHide={() => setShowModal(false)}
+        scrollable
+        aria-labelledby="stock-analysis-modal"
+      >
         <Modal.Header closeButton>
-          <Modal.Title>Analysis for {stock.ticker}</Modal.Title>
+          <Modal.Title id="stock-analysis-modal">Analysis for {stock.ticker}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {error && <p className="text-danger">{error}</p>}
@@ -95,14 +168,18 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
               </ul>
 
               <h5>Analysis Summary</h5>
-              <ul>
+              <ul className="list-unstyled">
                 <li>
                   <strong>Recommendation:</strong>{" "}
-                  {analysis.volume_info.recommendation ?? "N/A"}
+                  <Badge pill bg={recommendationVariant(analysis.volume_info.recommendation)}>
+                    {analysis.volume_info.recommendation ?? "N/A"}
+                  </Badge>
                 </li>
-                <li>
+                <li className="mt-2">
                   <strong>Promising Score:</strong>{" "}
-                  {analysis.volume_info.promising_score ?? "N/A"}
+                  <Badge bg="light" text="dark" className="border">
+                    {analysis.volume_info.promising_score ?? "N/A"}
+                  </Badge>
                 </li>
               </ul>
 

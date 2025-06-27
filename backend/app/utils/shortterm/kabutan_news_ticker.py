@@ -111,6 +111,8 @@ def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
         print(f"❌ Error scraping Kabutan news: {e}")
         return []
 
+import json
+
 def analyze_stock_surge_with_news(
     db: Session,
     ticker: str,
@@ -127,7 +129,6 @@ def analyze_stock_surge_with_news(
             "gpt_summary": "News or OpenAI API not available."
         }
 
-    # Step 1: Query volume snapshot (latest in last 24h)
     since = datetime.utcnow() - timedelta(hours=24)
 
     subquery = (
@@ -156,7 +157,6 @@ def analyze_stock_surge_with_news(
             "gpt_summary": f"Ticker {ticker} does not have recent volume surge data."
         }
 
-    # Step 2: Format volume snapshot data
     volume_summary = (
         f"Ticker: {volume_info.ticker}\n"
         f"Name: {volume_info.name}\n"
@@ -171,7 +171,6 @@ def analyze_stock_surge_with_news(
 
     headlines = [item["headline"] for item in news_items]
 
-    # Step 3: Build GPT prompt
     prompt = (
         f"You are a financial assistant analyzing trading activity of Japanese stock {ticker}.\n"
         f"Here is the recent volume/price activity:\n{volume_summary}\n\n"
@@ -196,7 +195,6 @@ def analyze_stock_surge_with_news(
 
         reply = response.choices[0].message.content.strip()
 
-        # Split headlines and summary
         headline_lines = []
         summary_lines = []
         in_summary = False
@@ -218,16 +216,16 @@ def analyze_stock_surge_with_news(
             if len(selected_items) >= top_n:
                 break
 
-        recommendation = None
-        promising_score = None
-
         recommendation, promising_score = extract_recommendation_and_score(reply)
 
-        # Save GPT analysis result to DB
         if volume_info:
             volume_info.reasoning = "\n".join(summary_lines).strip() or "(No summary returned)"
             volume_info.recommendation = recommendation or "Unknown"
             volume_info.promising_score = promising_score if promising_score is not None else -1
+            
+            # Save top news JSON string
+            volume_info.top_news_json = json.dumps(selected_items, ensure_ascii=False)
+            
             db.commit()
 
         return {
@@ -245,6 +243,7 @@ def analyze_stock_surge_with_news(
                 "reasoning": volume_info.reasoning,
                 "recommendation": volume_info.recommendation,
                 "promising_score": volume_info.promising_score,
+                "top_news_json": volume_info.top_news_json,
             },
             "top_news": selected_items or news_items[:top_n],
         }

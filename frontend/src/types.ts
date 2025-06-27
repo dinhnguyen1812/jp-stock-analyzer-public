@@ -9,9 +9,16 @@ export interface VolumeSurgeStock {
   avg_volume_5d: number;
   detected_at: string;
   starred?: boolean; // optional, from DB
-  reasoning?: string;
+  reasoning?: string | null;
   recommendation?: "Buy" | "Hold" | "Sell" | null;
   promising_score?: number | null;
+  top_news: Array<{
+    published_at: string;
+    category: string;
+    headline: string;
+    url: string;
+    score: number;
+  }>;
 }
 
 export interface KabutanNewsAnalysis {

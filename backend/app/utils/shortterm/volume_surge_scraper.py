@@ -245,6 +245,7 @@ def get_latest_volume_surges(db: Session, hours: int = 24) -> list[dict]:
             "reasoning": r.reasoning,
             "recommendation": r.recommendation,
             "promising_score": r.promising_score,
+            "top_news_json": r.top_news_json,
         }
         for r in results
     ]
