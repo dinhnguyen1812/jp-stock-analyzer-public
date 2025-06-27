@@ -119,9 +119,9 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No saved analysis found")
 
     top_news = []
-    if vs.top_news_json:
+    if vs.top_news:
         try:
-            top_news = json.loads(vs.top_news_json)
+            top_news = json.loads(vs.top_news)
         except Exception:
             top_news = []
 

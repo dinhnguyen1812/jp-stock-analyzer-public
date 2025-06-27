@@ -172,18 +172,21 @@ def analyze_stock_surge_with_news(
     headlines = [item["headline"] for item in news_items]
 
     prompt = (
-        f"You are a financial assistant analyzing trading activity of Japanese stock {ticker}.\n"
-        f"Here is the recent volume/price activity:\n{volume_summary}\n\n"
-        f"And here are recent news headlines. \n"
-        "Summarize why this stock is experiencing a volume surge and recent news impact. "
-        "Then, give a clear investment recommendation: buy, hold, or sell. "
-        "Explain your recommendation with key risks and potential rewards. \n\n"
+        f"You are a financial analyst evaluating the recent trading activity of Japanese stock {ticker}.\n\n"
+        f"### Market Activity:\n{volume_summary}\n\n"
+        "### News Headlines:\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
-        f"\n\nReturn the top {top_n} most relevant headlines, followed by a short paragraph summarizing the likely reason for the volume surge. "
-        f"Format:\n\nHeadline List:\n1. ...\n2. ...\n\nSummary:\n..."
-        "At the end, give:"
-        "- Investment Recommendation: Buy / Hold / Sell"
-        "- Promising Score: (0–100, based on growth potential)"
+        "\n\n"
+        "### Task:\n"
+        "- Analyze why this stock is experiencing a trading volume surge. Consider volume rate, price movement (up/down), and money inflow/outflow trends.\n"
+        "- Assess how recent news headlines may have influenced investor behavior.\n"
+        "- Provide an investment recommendation: **Buy**, **Hold**, or **Sell**.\n"
+        "- Justify your recommendation with clear reasoning, including key risks and potential rewards.\n\n"
+        f"### Output Format:\n"
+        "Headline List:\n1. ...\n2. ...\n\n"
+        "Summary:\n<Brief analysis paragraph>\n\n"
+        "- Investment Recommendation: Buy / Hold / Sell\n"
+        "- Promising Score: (0–100, based on future growth potential and risk-adjusted return)"
     )
 
     try:
@@ -224,7 +227,7 @@ def analyze_stock_surge_with_news(
             volume_info.promising_score = promising_score if promising_score is not None else -1
             
             # Save top news JSON string
-            volume_info.top_news_json = json.dumps(selected_items, ensure_ascii=False)
+            volume_info.top_news = json.dumps(selected_items, ensure_ascii=False)
             
             db.commit()
 
@@ -243,7 +246,7 @@ def analyze_stock_surge_with_news(
                 "reasoning": volume_info.reasoning,
                 "recommendation": volume_info.recommendation,
                 "promising_score": volume_info.promising_score,
-                "top_news_json": volume_info.top_news_json,
+                "top_news": volume_info.top_news,
             },
             "top_news": selected_items or news_items[:top_n],
         }

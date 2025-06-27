@@ -12,7 +12,7 @@ export interface VolumeSurgeStock {
   reasoning?: string | null;
   recommendation?: "Buy" | "Hold" | "Sell" | null;
   promising_score?: number | null;
-  top_news: Array<{
+  top_news?: Array<{
     published_at: string;
     category: string;
     headline: string;

@@ -147,6 +147,8 @@ def fetch_volume_page(db: Session, page: int = 1):
         return []
 
 def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1) -> List[str]:
+    db.query(VolumeSnapshot).delete()
+    db.commit()
     all_results = []
     for page in range(1, pages + 1):
         page_data = fetch_volume_page(db, page)
@@ -245,7 +247,7 @@ def get_latest_volume_surges(db: Session, hours: int = 24) -> list[dict]:
             "reasoning": r.reasoning,
             "recommendation": r.recommendation,
             "promising_score": r.promising_score,
-            "top_news_json": r.top_news_json,
+            "top_news": r.top_news,
         }
         for r in results
     ]

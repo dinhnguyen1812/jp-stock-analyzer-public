@@ -47,7 +47,7 @@ export async function fetchKabutanNewsAnalysis(ticker: string, limit = 30, top_n
 export async function fetchSavedAnalysis(ticker: string) {
   const res = await fetch(`${BASE_URL}/shortterm/${ticker}/analysis`);
   if (!res.ok) throw new Error("Failed to fetch saved analysis");
-  return await res.json(); // Same structure as KabutanNewsAnalysis but no top_news
+  return await res.json();
 }
 
 export async function starStock(ticker: string) {

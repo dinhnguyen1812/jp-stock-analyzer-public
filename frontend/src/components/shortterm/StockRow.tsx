@@ -90,6 +90,7 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
             )}
           </Button>
         </td>
+
         <td className="align-middle">{stock.ticker}</td>
         <td className="align-middle">{stock.name}</td>
         <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
@@ -99,15 +100,13 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
         <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
         <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td>
         <td className="align-middle">{new Date(stock.detected_at).toLocaleString()}</td>
+
         <td className="align-middle">
+          {/* Moved div inside td to avoid invalid child of tr */}
           <div className="d-flex flex-column align-items-center justify-content-center gap-2">
             {stock.recommendation && (
               <div>
-                <Badge
-                  pill
-                  bg={recommendationVariant(stock.recommendation)}
-                  className="me-2"
-                >
+                <Badge pill bg={recommendationVariant(stock.recommendation)} className="me-2">
                   {stock.recommendation}
                 </Badge>
                 <Badge bg="light" text="dark" className="border">
@@ -117,25 +116,20 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
             )}
             <Button
               style={{
-                backgroundColor: "rgb(0, 123, 255)", // Bootstrap primary blue
-                color: "white",                      // Make sure text contrasts
+                backgroundColor: "rgb(102, 178, 255)",
+                color: "black",
                 border: "none",
-                minWidth: 100
+                minWidth: 100,
               }}
               size="sm"
               onClick={handleAnalyzeClick}
               disabled={loading}
               aria-label={`View analysis for ${stock.ticker}`}
             >
-              {loading ? (
-                <Spinner animation="border" size="sm" />
-              ) : (
-                "Analysis"
-              )}
+              {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
             </Button>
           </div>
         </td>
-
       </tr>
 
       <Modal
@@ -187,6 +181,25 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
               <p style={{ whiteSpace: "pre-wrap" }}>
                 {analysis.volume_info.reasoning || "(No reasoning provided)"}
               </p>
+
+              {Array.isArray(analysis.volume_info.top_news) && analysis.volume_info.top_news.length > 0 && (
+                <>
+                  <h5>Top News</h5>
+                  <ul className="list-unstyled">
+                    {analysis.volume_info.top_news.map((newsItem: any, index: number) => (
+                      <li key={index} style={{ marginBottom: "0.75rem" }}>
+                        <a href={newsItem.url} target="_blank" rel="noopener noreferrer">
+                          {newsItem.headline}
+                        </a>
+                        <br />
+                        <small className="text-muted">
+                          [{newsItem.category}] {new Date(newsItem.published_at).toLocaleString()}
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           )}
         </Modal.Body>
