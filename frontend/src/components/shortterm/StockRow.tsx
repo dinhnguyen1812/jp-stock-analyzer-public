@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button, Modal, Spinner } from "react-bootstrap";
-import type { VolumeSurgeStock, KabutanNewsAnalysis } from "../../types";
-import { fetchKabutanNewsAnalysis } from "../../api";
+import type { VolumeSurgeStock } from "../../types";
+import { fetchSavedAnalysis } from "../../api";
 
 interface StockRowProps {
   stock: VolumeSurgeStock;
@@ -10,14 +10,14 @@ interface StockRowProps {
 const StockRow: React.FC<StockRowProps> = ({ stock }) => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<KabutanNewsAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleAnalyzeClick = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchKabutanNewsAnalysis(stock.ticker);
+      const data = await fetchSavedAnalysis(stock.ticker);
       setAnalysis(data);
       setShowModal(true);
     } catch (err: any) {
@@ -30,6 +30,19 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
   return (
     <>
       <tr>
+        <td>
+          <Button
+            variant={stock.starred ? "warning" : "outline-secondary"}
+            size="sm"
+            title="Toggle favorite"
+            onClick={() => {
+              // Optional: call API to mark/unmark star
+              alert("TODO: Toggle star for " + stock.ticker);
+            }}
+          >
+            ★
+          </Button>
+        </td>
         <td>{stock.ticker}</td>
         <td>{stock.name}</td>
         <td>{stock.current_price.toFixed(2)}</td>
@@ -40,9 +53,21 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
         <td>{stock.avg_volume_5d.toLocaleString()}</td>
         <td>{new Date(stock.detected_at).toLocaleString()}</td>
         <td>
-          <Button variant="outline-primary" size="sm" onClick={handleAnalyzeClick} disabled={loading}>
-            {loading ? <Spinner animation="border" size="sm" /> : "Analyze"}
-          </Button>
+          <div className="d-flex flex-column align-items-start">
+            <Button
+              variant="outline-primary"
+              size="sm"
+              onClick={handleAnalyzeClick}
+              disabled={loading}
+            >
+              {loading ? <Spinner animation="border" size="sm" /> : "Analyze"}
+            </Button>
+            {stock.recommendation && (
+              <small className="mt-1">
+                <strong>{stock.recommendation}</strong> ({stock.promising_score ?? "?"})
+              </small>
+            )}
+          </div>
         </td>
       </tr>
 
@@ -69,20 +94,22 @@ const StockRow: React.FC<StockRowProps> = ({ stock }) => {
                 <li>Detected At: {new Date(analysis.volume_info.detected_at).toLocaleString()}</li>
               </ul>
 
-              <h5>Top News</h5>
+              <h5>Analysis Summary</h5>
               <ul>
-                {analysis.top_news.map((newsItem, idx) => (
-                  <li key={idx}>
-                    <a href={newsItem.url} target="_blank" rel="noopener noreferrer">
-                      {newsItem.headline}
-                    </a>{" "}
-                    ({new Date(newsItem.published_at).toLocaleDateString()})
-                  </li>
-                ))}
+                <li>
+                  <strong>Recommendation:</strong>{" "}
+                  {analysis.volume_info.recommendation ?? "N/A"}
+                </li>
+                <li>
+                  <strong>Promising Score:</strong>{" "}
+                  {analysis.volume_info.promising_score ?? "N/A"}
+                </li>
               </ul>
 
-              <h5>GPT Summary</h5>
-              <p style={{ whiteSpace: "pre-wrap" }}>{analysis.gpt_summary}</p>
+              <h6>GPT Reasoning</h6>
+              <p style={{ whiteSpace: "pre-wrap" }}>
+                {analysis.volume_info.reasoning || "(No reasoning provided)"}
+              </p>
             </>
           )}
         </Modal.Body>

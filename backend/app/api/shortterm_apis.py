@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from app.models import VolumeSnapshot
 from sqlalchemy.orm import Session
 from typing import List, Dict
 from pydantic import BaseModel
@@ -103,6 +104,35 @@ def trigger_volume_scan(
             print(f"⚠️ GPT analysis failed for {ticker}: {e}")
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed and stored."}
+
+# For Use
+@router.get("/{ticker}/analysis", response_model=Dict)
+def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
+    vs = (
+        db.query(VolumeSnapshot)
+        .filter(VolumeSnapshot.ticker == ticker)
+        .order_by(VolumeSnapshot.detected_at.desc())
+        .first()
+    )
+    if not vs:
+        raise HTTPException(status_code=404, detail="No saved analysis found")
+
+    return {
+        "volume_info": {
+            "ticker": vs.ticker,
+            "name": vs.name,
+            "current_price": vs.current_price,
+            "price_change": vs.price_change,
+            "volume_rate": vs.volume_rate,
+            "money_flow_rate": vs.money_flow_rate,
+            "current_volume": vs.current_volume,
+            "avg_volume_5d": vs.avg_volume_5d,
+            "detected_at": vs.detected_at.isoformat(),
+            "reasoning": vs.reasoning,
+            "recommendation": vs.recommendation,
+            "promising_score": vs.promising_score,
+        }
+    }
 
 # For Use
 @router.get("/volume_surges")

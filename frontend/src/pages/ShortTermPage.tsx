@@ -23,6 +23,7 @@ const ShortTermPage: React.FC = () => {
     setLoadingScan(true);
     try {
       await triggerVolumeScan(surgeThreshold, priceThreshold, pages);
+      await handleFetchResults();
       alert("Scan triggered successfully.");
     } catch (error) {
       console.error(error);

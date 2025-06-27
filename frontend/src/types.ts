@@ -7,12 +7,19 @@ export interface VolumeSurgeStock {
   money_flow_rate: number;
   current_volume: number;
   avg_volume_5d: number;
-  detected_at: string;  // ISO string
+  detected_at: string;
+  starred?: boolean; // optional, from DB
+  reasoning?: string;
+  recommendation?: "Buy" | "Hold" | "Sell" | null;
+  promising_score?: number | null;
 }
 
 export interface KabutanNewsAnalysis {
   ticker: string;
   volume_info: {
+    reasoning: string;
+    promising_score: string;
+    recommendation: string;
     ticker: string;
     name: string;
     current_price: number;

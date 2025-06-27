@@ -221,13 +221,7 @@ def analyze_stock_surge_with_news(
         recommendation = None
         promising_score = None
 
-        rec_match = re.search(r"\bRecommendation\s*[:\-]\s*(Buy|Hold|Sell)", reply, re.I)
-        if rec_match:
-            recommendation = rec_match.group(1).capitalize()
-
-        score_match = re.search(r"\bPromising Score\s*[:\-]\s*(\d{1,3})", reply)
-        if score_match:
-            promising_score = min(max(int(score_match.group(1)), 0), 100)
+        recommendation, promising_score = extract_recommendation_and_score(reply)
 
         # Save GPT analysis result to DB
         if volume_info:
@@ -263,3 +257,19 @@ def analyze_stock_surge_with_news(
             "top_news": news_items[:top_n],
             "gpt_summary": "GPT call failed."
         }
+
+def extract_recommendation_and_score(text: str):
+    # Remove markdown symbols (e.g., "**", "###", "-", etc.)
+    cleaned = re.sub(r"[*#•\-–—●★▶◆]", "", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+
+    # Match recommendation
+    rec_match = re.search(r"investment recommendation\s*[:\-]?\s*(buy|sell|hold)", cleaned, re.I)
+    recommendation = rec_match.group(1).capitalize() if rec_match else "Unknown"
+
+    # Match promising score
+    score_match = re.search(r"promising score\s*[:\-]?\s*(\d{1,3})", cleaned)
+    promising_score = int(score_match.group(1)) if score_match else -1
+    promising_score = max(0, min(promising_score, 100))  # Clamp to [0, 100]
+
+    return recommendation, promising_score

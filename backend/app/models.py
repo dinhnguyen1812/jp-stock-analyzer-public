@@ -54,6 +54,11 @@ class VolumeSnapshot(Base):
         PrimaryKeyConstraint("id"),
     )
 
+class StarredStock(Base):
+    __tablename__ = "starred_stocks"
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String, unique=True, index=True)
+
 class DailyVolume(Base):
     __tablename__ = "daily_volumes"
 
