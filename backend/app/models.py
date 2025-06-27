@@ -97,3 +97,17 @@ class AverageMoneyFlow(Base):
     ticker = Column(String, primary_key=True, index=True)
     avg_5d_money_flow = Column(Float, nullable=False)
     updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False)
+
+class DailyPrice(Base):
+    __tablename__ = "daily_prices"
+
+    ticker = Column(String, primary_key=True, index=True)
+    date = Column(Date, primary_key=True, index=True)
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("ticker", "date"),
+    )

@@ -13,6 +13,7 @@ from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
 from app.utils.shortterm.yahoo_general_news import fetch_news_signals
 from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, analyze_stock_surge_with_news
+from app.utils.shortterm.breakout_detector import detect_breakout
 
 router = APIRouter()
 
@@ -215,4 +216,19 @@ async def get_kabutan_news_analysis(
             "recommendation": volume_info.get("recommendation"),
             "promising_score": volume_info.get("promising_score"),
         }
+    }
+
+# For testing
+@router.post("/{ticker}/breakout")
+def update_and_check_breakout(ticker: str, db: Session = Depends(get_db)):
+    """
+    Check breakout status for the ticker using stored daily prices in DB.
+    Returns breakout detection result.
+    """
+    result = detect_breakout(db, ticker)
+    if "reason" in result:
+        raise HTTPException(status_code=400, detail=result["reason"])
+    return {
+        "message": f"Breakout check completed for {ticker}",
+        "breakout_info": result
     }

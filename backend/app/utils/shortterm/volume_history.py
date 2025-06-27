@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from app.models import DailyVolume
@@ -12,34 +12,62 @@ def parse_volume(text: str) -> int:
     return int(text.replace(",", "").replace("株", "").strip())
 
 def fetch_daily_volume_history(ticker: str, days: int = 5):
-    url = f"https://finance.yahoo.co.jp/quote/{ticker}.T/history"
+    """
+    Fetch last N days of daily volume data from Yahoo Finance JP with pagination.
+    Returns list of dicts with ticker, date, volume.
+    """
+    results = []
+    page = 1
+    today = date.today()
+    from_date = today - timedelta(days=365)  # adjust range as needed
+    to_date = today
+
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept-Language": "ja,en;q=0.9",
     }
 
-    try:
-        resp = httpx.get(url, headers=headers, timeout=10)
-        resp.raise_for_status()
+    while len(results) < days:
+        url = (
+            f"https://finance.yahoo.co.jp/quote/{ticker}.T/history"
+            f"?styl=stock&from={from_date.strftime('%Y%m%d')}"
+            f"&to={to_date.strftime('%Y%m%d')}"
+            f"&timeFrame=d&page={page}"
+        )
+        try:
+            resp = httpx.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            rows = soup.select("table tbody tr")
+            if not rows:
+                break
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        rows = soup.select("table tbody tr")
-        results = []
+            for row in rows:
+                if len(results) >= days:
+                    break
 
-        for row in rows[:days]:
-            try:
                 date_th = row.find("th")
                 if not date_th:
                     continue
-                date_str = date_th.get_text(strip=True)  # e.g., "2025年6月25日"
-                date_obj = datetime.strptime(date_str, "%Y年%m月%d日").date()
+                date_str = date_th.get_text(strip=True)
+                try:
+                    date_obj = datetime.strptime(date_str, "%Y年%m月%d日").date()
+                except Exception:
+                    continue
 
                 cols = row.find_all("td")
                 if len(cols) < 5:
                     continue
 
-                volume_str = cols[4].get_text(strip=True)  # 5th column (0-indexed)
-                volume = parse_volume(volume_str)
+                try:
+                    volume_str = cols[4].get_text(strip=True)
+                    volume = parse_volume(volume_str)
+                except Exception:
+                    continue
+
+                # Prevent duplicates
+                if any(r["date"] == date_obj for r in results):
+                    continue
 
                 results.append({
                     "ticker": ticker,
@@ -47,15 +75,18 @@ def fetch_daily_volume_history(ticker: str, days: int = 5):
                     "volume": volume,
                 })
 
-            except Exception as e:
-                print(f"⚠️ Error parsing row: {e}")
-                continue
+            if len(rows) < 20:
+                break
 
-        return results
+            page += 1
 
-    except Exception as e:
-        print(f"❌ Error fetching volume history for {ticker}: {e}")
-        return []
+        except Exception as e:
+            print(f"❌ Error fetching volume page {page} for {ticker}: {e}")
+            break
+
+    # Sort descending by date and return only requested days
+    results.sort(key=lambda x: x["date"], reverse=True)
+    return results[:days]
 
 
 def save_daily_volumes(db: Session, ticker: str, volume_data: list):
