@@ -14,6 +14,7 @@ from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_fl
 from app.utils.shortterm.yahoo_general_news import fetch_news_signals
 from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, analyze_stock_surge_with_news
 from app.utils.shortterm.breakout_detector import detect_breakout
+from app.utils.shortterm.candle_pattern_detector import analyze_candle_pattern_for_ticker
 
 router = APIRouter()
 
@@ -231,4 +232,24 @@ def update_and_check_breakout(ticker: str, db: Session = Depends(get_db)):
     return {
         "message": f"Breakout check completed for {ticker}",
         "breakout_info": result
+    }
+
+# For testing
+@router.post("/{ticker}/candle_pattern")
+def update_and_check_candle_pattern(ticker: str, db: Session = Depends(get_db)):
+    """
+    Analyze recent candlestick pattern for the given ticker using stored daily prices in DB.
+    Returns the detected pattern, if any.
+    """
+    result = analyze_candle_pattern_for_ticker(db, ticker)
+    
+    if result["candle_pattern"] is None:
+        return {
+            "message": f"No significant candlestick pattern detected for {ticker}",
+            "candle_pattern_info": result
+        }
+    
+    return {
+        "message": f"Candle pattern check completed for {ticker}",
+        "candle_pattern_info": result
     }
