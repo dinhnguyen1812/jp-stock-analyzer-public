@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import List, Dict
 import os
+import re
 import openai
 from datetime import datetime, timedelta
 from sqlalchemy import func
@@ -114,11 +115,7 @@ def analyze_stock_surge_with_news(
     db: Session,
     ticker: str,
     news_items: List[Dict],
-    user_prompt: str = (
-        "Summarize why this stock is experiencing a volume surge and recent news impact. "
-        "Then, give a clear investment recommendation: buy, hold, or sell. "
-        "Explain your recommendation with key risks and potential rewards."
-    ),
+    user_prompt: str = "",
     top_n: int = 5,
     model: str = "gpt-4o"
 ) -> Dict:
@@ -178,10 +175,16 @@ def analyze_stock_surge_with_news(
     prompt = (
         f"You are a financial assistant analyzing trading activity of Japanese stock {ticker}.\n"
         f"Here is the recent volume/price activity:\n{volume_summary}\n\n"
-        f"And here are recent news headlines. {user_prompt}\n\n"
+        f"And here are recent news headlines. \n"
+        "Summarize why this stock is experiencing a volume surge and recent news impact. "
+        "Then, give a clear investment recommendation: buy, hold, or sell. "
+        "Explain your recommendation with key risks and potential rewards. \n\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
         f"\n\nReturn the top {top_n} most relevant headlines, followed by a short paragraph summarizing the likely reason for the volume surge. "
         f"Format:\n\nHeadline List:\n1. ...\n2. ...\n\nSummary:\n..."
+        "At the end, give:"
+        "- Investment Recommendation: Buy / Hold / Sell"
+        "- Promising Score: (0–100, based on growth potential)"
     )
 
     try:
@@ -215,6 +218,24 @@ def analyze_stock_surge_with_news(
             if len(selected_items) >= top_n:
                 break
 
+        recommendation = None
+        promising_score = None
+
+        rec_match = re.search(r"\bRecommendation\s*[:\-]\s*(Buy|Hold|Sell)", reply, re.I)
+        if rec_match:
+            recommendation = rec_match.group(1).capitalize()
+
+        score_match = re.search(r"\bPromising Score\s*[:\-]\s*(\d{1,3})", reply)
+        if score_match:
+            promising_score = min(max(int(score_match.group(1)), 0), 100)
+
+        # Save GPT analysis result to DB
+        if volume_info:
+            volume_info.reasoning = "\n".join(summary_lines).strip() or "(No summary returned)"
+            volume_info.recommendation = recommendation or "Unknown"
+            volume_info.promising_score = promising_score if promising_score is not None else -1
+            db.commit()
+
         return {
             "ticker": ticker,
             "volume_info": {
@@ -227,9 +248,11 @@ def analyze_stock_surge_with_news(
                 "current_volume": volume_info.current_volume,
                 "avg_volume_5d": volume_info.avg_volume_5d,
                 "detected_at": volume_info.detected_at.isoformat(),
+                "reasoning": volume_info.reasoning,
+                "recommendation": volume_info.recommendation,
+                "promising_score": volume_info.promising_score,
             },
             "top_news": selected_items or news_items[:top_n],
-            "gpt_summary": "\n".join(summary_lines).strip() or "(No summary returned)"
         }
 
     except Exception as e:

@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from typing import Optional
+from typing import Optional, List
 import re
 import httpx
 from datetime import datetime, time, timedelta
@@ -146,14 +146,14 @@ def fetch_volume_page(db: Session, page: int = 1):
         print(f"❌ Error fetching volume page {page}: {e}")
         return []
 
-def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1):
+def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1) -> List[str]:
     all_results = []
     for page in range(1, pages + 1):
         page_data = fetch_volume_page(db, page)
         all_results.extend(page_data)
 
     now = datetime.now(JP_TZ)
-    count = 0
+    saved_tickers = []
     for stock in all_results:
         if stock["volume_rate"] >= surge_threshold and stock["current_price"] <= price_threshold:
             snapshot = VolumeSnapshot(
@@ -168,10 +168,12 @@ def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price
                 detected_at=now,
             )
             db.add(snapshot)
-            count += 1
+            saved_tickers.append(stock["ticker"])
 
     db.commit()
-    print(f"📈 Volume surge scan complete. {len(all_results)} stocks scanned, {count} saved.")
+    print(f"📈 Volume scan complete. {len(saved_tickers)} tickers saved.")
+    return saved_tickers
+
 
 def fetch_intraday_prices(ticker: str):
     url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
@@ -240,6 +242,9 @@ def get_latest_volume_surges(db: Session, hours: int = 24) -> list[dict]:
             "current_volume": r.current_volume,
             "avg_volume_5d": r.avg_volume_5d,
             "detected_at": r.detected_at.isoformat(),
+            "reasoning": r.reasoning,
+            "recommendation": r.recommendation,
+            "promising_score": r.promising_score,
         }
         for r in results
     ]

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, BIGINT
+from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, Text
 from sqlalchemy.ext.declarative import declarative_base
 import datetime
 
@@ -46,6 +46,9 @@ class VolumeSnapshot(Base):
     volume_rate = Column(Float)
     money_flow_rate = Column(Float, nullable=True)
     detected_at = Column(TIMESTAMP, default=datetime.datetime.utcnow)
+    reasoning = Column(Text, nullable=True)
+    recommendation = Column(String, nullable=True)  # "Buy", "Hold", "Sell"
+    promising_score = Column(Integer, nullable=True)  # 0-100
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),

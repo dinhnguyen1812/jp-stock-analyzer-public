@@ -14,11 +14,11 @@ const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
         <tr>
           <th>Ticker</th>
           <th>Name</th>
-          <th>Current Price</th>
-          <th>Price Change</th>
+          <th>Current Price (円)</th>
+          <th>Price Change (%)</th>
           <th>Volume Rate</th>
           <th>Money Flow Rate</th>
-          <th>Current Volume</th>
+          <th>Current Volume (株)</th>
           <th>Avg Volume (5d)</th>
           <th>Detected At</th>
           <th>Action</th>
