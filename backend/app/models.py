@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, Text
+from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, Text, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 import datetime
 
@@ -111,3 +111,41 @@ class DailyPrice(Base):
     __table_args__ = (
         PrimaryKeyConstraint("ticker", "date"),
     )
+
+class ShortTermAnalysisSignal(Base):
+    __tablename__ = "shortterm_analysis_signals"
+
+    ticker = Column(String, primary_key=True)
+    date = Column(Date, nullable=False)
+
+    # Candlestick
+    candle_pattern = Column(String, nullable=True)
+
+    # Breakout
+    breakout_detected = Column(Boolean, default=False)
+    resistance_level = Column(Float, nullable=True)
+    close_today = Column(Float, nullable=True)
+
+    # Technical indicators
+    rsi = Column(Float, nullable=True)
+    macd_line = Column(Float, nullable=True)
+    macd_signal = Column(Float, nullable=True)
+    macd_hist = Column(Float, nullable=True)
+
+    bb_upper = Column(Float, nullable=True)
+    bb_middle = Column(Float, nullable=True)
+    bb_lower = Column(Float, nullable=True)
+    bb_current_price = Column(Float, nullable=True)
+
+    sma_50 = Column(Float, nullable=True)
+    sma_200 = Column(Float, nullable=True)
+    ema_20 = Column(Float, nullable=True)
+    sma_crossover = Column(String, nullable=True)
+
+    # Pattern detection
+    w_shape = Column(Boolean, default=False)
+    flags_pennants = Column(Boolean, default=False)
+    triangle = Column(Boolean, default=False)
+
+    updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False, onupdate=datetime.datetime.utcnow)
+

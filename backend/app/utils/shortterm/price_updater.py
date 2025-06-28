@@ -1,29 +1,40 @@
 from datetime import datetime, timedelta, date
+from typing import Optional
 from bs4 import BeautifulSoup
 import httpx
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from app.models import DailyPrice
 
 def parse_price(text: str) -> float:
     return float(text.replace(",", "").replace("円", "").strip())
 
-def fetch_price_history(ticker: str, days: int = 150) -> list[dict]:
+def get_latest_date_in_db(db: Session, ticker: str) -> Optional[date]:
     """
-    Fetch last N days of OHLC price data from Yahoo Finance JP with pagination.
+    Get the most recent date stored in DB for the ticker.
+    """
+    latest = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.ticker == ticker)
+        .order_by(desc(DailyPrice.date))
+        .first()
+    )
+    return latest.date if latest else None
+
+def fetch_price_history(ticker: str, from_date: date, to_date: date, max_days: int = 150) -> list[dict]:
+    """
+    Fetch OHLC price data from Yahoo Finance JP between from_date and to_date.
     Returns list of dicts: {ticker, date, open, high, low, close}.
     """
     results = []
     page = 1
-    today = date.today()
-    from_date = today - timedelta(days=365)  # fetch up to 1 year back
-    to_date = today
 
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept-Language": "ja,en;q=0.9",
     }
 
-    while len(results) < days:
+    while len(results) < max_days:
         url = (
             f"https://finance.yahoo.co.jp/quote/{ticker}.T/history"
             f"?styl=stock&from={from_date.strftime('%Y%m%d')}"
@@ -40,7 +51,7 @@ def fetch_price_history(ticker: str, days: int = 150) -> list[dict]:
                 break
 
             for row in rows:
-                if len(results) >= days:
+                if len(results) >= max_days:
                     break
 
                 date_th = row.find("th")
@@ -68,6 +79,10 @@ def fetch_price_history(ticker: str, days: int = 150) -> list[dict]:
                 if any(r["date"] == date_obj for r in results):
                     continue
 
+                # Only include dates within the desired range
+                if date_obj < from_date or date_obj > to_date:
+                    continue
+
                 results.append({
                     "ticker": ticker,
                     "date": date_obj,
@@ -87,7 +102,7 @@ def fetch_price_history(ticker: str, days: int = 150) -> list[dict]:
             break
 
     results.sort(key=lambda x: x["date"], reverse=True)
-    return results[:days]
+    return results[:max_days]
 
 def save_price_data(db: Session, price_data: list[dict]):
     """
@@ -109,10 +124,27 @@ def save_price_data(db: Session, price_data: list[dict]):
         ))
     db.commit()
 
-def fetch_and_save_price_history(db: Session, ticker: str, days: int = 150):
+def fetch_and_save_price_history(db: Session, ticker: str, max_days: int = 150):
     """
-    Wrapper to fetch and store recent OHLC data.
+    Wrapper to fetch and store only NEW daily price data.
     """
-    data = fetch_price_history(ticker, days=days)
-    if data:
-        save_price_data(db, data)
+    today = date.today()
+    latest_db_date = get_latest_date_in_db(db, ticker)
+
+    if latest_db_date is None:
+        # No data in DB yet, fetch from 1 year ago
+        from_date = today - timedelta(days=365)
+    else:
+        # Fetch only data newer than the latest in DB
+        from_date = latest_db_date + timedelta(days=1)
+
+    if from_date > today:
+        print(f"✅ Price data for {ticker} is already up to date.")
+        return
+
+    new_data = fetch_price_history(ticker, from_date=from_date, to_date=today, max_days=max_days)
+    if new_data:
+        save_price_data(db, new_data)
+        print(f"✅ Saved {len(new_data)} new records for {ticker}")
+    else:
+        print(f"ℹ️ No new data found for {ticker}")

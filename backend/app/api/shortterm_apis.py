@@ -20,6 +20,7 @@ from app.utils.shortterm.technical_indicators import get_technical_indicators
 from app.utils.shortterm.w_shape_detector import detect_w_shape_for_ticker
 from app.utils.shortterm.flag_pennant_detector import detect_flags_pennants_for_ticker
 from app.utils.shortterm.triangle_detector import detect_triangle_for_ticker
+from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
 
 router = APIRouter()
 
@@ -257,7 +258,7 @@ def check_breakout(ticker: str, db: Session = Depends(get_db)):
     }
 
 # For testing
-@router.post("/{ticker}/candle_pattern")
+@router.get("/{ticker}/candle_pattern")
 def update_and_check_candle_pattern(ticker: str, db: Session = Depends(get_db)):
     """
     Analyze recent candlestick pattern for the given ticker using stored daily prices in DB.
@@ -319,3 +320,8 @@ def triangle_pattern(ticker: str, db: Session = Depends(get_db)):
     if "reason" in result:
         raise HTTPException(status_code=404, detail=result["reason"])
     return result
+
+# For testing
+@router.post("/{ticker}/analyze_shortterm")
+def analyze_shortterm(ticker: str, db: Session = Depends(get_db)):
+    return save_shortterm_analysis_signal(db, ticker)
