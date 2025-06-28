@@ -18,6 +18,8 @@ from app.utils.shortterm.candle_pattern_detector import analyze_candle_pattern_f
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
 from app.utils.shortterm.technical_indicators import get_technical_indicators
 from app.utils.shortterm.w_shape_detector import detect_w_shape_for_ticker
+from app.utils.shortterm.flag_pennant_detector import detect_flags_pennants_for_ticker
+from app.utils.shortterm.triangle_detector import detect_triangle_for_ticker
 
 router = APIRouter()
 
@@ -292,6 +294,28 @@ def w_shape_pattern(ticker: str, db: Session = Depends(get_db)):
     Detect W-shape (Double Bottom) pattern for a given ticker.
     """
     result = detect_w_shape_for_ticker(db, ticker)
+    if "reason" in result:
+        raise HTTPException(status_code=404, detail=result["reason"])
+    return result
+
+# For testing
+@router.get("/{ticker}/flags_pennants")
+def flags_pennants_pattern(ticker: str, db: Session = Depends(get_db)):
+    """
+    Detect Flags & Pennants pattern for the given ticker.
+    """
+    result = detect_flags_pennants_for_ticker(db, ticker)
+    if "reason" in result:
+        raise HTTPException(status_code=404, detail=result["reason"])
+    return result
+
+# For testing
+@router.get("/{ticker}/triangle")
+def triangle_pattern(ticker: str, db: Session = Depends(get_db)):
+    """
+    Detect triangle pattern (ascending, descending, symmetrical) for a given ticker.
+    """
+    result = detect_triangle_for_ticker(db, ticker)
     if "reason" in result:
         raise HTTPException(status_code=404, detail=result["reason"])
     return result
