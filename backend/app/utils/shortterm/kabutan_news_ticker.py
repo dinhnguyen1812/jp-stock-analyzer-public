@@ -8,7 +8,8 @@ import openai
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session, aliased
-from app.models import VolumeSnapshot
+from app.models import VolumeSnapshot, ShortTermAnalysisSignal
+from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -131,6 +132,7 @@ def analyze_stock_surge_with_news(
 
     since = datetime.utcnow() - timedelta(hours=24)
 
+    # Get latest volume snapshot
     subquery = (
         db.query(
             VolumeSnapshot.ticker,
@@ -149,12 +151,18 @@ def analyze_stock_surge_with_news(
         .first()
     )
 
-    if not volume_info:
+    # Get analysis signal
+    signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
+    if not signal:
+        # Assuming save_shortterm_analysis_signal returns the saved signal object
+        signal = save_shortterm_analysis_signal(db, ticker)
+
+    if not volume_info or not signal:
         return {
             "ticker": ticker,
             "volume_info": None,
             "top_news": [],
-            "gpt_summary": f"Ticker {ticker} does not have recent volume surge data."
+            "gpt_summary": f"Missing volume or analysis signal data for {ticker}."
         }
 
     volume_summary = (
@@ -166,27 +174,67 @@ def analyze_stock_surge_with_news(
         f"Estimated Money Flow: {volume_info.money_flow_rate} B JPY\n"
         f"Current Volume: {volume_info.current_volume}\n"
         f"5-Day Avg Volume: {volume_info.avg_volume_5d}\n"
-        f"Detected At: {volume_info.detected_at.isoformat()}"
+        f"Detected At: {volume_info.detected_at.isoformat()}\n"
+    )
+
+    signal_dict = {
+        "rsi": signal.rsi,
+        "macd_line": signal.macd_line,
+        "macd_signal": signal.macd_signal,
+        "macd_hist": signal.macd_hist,
+        "bb_upper": signal.bb_upper,
+        "bb_middle": signal.bb_middle,
+        "bb_lower": signal.bb_lower,
+        "bb_current_price": signal.bb_current_price,
+        "sma_50": signal.sma_50,
+        "sma_200": signal.sma_200,
+        "ema_20": signal.ema_20,
+        "sma_crossover": signal.sma_crossover,
+    }
+
+    tech_summary = (
+        f"RSI: {signal_dict['rsi'] if signal_dict['rsi'] is not None else 'N/A'}\n"
+        f"MACD: line={signal_dict['macd_line'] if signal_dict['macd_line'] is not None else 'N/A'}, "
+        f"signal={signal_dict['macd_signal'] if signal_dict['macd_signal'] is not None else 'N/A'}, "
+        f"hist={signal_dict['macd_hist'] if signal_dict['macd_hist'] is not None else 'N/A'}\n"
+        f"BBands: upper={signal_dict['bb_upper'] if signal_dict['bb_upper'] is not None else 'N/A'}, "
+        f"middle={signal_dict['bb_middle'] if signal_dict['bb_middle'] is not None else 'N/A'}, "
+        f"lower={signal_dict['bb_lower'] if signal_dict['bb_lower'] is not None else 'N/A'}, "
+        f"price={signal_dict['bb_current_price'] if signal_dict['bb_current_price'] is not None else 'N/A'}\n"
+        f"MA: SMA50={signal_dict['sma_50'] if signal_dict['sma_50'] is not None else 'N/A'}, "
+        f"SMA200={signal_dict['sma_200'] if signal_dict['sma_200'] is not None else 'N/A'}, "
+        f"EMA20={signal_dict['ema_20'] if signal_dict['ema_20'] is not None else 'N/A'}, "
+        f"crossover={signal_dict['sma_crossover'] if signal_dict['sma_crossover'] else 'N/A'}\n"
+    )
+
+    pattern_summary = (
+        f"Candle Pattern: {signal.candle_pattern or 'None'}\n"
+        f"Breakout: {signal.breakout_detected}, Resistance: {signal.resistance_level or 'N/A'}, "
+        f"Close: {signal.close_today or 'N/A'}\n"
+        f"W-Shape: {signal.w_shape}, Flags/Pennants: {signal.flags_pennants}, Triangle: {signal.triangle}\n"
     )
 
     headlines = [item["headline"] for item in news_items]
 
     prompt = (
         f"You are a financial analyst evaluating the recent trading activity of Japanese stock {ticker}.\n\n"
-        f"### Market Activity:\n{volume_summary}\n\n"
-        "### News Headlines:\n"
+        f"### Volume Activity:\n{volume_summary}\n"
+        f"### Technical Indicators:\n{tech_summary}\n"
+        f"### Pattern Signals:\n{pattern_summary}\n"
+        f"### News Headlines:\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
-        "\n\n"
-        "### Task:\n"
-        "- Analyze why this stock is experiencing a trading volume surge. Consider volume rate, price movement (up/down), and money inflow/outflow trends.\n"
-        "- Assess how recent news headlines may have influenced investor behavior.\n"
+        "\n\n### Task:\n"
+        "- Analyze why this stock is experiencing a trading volume surge.\n"
+        "- Evaluate the technical and candlestick patterns.\n"
+        "- Consider whether the recent news is bullish or bearish.\n"
         "- Provide an investment recommendation: **Buy**, **Hold**, or **Sell**.\n"
-        "- Justify your recommendation with clear reasoning, including key risks and potential rewards.\n\n"
-        f"### Output Format:\n"
+        "- Justify your recommendation with key reasoning.\n"
+        "- Score its promise (0-100) based on risk/reward.\n\n"
+        "### Output Format:\n"
         "Headline List:\n1. ...\n2. ...\n\n"
         "Summary:\n<Brief analysis paragraph>\n\n"
         "- Investment Recommendation: Buy / Hold / Sell\n"
-        "- Promising Score: (0–100, based on future growth potential and risk-adjusted return)"
+        "- Promising Score: (0–100)"
     )
 
     try:
@@ -221,15 +269,12 @@ def analyze_stock_surge_with_news(
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
 
-        if volume_info:
-            volume_info.reasoning = "\n".join(summary_lines).strip() or "(No summary returned)"
-            volume_info.recommendation = recommendation or "Unknown"
-            volume_info.promising_score = promising_score if promising_score is not None else -1
-            
-            # Save top news JSON string
-            volume_info.top_news = json.dumps(selected_items, ensure_ascii=False)
-            
-            db.commit()
+        volume_info.reasoning = "\n".join(summary_lines).strip() or "(No summary returned)"
+        volume_info.recommendation = recommendation or "Unknown"
+        volume_info.promising_score = promising_score if promising_score is not None else -1
+        volume_info.top_news = json.dumps(selected_items, ensure_ascii=False)
+
+        db.commit()
 
         return {
             "ticker": ticker,

@@ -10,6 +10,7 @@ from app.utils.shortterm.breakout_detector import detect_breakout
 from app.utils.shortterm.w_shape_detector import detect_w_shape_for_ticker
 from app.utils.shortterm.flag_pennant_detector import detect_flags_pennants_for_ticker
 from app.utils.shortterm.triangle_detector import detect_triangle_for_ticker
+from app.utils.shortterm.price_updater import fetch_and_save_price_history
 
 def save_shortterm_analysis_signal(db: Session, ticker: str) -> dict:
     """
@@ -22,6 +23,7 @@ def save_shortterm_analysis_signal(db: Session, ticker: str) -> dict:
         signal = existing
     else:
         signal = ShortTermAnalysisSignal(ticker=ticker)
+        fetch_and_save_price_history(db, ticker, max_days=150)
 
     signal.date = date.today()
 

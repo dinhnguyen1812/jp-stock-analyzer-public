@@ -1,6 +1,6 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException
-from app.models import VolumeSnapshot, StarredStock
+from app.models import VolumeSnapshot, StarredStock, ShortTermAnalysisSignal
 from sqlalchemy.orm import Session
 from typing import List, Dict
 from pydantic import BaseModel
@@ -117,6 +117,7 @@ def trigger_volume_scan(
 # For Use
 @router.get("/{ticker}/analysis", response_model=Dict)
 def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
+    # Fetch latest VolumeSnapshot for ticker
     vs = (
         db.query(VolumeSnapshot)
         .filter(VolumeSnapshot.ticker == ticker)
@@ -126,12 +127,46 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
     if not vs:
         raise HTTPException(status_code=404, detail="No saved analysis found")
 
+    # Parse top news JSON
     top_news = []
     if vs.top_news:
         try:
             top_news = json.loads(vs.top_news)
         except Exception:
             top_news = []
+
+    # Fetch latest ShortTermAnalysisSignal for the ticker
+    analysis_signal = (
+        db.query(ShortTermAnalysisSignal)
+        .filter(ShortTermAnalysisSignal.ticker == ticker)
+        .order_by(ShortTermAnalysisSignal.updated_at.desc())
+        .first()
+    )
+
+    # Prepare analysis signals data or empty dict if none
+    analysis_signal_data = {}
+    if analysis_signal:
+        analysis_signal_data = {
+            "candle_pattern": analysis_signal.candle_pattern,
+            "breakout_detected": analysis_signal.breakout_detected,
+            "resistance_level": analysis_signal.resistance_level,
+            "close_today": analysis_signal.close_today,
+            "rsi": analysis_signal.rsi,
+            "macd_line": analysis_signal.macd_line,
+            "macd_signal": analysis_signal.macd_signal,
+            "macd_hist": analysis_signal.macd_hist,
+            "bb_upper": analysis_signal.bb_upper,
+            "bb_middle": analysis_signal.bb_middle,
+            "bb_lower": analysis_signal.bb_lower,
+            "bb_current_price": analysis_signal.bb_current_price,
+            "sma_50": analysis_signal.sma_50,
+            "sma_200": analysis_signal.sma_200,
+            "ema_20": analysis_signal.ema_20,
+            "sma_crossover": analysis_signal.sma_crossover,
+            "w_shape": analysis_signal.w_shape,
+            "flags_pennants": analysis_signal.flags_pennants,
+            "triangle": analysis_signal.triangle,
+        }
 
     return {
         "volume_info": {
@@ -148,8 +183,10 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
             "recommendation": vs.recommendation,
             "promising_score": vs.promising_score,
             "top_news": top_news,
-        }
+        },
+        "analysis_signal": analysis_signal_data,
     }
+
 
 # For Use
 @router.get("/volume_surges")
