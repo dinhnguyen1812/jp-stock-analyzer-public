@@ -46,7 +46,6 @@ def detect_candle_pattern(price_data: list[dict]) -> Optional[str]:
     c0 = price_data[0]  # today
     c1 = price_data[1]  # yesterday
     c2 = price_data[2] if len(price_data) >= 3 else None
-    print(c0, c1, c2)
 
     # Helper lambdas
     is_bullish = lambda c: c["close"] > c["open"]

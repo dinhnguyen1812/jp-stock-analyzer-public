@@ -9,3 +9,5 @@ openai
 playwright
 pandas
 openpyxl
+pandas-ta
+numpy==1.24.4

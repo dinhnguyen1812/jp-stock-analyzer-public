@@ -15,6 +15,8 @@ from app.utils.shortterm.yahoo_general_news import fetch_news_signals
 from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, analyze_stock_surge_with_news
 from app.utils.shortterm.breakout_detector import detect_breakout
 from app.utils.shortterm.candle_pattern_detector import analyze_candle_pattern_for_ticker
+from app.utils.shortterm.price_updater import fetch_and_save_price_history
+from app.utils.shortterm.technical_indicators import get_technical_indicators
 
 router = APIRouter()
 
@@ -220,15 +222,32 @@ async def get_kabutan_news_analysis(
     }
 
 # For testing
-@router.post("/{ticker}/breakout")
-def update_and_check_breakout(ticker: str, db: Session = Depends(get_db)):
+@router.post("/fetch_and_save/{ticker}")
+def fetch_and_save_daily_prices(ticker: str, days: int = 150, db: Session = Depends(get_db)):
     """
-    Check breakout status for the ticker using stored daily prices in DB.
-    Returns breakout detection result.
+    Fetch and save daily price data for a given ticker from Yahoo Finance.
+    Saves up to `days` records (default = 30).
+    """
+    try:
+        fetch_and_save_price_history(db, ticker, days)
+        return {
+            "message": f"Price data for {ticker} fetched and saved successfully (latest {days} days)"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch/save data for {ticker}: {e}")
+
+# For testing
+@router.get("/{ticker}/breakout")
+def check_breakout(ticker: str, db: Session = Depends(get_db)):
+    """
+    Check breakout status for the given ticker using the latest N days of daily prices stored in the DB.
+    Assumes the data has already been fetched and stored.
     """
     result = detect_breakout(db, ticker)
-    if "reason" in result:
+
+    if not result.get("breakout_detected") and "reason" in result:
         raise HTTPException(status_code=400, detail=result["reason"])
+
     return {
         "message": f"Breakout check completed for {ticker}",
         "breakout_info": result
@@ -252,4 +271,15 @@ def update_and_check_candle_pattern(ticker: str, db: Session = Depends(get_db)):
     return {
         "message": f"Candle pattern check completed for {ticker}",
         "candle_pattern_info": result
+    }
+    
+# For testing
+@router.get("/{ticker}/technical_indicators")
+def read_technical_indicators(ticker: str, db: Session = Depends(get_db)):
+    indicators = get_technical_indicators(db, ticker)
+    if indicators is None:
+        raise HTTPException(status_code=404, detail=f"No price data for {ticker}")
+    return {
+        "ticker": ticker,
+        "technical_indicators": indicators,
     }
