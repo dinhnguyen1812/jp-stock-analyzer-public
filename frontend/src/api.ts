@@ -11,15 +11,22 @@ export async function fetchStockAnalysis(ticker: string) {
 export async function triggerVolumeScan(
   surge_threshold = 2.0,
   price_threshold = 300.0,
-  pages = 1
+  from_page = 1,
+  to_page = 1
 ) {
   const res = await fetch(`${BASE_URL}/shortterm/volume_scan`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ surge_threshold, price_threshold, pages }),
+    body: JSON.stringify({
+      surge_threshold,
+      price_threshold,
+      from_page,
+      to_page,
+    }),
   });
+
   if (!res.ok) throw new Error("Volume scan failed");
   return await res.json();
 }

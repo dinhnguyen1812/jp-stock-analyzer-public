@@ -79,7 +79,8 @@ def update_money_flow_average(ticker: str, db: Session = Depends(get_db)):
 class ScanParams(BaseModel):
     surge_threshold: float = 2.0
     price_threshold: float = 300.0
-    pages: int = 1
+    from_page: int = 1
+    to_page: int = 1
 
 # For Use
 @router.post("/volume_scan")
@@ -87,13 +88,13 @@ def trigger_volume_scan(
     params: ScanParams,
     db: Session = Depends(get_db)
 ):
-
     # Step 1: Scan and save volume surge data
     tickers = scan_and_save_volume_surges(
         db=db,
         surge_threshold=params.surge_threshold,
         price_threshold=params.price_threshold,
-        pages=params.pages
+        from_page=params.from_page,
+        to_page=params.to_page,
     )
 
     # Step 2: For each new ticker, run GPT analysis

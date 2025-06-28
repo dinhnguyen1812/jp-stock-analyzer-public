@@ -31,8 +31,10 @@ You can track new listings on the JPX New Listings page, which includes market s
 ### UI
 <!-- - Scan volume surge (options: surge_threshold, price_threshold, pages) => Get volume surge stocks (a list with information)
 - Each row has a button: "Analyze" => Call the kabutan_news_analysis endpoint for that ticker -->
-- Add endpoint to analyze a stocks (even not with volume surge)
+<!-- - Add endpoint to analyze a stocks (even not with volume surge)
 - Add a column that mark (Buy-Hold-Sell) - Decide by GPT, a Promising score (0-100) - Decide by GPT, a column for Star - Mark by user
   - When scan: also analyze the stocks: reasoning, extract Buy-Hold-Sell from GPT advise, Promising score from GPT analysis, save to DB, shows them to UI
   - Show the last analysis (reasoning for volume surge and advise) if clicking "Show last analysis"
-  - A seperate DB for Star (is there better approach): just ticker and star
+  - A seperate DB for Star (is there better approach): just ticker and star -->
+
+- Add analysis signals to UI

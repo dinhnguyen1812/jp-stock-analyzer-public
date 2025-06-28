@@ -96,14 +96,14 @@ def fetch_volume_page(db: Session, page: int = 1):
                 volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
 
                 # Parse high and low
-                current_price, high, low = fetch_intraday_prices(ticker)
+                last_price, high, low = fetch_intraday_prices(ticker)
 
-                if not all([current_price, high, low]):
+                if not all([last_price, high, low]):
                     print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
                     continue
 
                 # Estimate typical price intraday
-                typical_price_now = (high + low + current_price) / 3
+                typical_price_now = (high + low + last_price) / 3
                 raw_money_flow_now = typical_price_now * current_volume
 
                 # Get or update avg_5d_money_flow
@@ -146,36 +146,59 @@ def fetch_volume_page(db: Session, page: int = 1):
         print(f"❌ Error fetching volume page {page}: {e}")
         return []
 
-def scan_and_save_volume_surges(db: Session, surge_threshold: float = 2.0, price_threshold: float = 300.0, pages: int = 1) -> List[str]:
-    db.query(VolumeSnapshot).delete()
-    db.commit()
+def scan_and_save_volume_surges(
+    db: Session,
+    surge_threshold: float = 2.0,
+    price_threshold: float = 300.0,
+    from_page: int = 1,
+    to_page: int = 1
+) -> List[str]:
+    one_hour_ago = datetime.now(JP_TZ) - timedelta(hours=1)
+
+    # Step 1: Get tickers already scanned within the past hour
+    recent_tickers = {
+        row.ticker
+        for row in db.query(VolumeSnapshot)
+        .filter(VolumeSnapshot.detected_at >= one_hour_ago)
+        .all()
+    }
+
     all_results = []
-    for page in range(1, pages + 1):
+    for page in range(from_page, to_page + 1):
         page_data = fetch_volume_page(db, page)
         all_results.extend(page_data)
 
     now = datetime.now(JP_TZ)
     saved_tickers = []
     for stock in all_results:
-        if stock["volume_rate"] >= surge_threshold and stock["current_price"] <= price_threshold:
-            snapshot = VolumeSnapshot(
-                ticker=stock["ticker"],
-                name=stock["name"],
-                current_price=stock["current_price"],
-                price_change=stock["price_change"],
-                current_volume=stock["current_volume"],
-                avg_volume_5d=stock["avg_volume_5d"],
-                volume_rate=stock["volume_rate"],
-                money_flow_rate=stock["money_flow_rate"],
-                detected_at=now,
-            )
-            db.add(snapshot)
-            saved_tickers.append(stock["ticker"])
+        ticker = stock["ticker"]
+        if (
+            ticker in recent_tickers
+            or stock["volume_rate"] < surge_threshold
+            or stock["current_price"] > price_threshold
+        ):
+            continue
+
+        snapshot = VolumeSnapshot(
+            ticker=ticker,
+            name=stock["name"],
+            current_price=stock["current_price"],
+            price_change=stock["price_change"],
+            current_volume=stock["current_volume"],
+            avg_volume_5d=stock["avg_volume_5d"],
+            volume_rate=stock["volume_rate"],
+            money_flow_rate=stock["money_flow_rate"],
+            detected_at=now,
+        )
+        db.add(snapshot)
+        saved_tickers.append(ticker)
 
     db.commit()
-    print(f"📈 Volume scan complete. {len(saved_tickers)} tickers saved.")
+    print(
+        f"📈 Volume scan complete. Scanned pages {from_page} to {to_page}. "
+        f"{len(saved_tickers)} new tickers saved (skipped {len(recent_tickers)} recent ones)."
+    )
     return saved_tickers
-
 
 def fetch_intraday_prices(ticker: str):
     url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
@@ -202,11 +225,11 @@ def fetch_intraday_prices(ticker: str):
                             return None
             return None
 
-        current = get_value_by_label("現在値") or get_value_by_label("終値")
+        last = get_value_by_label("現在値") or get_value_by_label("終値")
         high = get_value_by_label("高値")
         low = get_value_by_label("安値")
 
-        return current, high, low
+        return last, high, low
 
     except Exception as e:
         print(f"❌ Failed to fetch quote info for {ticker}: {e}")

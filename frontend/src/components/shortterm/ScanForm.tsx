@@ -1,25 +1,17 @@
 import React from "react";
 import { Form, Button, Spinner, Row, Col, InputGroup, Card } from "react-bootstrap";
-
-interface ScanFormProps {
-  surgeThreshold: number;
-  priceThreshold: number;
-  pages: number;
-  loading: boolean;
-  onSurgeThresholdChange: (value: number) => void;
-  onPriceThresholdChange: (value: number) => void;
-  onPagesChange: (value: number) => void;
-  onScan: () => void;
-}
+import type { ScanFormProps } from "../../types";
 
 const ScanForm: React.FC<ScanFormProps> = ({
   surgeThreshold,
   priceThreshold,
-  pages,
+  fromPage,
+  toPage,
   loading,
   onSurgeThresholdChange,
   onPriceThresholdChange,
-  onPagesChange,
+  onFromPageChange,
+  onToPageChange,
   onScan,
 }) => {
   return (
@@ -27,7 +19,7 @@ const ScanForm: React.FC<ScanFormProps> = ({
       <Card.Body>
         <Form>
           <Row className="g-3 align-items-end">
-            <Col md={4}>
+            <Col md={3}>
               <Form.Label>Surge Threshold</Form.Label>
               <InputGroup>
                 <Form.Control
@@ -42,7 +34,7 @@ const ScanForm: React.FC<ScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col md={4}>
+            <Col md={3}>
               <Form.Label>Price Threshold</Form.Label>
               <InputGroup>
                 <Form.Control
@@ -57,12 +49,23 @@ const ScanForm: React.FC<ScanFormProps> = ({
             </Col>
 
             <Col md={2}>
-              <Form.Label>Pages</Form.Label>
+              <Form.Label>From Page</Form.Label>
               <Form.Control
                 type="number"
                 min="1"
-                value={pages}
-                onChange={(e) => onPagesChange(Number(e.target.value) || 1)}
+                value={fromPage}
+                onChange={(e) => onFromPageChange(Number(e.target.value) || 1)}
+                disabled={loading}
+              />
+            </Col>
+
+            <Col md={2}>
+              <Form.Label>To Page</Form.Label>
+              <Form.Control
+                type="number"
+                min={fromPage}
+                value={toPage}
+                onChange={(e) => onToPageChange(Number(e.target.value) || fromPage)}
                 disabled={loading}
               />
             </Col>

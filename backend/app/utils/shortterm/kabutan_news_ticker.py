@@ -155,7 +155,8 @@ def analyze_stock_surge_with_news(
     signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
     if not signal:
         # Assuming save_shortterm_analysis_signal returns the saved signal object
-        signal = save_shortterm_analysis_signal(db, ticker)
+        save_shortterm_analysis_signal(db, ticker)
+        signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
     if not volume_info or not signal:
         return {
@@ -177,40 +178,25 @@ def analyze_stock_surge_with_news(
         f"Detected At: {volume_info.detected_at.isoformat()}\n"
     )
 
-    signal_dict = {
-        "rsi": signal.rsi,
-        "macd_line": signal.macd_line,
-        "macd_signal": signal.macd_signal,
-        "macd_hist": signal.macd_hist,
-        "bb_upper": signal.bb_upper,
-        "bb_middle": signal.bb_middle,
-        "bb_lower": signal.bb_lower,
-        "bb_current_price": signal.bb_current_price,
-        "sma_50": signal.sma_50,
-        "sma_200": signal.sma_200,
-        "ema_20": signal.ema_20,
-        "sma_crossover": signal.sma_crossover,
-    }
-
     tech_summary = (
-        f"RSI: {signal_dict['rsi'] if signal_dict['rsi'] is not None else 'N/A'}\n"
-        f"MACD: line={signal_dict['macd_line'] if signal_dict['macd_line'] is not None else 'N/A'}, "
-        f"signal={signal_dict['macd_signal'] if signal_dict['macd_signal'] is not None else 'N/A'}, "
-        f"hist={signal_dict['macd_hist'] if signal_dict['macd_hist'] is not None else 'N/A'}\n"
-        f"BBands: upper={signal_dict['bb_upper'] if signal_dict['bb_upper'] is not None else 'N/A'}, "
-        f"middle={signal_dict['bb_middle'] if signal_dict['bb_middle'] is not None else 'N/A'}, "
-        f"lower={signal_dict['bb_lower'] if signal_dict['bb_lower'] is not None else 'N/A'}, "
-        f"price={signal_dict['bb_current_price'] if signal_dict['bb_current_price'] is not None else 'N/A'}\n"
-        f"MA: SMA50={signal_dict['sma_50'] if signal_dict['sma_50'] is not None else 'N/A'}, "
-        f"SMA200={signal_dict['sma_200'] if signal_dict['sma_200'] is not None else 'N/A'}, "
-        f"EMA20={signal_dict['ema_20'] if signal_dict['ema_20'] is not None else 'N/A'}, "
-        f"crossover={signal_dict['sma_crossover'] if signal_dict['sma_crossover'] else 'N/A'}\n"
+        f"RSI: {signal.rsi if signal.rsi is not None else 'N/A'}\n"
+        f"MACD: line={signal.macd_line if signal.macd_line is not None else 'N/A'}, "
+        f"signal={signal.macd_signal if signal.macd_signal is not None else 'N/A'}, "
+        f"hist={signal.macd_hist if signal.macd_hist is not None else 'N/A'}\n"
+        f"BBands: upper={signal.bb_upper if signal.bb_upper is not None else 'N/A'}, "
+        f"middle={signal.bb_middle if signal.bb_middle is not None else 'N/A'}, "
+        f"lower={signal.bb_lower if signal.bb_lower is not None else 'N/A'}, "
+        f"price={signal.bb_current_price if signal.bb_current_price is not None else 'N/A'}\n"
+        f"MA: SMA50={signal.sma_50 if signal.sma_50 is not None else 'N/A'}, "
+        f"SMA200={signal.sma_200 if signal.sma_200 is not None else 'N/A'}, "
+        f"EMA20={signal.ema_20 if signal.ema_20 is not None else 'N/A'}, "
+        f"crossover={signal.sma_crossover or 'N/A'}\n"
     )
 
     pattern_summary = (
         f"Candle Pattern: {signal.candle_pattern or 'None'}\n"
-        f"Breakout: {signal.breakout_detected}, Resistance: {signal.resistance_level or 'N/A'}, "
-        f"Close: {signal.close_today or 'N/A'}\n"
+        f"Breakout: {signal.breakout_detected}, Resistance: {signal.resistance_level if signal.resistance_level is not None else 'N/A'}, "
+        f"Close: {signal.close_today if signal.close_today is not None else 'N/A'}\n"
         f"W-Shape: {signal.w_shape}, Flags/Pennants: {signal.flags_pennants}, Triangle: {signal.triangle}\n"
     )
 
