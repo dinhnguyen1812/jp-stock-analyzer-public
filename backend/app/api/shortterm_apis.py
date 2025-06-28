@@ -17,6 +17,7 @@ from app.utils.shortterm.breakout_detector import detect_breakout
 from app.utils.shortterm.candle_pattern_detector import analyze_candle_pattern_for_ticker
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
 from app.utils.shortterm.technical_indicators import get_technical_indicators
+from app.utils.shortterm.w_shape_detector import detect_w_shape_for_ticker
 
 router = APIRouter()
 
@@ -283,3 +284,14 @@ def read_technical_indicators(ticker: str, db: Session = Depends(get_db)):
         "ticker": ticker,
         "technical_indicators": indicators,
     }
+
+# For testing
+@router.get("/{ticker}/w_shape")
+def w_shape_pattern(ticker: str, db: Session = Depends(get_db)):
+    """
+    Detect W-shape (Double Bottom) pattern for a given ticker.
+    """
+    result = detect_w_shape_for_ticker(db, ticker)
+    if "reason" in result:
+        raise HTTPException(status_code=404, detail=result["reason"])
+    return result
