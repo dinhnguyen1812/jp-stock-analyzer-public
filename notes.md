@@ -37,4 +37,12 @@ You can track new listings on the JPX New Listings page, which includes market s
   - Show the last analysis (reasoning for volume surge and advise) if clicking "Show last analysis"
   - A seperate DB for Star (is there better approach): just ticker and star -->
 
-- Add analysis signals to UI
+<!-- - Add analysis signals to UI -->
+
+- Add expected price based on current situation.
+- Add endpoint to follow a ticker -> when input a number of stocks bought -> Save the info to db (price, number of stocks, date, relevant indicators and signals) -> when input this ticker (or something like "Ask about bought stocks") -> Get current situation, ask GPT if it's time to Buy more/Hold/Sell. Also add expected price based on current situation.
+
+- Check database:
+  - Daily price OK
+  - Volume history (for average) OK
+  - Moneyflow history (for average) OK

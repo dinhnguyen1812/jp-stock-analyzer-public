@@ -52,8 +52,8 @@ def fetch_volume_page(db: Session, page: int = 1):
                 price_value_span = price_td.select_one("span.StyledNumber__value__3rXW")
                 if not price_value_span:
                     raise ValueError("Could not find price span")
-                price_str = price_value_span.text.strip()
-                current_price = parse_price(price_str)
+                # price_str = price_value_span.text.strip()
+                # current_price = parse_price(price_str)
 
                 price_change_td = row.select("td")[2]
                 value_spans = price_change_td.select("span.StyledNumber__value__3rXW")
@@ -96,14 +96,14 @@ def fetch_volume_page(db: Session, page: int = 1):
                 volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
 
                 # Parse high and low
-                last_price, high, low = fetch_intraday_prices(ticker)
+                current_price, high, low = fetch_intraday_prices(ticker)
 
-                if not all([last_price, high, low]):
+                if not all([current_price, high, low]):
                     print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
                     continue
 
                 # Estimate typical price intraday
-                typical_price_now = (high + low + last_price) / 3
+                typical_price_now = (high + low + current_price) / 3
                 raw_money_flow_now = typical_price_now * current_volume
 
                 # Get or update avg_5d_money_flow
@@ -212,6 +212,16 @@ def fetch_intraday_prices(ticker: str):
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
 
+        # ⬇️ Get current price from dedicated HTML structure
+        def get_current_price() -> Optional[float]:
+            price_tag = soup.select_one("div.PriceBoardMain__headerPrice__gbs7 span.StyledNumber__value__3rXW")
+            if price_tag:
+                try:
+                    return parse_price(price_tag.text)
+                except ValueError:
+                    return None
+            return None
+
         def get_value_by_label(label_ja: str) -> Optional[float]:
             dl_tags = soup.select("dl.DataListItem__38iJ")
             for dl in dl_tags:
@@ -225,11 +235,11 @@ def fetch_intraday_prices(ticker: str):
                             return None
             return None
 
-        last = get_value_by_label("現在値") or get_value_by_label("終値")
+        current = get_current_price()
         high = get_value_by_label("高値")
         low = get_value_by_label("安値")
 
-        return last, high, low
+        return current, high, low
 
     except Exception as e:
         print(f"❌ Failed to fetch quote info for {ticker}: {e}")

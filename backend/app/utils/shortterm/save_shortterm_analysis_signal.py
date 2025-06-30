@@ -15,7 +15,7 @@ from app.utils.shortterm.price_updater import fetch_and_save_price_history
 def save_shortterm_analysis_signal(db: Session, ticker: str) -> dict:
     """
     Run full signal analysis for a ticker and save to shortterm_analysis_signals table.
-    If record exists for (ticker, date), it will be updated.
+    If record exists for (ticker), it will be updated.
     """
     existing = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
@@ -26,6 +26,7 @@ def save_shortterm_analysis_signal(db: Session, ticker: str) -> dict:
         fetch_and_save_price_history(db, ticker, max_days=150)
 
     signal.date = date.today()
+    signal.updated_at = datetime.utcnow()  # ✅ ensure freshness check works
 
     # 1. Candlestick pattern
     candle_result = analyze_candle_pattern_for_ticker(db, ticker)
@@ -64,7 +65,6 @@ def save_shortterm_analysis_signal(db: Session, ticker: str) -> dict:
     signal.flags_pennants = detect_flags_pennants_for_ticker(db, ticker).get("pattern_detected", False)
     signal.triangle = detect_triangle_for_ticker(db, ticker).get("pattern_detected", False)
 
-    # Commit to DB
     try:
         db.add(signal)
         db.commit()

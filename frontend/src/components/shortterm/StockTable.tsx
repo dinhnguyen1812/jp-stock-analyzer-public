@@ -8,6 +8,13 @@ interface StockTableProps {
 }
 
 const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
+  // Compute latest detected_at (as ISO string)
+  const latestDetectedAt = stocks.length
+    ? new Date(
+        Math.max(...stocks.map((s) => new Date(s.detected_at).getTime()))
+      ).toISOString()
+    : new Date(0).toISOString(); // fallback default
+
   return (
     <div>
       <Table
@@ -19,7 +26,7 @@ const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
       >
         <thead className="table-light sticky-top">
           <tr>
-            <th style={{ width: "40px" }}></th> {/* Star column */}
+            <th style={{ width: "40px" }}> </th> {/* Star column */}
             <th style={{ width: "80px" }} className="align-top">Ticker</th>
             <th style={{ minWidth: "140px" }} className="align-top">Name</th>
             <th style={{ width: "120px" }}>Current Price (円)</th>
@@ -36,7 +43,11 @@ const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
         </thead>
         <tbody>
           {stocks.map((stock) => (
-            <StockRow key={stock.ticker} stock={stock} />
+            <StockRow
+              key={stock.ticker}
+              stock={stock}
+              latestDetectedAt={latestDetectedAt} // ✅ pass to highlight older entries
+            />
           ))}
         </tbody>
       </Table>

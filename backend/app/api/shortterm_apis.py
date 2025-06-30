@@ -6,7 +6,7 @@ from typing import List, Dict
 from pydantic import BaseModel
 
 from app.db.db import SessionLocal
-from app.utils.shortterm.volume_surge_scraper import scan_and_save_volume_surges, get_latest_volume_surges
+from app.utils.shortterm.volume_surge_scraper import scan_and_save_volume_surges, get_latest_volume_surges, fetch_intraday_prices
 from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
 from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
@@ -75,6 +75,12 @@ def update_money_flow_average(ticker: str, db: Session = Depends(get_db)):
     update_avg_money_flow_for_ticker(db, ticker)
     return {"message": f"5-day average money flow check complete for {ticker}"}
 
+# For testing
+@router.post("/{ticker}/intraday")
+def get_intraday_prices(ticker: str):
+    last, high, low = fetch_intraday_prices(ticker)
+    return {"message": f"Intraday price for {ticker}: {last, high, low}"}
+
 # For Use
 class ScanParams(BaseModel):
     surge_threshold: float = 2.0
@@ -116,7 +122,7 @@ def trigger_volume_scan(
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed and stored."}
 
 # For Use
-@router.get("/{ticker}/analysis", response_model=Dict)
+@router.get("/{ticker}/volume_surge/analysis", response_model=Dict)
 def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
     # Fetch latest VolumeSnapshot for ticker
     vs = (
@@ -195,7 +201,7 @@ def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
     """Return stocks with volume surges in the last `hours`."""
     return get_latest_volume_surges(db, hours)
 
-# For Use
+# For Use (haven't be used)
 @router.get("/news_signals", response_model=List[Dict])
 def get_news_signals(db: Session = Depends(get_db)):
     return fetch_news_signals()

@@ -151,10 +151,17 @@ def analyze_stock_surge_with_news(
         .first()
     )
 
-    # Get analysis signal
+    # Get or refresh analysis signal
     signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
-    if not signal:
-        # Assuming save_shortterm_analysis_signal returns the saved signal object
+
+    should_update = (
+        not signal
+        or not signal.updated_at
+        or (datetime.utcnow() - signal.updated_at) > timedelta(hours=1)
+    )
+
+    if should_update:
+        print(f"🔄 Refreshing technical signal for {ticker} (missing or older than 1 hour)...")
         save_shortterm_analysis_signal(db, ticker)
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 

@@ -60,7 +60,8 @@ def fetch_daily_money_flow_history(ticker: str, days: int = 5):
                 print(f"⚠️ Error parsing row: {e}")
                 continue
 
-        return results
+        results.sort(key=lambda x: x["date"], reverse=True)
+        return results[:days]
 
     except Exception as e:
         print(f"❌ Error fetching money flow history for {ticker}: {e}")

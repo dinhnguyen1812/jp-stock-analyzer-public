@@ -7,20 +7,21 @@ from app.models import DailyVolume
 
 JP_TZ = ZoneInfo("Asia/Tokyo")
 
+
 def parse_volume(text: str) -> int:
-    """Parse volume string like '15,889,800' or '15,889,800 株' to int."""
+    """Parse volume string like '15,889,800 株' to int."""
     return int(text.replace(",", "").replace("株", "").strip())
+
 
 def fetch_daily_volume_history(ticker: str, days: int = 5):
     """
-    Fetch last N days of daily volume data from Yahoo Finance JP with pagination.
+    Fetch daily volume data from Yahoo Finance JP.
     Returns list of dicts with ticker, date, volume.
     """
     results = []
     page = 1
     today = date.today()
-    from_date = today - timedelta(days=365)  # adjust range as needed
-    to_date = today
+    from_date = today - timedelta(days=365)
 
     headers = {
         "User-Agent": "Mozilla/5.0",
@@ -31,7 +32,7 @@ def fetch_daily_volume_history(ticker: str, days: int = 5):
         url = (
             f"https://finance.yahoo.co.jp/quote/{ticker}.T/history"
             f"?styl=stock&from={from_date.strftime('%Y%m%d')}"
-            f"&to={to_date.strftime('%Y%m%d')}"
+            f"&to={today.strftime('%Y%m%d')}"
             f"&timeFrame=d&page={page}"
         )
         try:
@@ -49,9 +50,8 @@ def fetch_daily_volume_history(ticker: str, days: int = 5):
                 date_th = row.find("th")
                 if not date_th:
                     continue
-                date_str = date_th.get_text(strip=True)
                 try:
-                    date_obj = datetime.strptime(date_str, "%Y年%m月%d日").date()
+                    date_obj = datetime.strptime(date_th.get_text(strip=True), "%Y年%m月%d日").date()
                 except Exception:
                     continue
 
@@ -65,7 +65,7 @@ def fetch_daily_volume_history(ticker: str, days: int = 5):
                 except Exception:
                     continue
 
-                # Prevent duplicates
+                # Avoid duplicates
                 if any(r["date"] == date_obj for r in results):
                     continue
 
@@ -81,17 +81,16 @@ def fetch_daily_volume_history(ticker: str, days: int = 5):
             page += 1
 
         except Exception as e:
-            print(f"❌ Error fetching volume page {page} for {ticker}: {e}")
+            print(f"❌ Error fetching volume history page {page} for {ticker}: {e}")
             break
 
-    # Sort descending by date and return only requested days
+    # Sort descending by date and return top N
     results.sort(key=lambda x: x["date"], reverse=True)
     return results[:days]
 
 
 def save_daily_volumes(db: Session, ticker: str, volume_data: list):
     for item in volume_data:
-        # Check if record exists
         existing = db.query(DailyVolume).filter_by(ticker=ticker, date=item["date"]).first()
         if existing:
             continue
