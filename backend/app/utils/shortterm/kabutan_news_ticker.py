@@ -114,22 +114,7 @@ def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
 
 import json
 
-def analyze_stock_surge_with_news(
-    db: Session,
-    ticker: str,
-    news_items: List[Dict],
-    user_prompt: str = "",
-    top_n: int = 5,
-    model: str = "gpt-4o"
-) -> Dict:
-    if not news_items or not openai.api_key:
-        return {
-            "ticker": ticker,
-            "volume_info": None,
-            "top_news": news_items[:top_n],
-            "gpt_summary": "News or OpenAI API not available."
-        }
-
+def get_volume_info(db: Session, ticker: str):
     since = datetime.utcnow() - timedelta(hours=24)
 
     # Get latest volume snapshot
@@ -150,6 +135,24 @@ def analyze_stock_surge_with_news(
         .filter(VS.ticker == ticker)
         .first()
     )
+    return volume_info
+
+def analyze_stock_surge_with_news(
+    db: Session,
+    ticker: str,
+    news_items: List[Dict],
+    volume_info: VolumeSnapshot,
+    user_prompt: str = "",
+    top_n: int = 5,
+    model: str = "gpt-4o"
+) -> Dict:
+    if not news_items or not openai.api_key:
+        return {
+            "ticker": ticker,
+            "volume_info": None,
+            "top_news": news_items[:top_n],
+            "gpt_summary": "News or OpenAI API not available."
+        }
 
     # Get or refresh analysis signal
     signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()

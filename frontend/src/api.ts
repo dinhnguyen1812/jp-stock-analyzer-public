@@ -72,3 +72,11 @@ export async function unstarStock(ticker: string) {
   if (!res.ok) throw new Error("Failed to unstar stock");
   return await res.json();
 }
+
+export async function fetchIntradayAnalysis(ticker: string) {
+  const response = await fetch(`${BASE_URL}/shortterm/analyze_ticker/${ticker}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch intraday analysis for ${ticker}`);
+  }
+  return await response.json();
+}

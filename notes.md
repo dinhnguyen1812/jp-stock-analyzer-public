@@ -42,7 +42,8 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Add expected price based on current situation.
 - Add endpoint to follow a ticker -> when input a number of stocks bought -> Save the info to db (price, number of stocks, date, relevant indicators and signals) -> when input this ticker (or something like "Ask about bought stocks") -> Get current situation, ask GPT if it's time to Buy more/Hold/Sell. Also add expected price based on current situation.
 
-- Check database:
+<!-- - Check database:
   - Daily price OK
   - Volume history (for average) OK
-  - Moneyflow history (for average) OK
+  - Moneyflow history (for average) OK -->
+- Get news (from multiple categories), take those with more impacts

@@ -27,15 +27,15 @@ const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
         <thead className="table-light sticky-top">
           <tr>
             <th style={{ width: "40px" }}> </th> {/* Star column */}
-            <th style={{ width: "80px" }} className="align-top">Ticker</th>
-            <th style={{ minWidth: "140px" }} className="align-top">Name</th>
-            <th style={{ width: "120px" }}>Current Price (円)</th>
-            <th style={{ width: "180px" }}>Price Change (%)</th> {/* wider */}
-            <th style={{ width: "120px" }}>Volume Rate</th>
-            <th style={{ width: "140px" }}>Money Flow Rate</th>
-            <th style={{ minWidth: "160px" }} className="text-center">Current Volume (株)</th>
-            <th style={{ minWidth: "160px" }} className="align-top">Avg Volume (5d)</th>
-            <th style={{ minWidth: "180px" }} className="align-top">Detected At</th>
+            <th style={{ width: "80px" }} className="align-top text-center">Ticker</th>
+            <th style={{ minWidth: "140px" }} className="align-top text-center">Name</th>
+            <th style={{ width: "120px" }} className="align-top text-center">Current Price (円)</th>
+            <th style={{ width: "180px" }} className="align-top text-center">Price Change (%)</th> {/* wider */}
+            <th style={{ width: "160px" }} className="align-top text-center">Volume Rate</th>
+            <th style={{ width: "140px" }} className="align-top text-center">Money Flow Rate</th>
+            <th style={{ minWidth: "160px" }} className="align-top text-center">Current Volume (株)</th>
+            <th style={{ minWidth: "160px" }} className="align-top text-center">Avg Volume (5d)</th>
+            <th style={{ minWidth: "140px" }} className="align-top text-center">Detected At</th>
             <th style={{ minWidth: "180px" }} className="align-top text-center">
               Action / GPT
             </th>

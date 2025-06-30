@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from typing import Optional, List
+from typing import Optional, List, Dict
 import re
 import httpx
 from datetime import datetime, time, timedelta
@@ -20,6 +20,136 @@ def parse_volume(text: str) -> int:
 
 def parse_price(text: str) -> float:
     return float(text.replace(",", "").strip())
+
+def analyze_intraday_activity(db: Session, ticker: str, current_volume: int) -> Optional[dict]:
+    now = datetime.now(JP_TZ)
+    market_open = now.replace(hour=JP_OPEN.hour, minute=JP_OPEN.minute, second=0, microsecond=0)
+    market_close = now.replace(hour=15, minute=0, second=0, microsecond=0)
+
+    # Ensure avg volume exists
+    avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
+    if not avg_record or avg_record.avg_5d_volume == 0:
+        print(f"ℹ️ No avg_5d_volume for {ticker}, trying to scrape history and update...")
+        volume_data = fetch_daily_volume_history(ticker)
+        if volume_data:
+            save_daily_volumes(db, ticker, volume_data)
+            update_avg_volume_for_ticker(db, ticker)
+            avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
+        else:
+            print(f"❌ Failed to fetch volume history for {ticker}, skipping.")
+            return None
+
+    if not avg_record or avg_record.avg_5d_volume == 0:
+        print(f"⏩ Still no avg_5d_volume for {ticker} after update, skipping.")
+        return None
+
+    avg_volume_5d = avg_record.avg_5d_volume
+    if now <= market_open or now >= market_close:
+        expected_volume_by_now = avg_volume_5d
+    else:
+        trading_hours_passed = max((now - market_open).total_seconds() / 3600, 0.5)
+        expected_volume_by_now = avg_volume_5d * (trading_hours_passed / 6)
+
+    volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
+
+    # Get intraday price stats
+    current_price, high, low = fetch_intraday_prices(ticker)
+    if not all([current_price, high, low]):
+        print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
+        return None
+
+    typical_price_now = (high + low + current_price) / 3
+    raw_money_flow_now = typical_price_now * current_volume
+
+    # Ensure avg money flow exists
+    moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
+    if not moneyflow_record or moneyflow_record.avg_5d_money_flow == 0:
+        print(f"ℹ️ No avg_5d_money_flow for {ticker}, trying to scrape history and update...")
+        flow_data = fetch_daily_money_flow_history(ticker)
+        if flow_data:
+            save_daily_money_flows(db, ticker, flow_data)
+            update_avg_money_flow_for_ticker(db, ticker)
+            moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
+        else:
+            print(f"❌ Failed to fetch money flow history for {ticker}, skipping money flow.")
+            moneyflow_record = None
+
+    money_flow_rate = (
+        raw_money_flow_now / moneyflow_record.avg_5d_money_flow
+        if moneyflow_record and moneyflow_record.avg_5d_money_flow > 0 else None
+    )
+
+    return {
+        "current_price": current_price,
+        "avg_volume_5d": avg_volume_5d,
+        "volume_rate": round(volume_rate, 2),
+        "money_flow_rate": round(money_flow_rate, 2) if money_flow_rate is not None else None,
+    }
+
+def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[VolumeSnapshot]:
+    url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "ja,en;q=0.9",
+    }
+
+    try:
+        resp = httpx.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # 1. Extract name
+        name_tag = soup.select_one("h2.PriceBoardMain__name__6uDh")
+        name = name_tag.text.strip() if name_tag else ticker
+
+        # 2. Extract 出来高
+        current_volume = None
+        labels = soup.select("span.DataListItem__name__3RQJ")
+        for label in labels:
+            if "出来高" in label.text:
+                value_span = label.find_next("span", class_="StyledNumber__value__3rXW")
+                if value_span:
+                    current_volume = parse_volume(value_span.text.strip())
+                    break
+
+        if current_volume is None:
+            print(f"❌ 出来高 not found for {ticker}")
+            return None
+
+        # 3. Extract price change %
+        percent_change = 0.0
+        change_label = soup.select_one("dt.PriceChangeLabel__term__3H4k")
+        if change_label and "前日比" in change_label.text:
+            percent_span = change_label.find_next("span", class_="StyledNumber__value__3rXW")
+            if percent_span:
+                percent_text = percent_span.text.replace("+", "").replace("%", "").strip()
+                try:
+                    percent_change = float(percent_text)
+                except ValueError:
+                    pass
+
+        # 4. Call analyzer
+        analysis = analyze_intraday_activity(db, ticker, current_volume)
+        if not analysis:
+            return None
+
+        # 5. Wrap into in-memory VolumeSnapshot object (not inserted)
+        now = datetime.now(JP_TZ)
+        return VolumeSnapshot(
+            ticker=ticker,
+            name=name,
+            current_price=analysis["current_price"],
+            price_change=percent_change,
+            current_volume=current_volume,
+            avg_volume_5d=analysis["avg_volume_5d"],
+            volume_rate=analysis["volume_rate"],
+            money_flow_rate=analysis["money_flow_rate"],
+            detected_at=now,
+        )
+
+    except Exception as e:
+        print(f"❌ Failed to fetch intraday info for {ticker}: {e}")
+        return None
 
 def fetch_volume_page(db: Session, page: int = 1):
     url = f"https://finance.yahoo.co.jp/stocks/ranking/volume?market=all&term=daily&page={page}"
@@ -52,8 +182,6 @@ def fetch_volume_page(db: Session, page: int = 1):
                 price_value_span = price_td.select_one("span.StyledNumber__value__3rXW")
                 if not price_value_span:
                     raise ValueError("Could not find price span")
-                # price_str = price_value_span.text.strip()
-                # current_price = parse_price(price_str)
 
                 price_change_td = row.select("td")[2]
                 value_spans = price_change_td.select("span.StyledNumber__value__3rXW")
@@ -63,79 +191,20 @@ def fetch_volume_page(db: Session, page: int = 1):
                 percent_change_str = percent_change_str.replace("%", "")
                 percent_change = float(percent_change_str)
 
-                # Fetch or update avg_volume_5d
-                avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
-
-                if not avg_record or avg_record.avg_5d_volume == 0:
-                    print(f"ℹ️ No avg_5d_volume for {ticker}, trying to scrape history and update...")
-                    volume_data = fetch_daily_volume_history(ticker)
-                    if volume_data:
-                        save_daily_volumes(db, ticker, volume_data)
-                        update_avg_volume_for_ticker(db, ticker)
-                        avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
-                    else:
-                        print(f"❌ Failed to fetch volume history for {ticker}, skipping.")
-                        continue
-
-                if not avg_record or avg_record.avg_5d_volume == 0:
-                    print(f"⏩ Still no avg_5d_volume for {ticker} after update, skipping.")
+                analysis = analyze_intraday_activity(db, ticker, current_volume)
+                if not analysis:
                     continue
-
-                avg_volume_5d = avg_record.avg_5d_volume
-
-                now = datetime.now(JP_TZ)
-                market_open = now.replace(hour=JP_OPEN.hour, minute=JP_OPEN.minute, second=0, microsecond=0)
-                market_close = now.replace(hour=15, minute=0, second=0, microsecond=0)  # 15:00 JST
-
-                if now <= market_open or now >= market_close:
-                    expected_volume_by_now = avg_volume_5d
-                else:
-                    trading_hours_passed = max((now - market_open).total_seconds() / 3600, 0.5)  # Avoid div by 0
-                    expected_volume_by_now = avg_volume_5d * (trading_hours_passed / 6)
-
-                volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
-
-                # Parse high and low
-                current_price, high, low = fetch_intraday_prices(ticker)
-
-                if not all([current_price, high, low]):
-                    print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
-                    continue
-
-                # Estimate typical price intraday
-                typical_price_now = (high + low + current_price) / 3
-                raw_money_flow_now = typical_price_now * current_volume
-
-                # Get or update avg_5d_money_flow
-                moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
-
-                if not moneyflow_record or moneyflow_record.avg_5d_money_flow == 0:
-                    print(f"ℹ️ No avg_5d_money_flow for {ticker}, trying to scrape history and update...")
-                    flow_data = fetch_daily_money_flow_history(ticker)
-                    if flow_data:
-                        save_daily_money_flows(db, ticker, flow_data)
-                        update_avg_money_flow_for_ticker(db, ticker)
-                        moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
-                    else:
-                        print(f"❌ Failed to fetch money flow history for {ticker}, skipping money flow.")
-                        moneyflow_record = None
-
-                # Calculate money flow rate
-                if moneyflow_record and moneyflow_record.avg_5d_money_flow > 0:
-                    money_flow_rate = raw_money_flow_now / moneyflow_record.avg_5d_money_flow
-                else:
-                    money_flow_rate = None
 
                 results.append({
                     "ticker": ticker,
                     "name": name,
-                    "current_price": current_price,
+                    "current_price": analysis["current_price"],
                     "price_change": percent_change,
                     "current_volume": current_volume,
-                    "avg_volume_5d": avg_volume_5d,
-                    "volume_rate": round(volume_rate, 2),
-                    "money_flow_rate": round(money_flow_rate, 2) if money_flow_rate is not None else None,
-                    "timestamp": now,
+                    "avg_volume_5d": analysis["avg_volume_5d"],
+                    "volume_rate": analysis["volume_rate"],
+                    "money_flow_rate": analysis["money_flow_rate"],
+                    "timestamp": datetime.now(JP_TZ),
                 })
 
             except Exception as e:

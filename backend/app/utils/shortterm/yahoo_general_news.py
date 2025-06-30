@@ -42,7 +42,7 @@ def add_keyword_scores(news_items: List[Dict]) -> List[Dict]:
 
 def scrape_yahoo_general_market_news(
     limit_per_category: int = 10,
-    categories: Optional[List[str]] = None,  # e.g. ["経済総合", "日本株"]
+    categories: Optional[List[str]] = None,
 ) -> List[Dict]:
     url = "https://finance.yahoo.co.jp/news?category=market"
     headers = {
@@ -56,7 +56,6 @@ def scrape_yahoo_general_market_news(
         soup = BeautifulSoup(resp.text, "html.parser")
 
         news_results = []
-
         category_blocks = soup.find_all("div", class_="categoryList__1ZhP")
         for block in category_blocks:
             h2 = block.find("h2", class_="headline02__1Uds")
@@ -115,9 +114,8 @@ def scrape_yahoo_general_market_news(
         print(f"❌ Error scraping Yahoo Finance general news: {e}")
         return []
 
-def rerank_news_with_gpt(news_items: List[Dict], top_n: int = 10, model: str = "gpt-3.5-turbo") -> List[Dict]:
+def rerank_news_with_gpt(news_items: List[Dict], top_n: int = 10, model: str = "gpt-4o") -> List[Dict]:
     if not news_items or not openai.api_key:
-        # Fallback: sort by keyword score descending
         return sorted(news_items, key=lambda x: x.get("score", 0), reverse=True)[:top_n]
 
     headlines = [item["headline"] for item in news_items]
@@ -128,7 +126,13 @@ def rerank_news_with_gpt(news_items: List[Dict], top_n: int = 10, model: str = "
         "that are most likely to impact the Japanese stock market in the short term.\n\n"
         "News headlines:\n"
         + "\n".join([f"{i+1}. {headline}" for i, headline in enumerate(headlines)]) +
-        "\n\nReturn the selected headlines as a numbered list in order of impact. Do not include explanations."
+        "\n\nFor each selected headline, provide the following:\n"
+        "- Headline (shortened if needed)\n"
+        "- Field/Sector most likely impacted (e.g. semiconductors, retail, banks)\n"
+        "- Prominent Japanese company/ticker related (if any)\n"
+        "- Estimated impact magnitude: Low / Medium / High\n"
+        "- Suggested trader action: Buy / Sell / Watch / Avoid\n\n"
+        f"Return only the top {top_n} headlines in order of impact, numbered. Be concise and factual."
     )
 
     try:
@@ -140,24 +144,22 @@ def rerank_news_with_gpt(news_items: List[Dict], top_n: int = 10, model: str = "
 
         reply = response.choices[0].message.content.strip()
 
-        selected_lines = [
-            line.strip("1234567890. ").strip()
-            for line in reply.split("\n") if line.strip()
-        ]
+        selected_lines = reply.split("\n\n")
+        parsed_items = []
 
-        selected_items = []
-        for selected_headline in selected_lines:
-            match = next(
-                (item for item in news_items
-                 if selected_headline in item["headline"] or item["headline"] in selected_headline),
-                None,
-            )
-            if match and match not in selected_items:
-                selected_items.append(match)
-            if len(selected_items) >= top_n:
-                break
+        for block in selected_lines:
+            lines = block.strip().split("\n")
+            if len(lines) < 5:
+                continue
+            parsed_items.append({
+                "headline": lines[0].lstrip("1234567890. "),
+                "field": lines[1].replace("Field/Sector:", "").strip(),
+                "company": lines[2].replace("Prominent Japanese company/ticker:", "").strip(),
+                "impact": lines[3].replace("Impact:", "").strip(),
+                "action": lines[4].replace("Action:", "").strip(),
+            })
 
-        return selected_items or news_items[:top_n]
+        return parsed_items[:top_n] if parsed_items else news_items[:top_n]
 
     except Exception as e:
         print(f"❌ GPT reranking failed: {e}")
@@ -165,23 +167,13 @@ def rerank_news_with_gpt(news_items: List[Dict], top_n: int = 10, model: str = "
 
 def fetch_news_signals(limit_per_category: int = 10, top_n: int = 10) -> List[Dict]:
     try:
-        # Step 1: Scrape general market news
         news_items = scrape_yahoo_general_market_news(limit_per_category=limit_per_category)
         if not news_items:
             raise ValueError("Failed to fetch market news.")
 
-        # Step 2: Use GPT to rerank top impactful news
         top_news = rerank_news_with_gpt(news_items, top_n=top_n)
 
-        # Step 3: Return formatted results
-        return [
-            {
-                "headline": item["headline"],
-                "url": item["url"],
-                "published_at": item["published_at"],
-                "score": item["score"],
-            }
-            for item in top_news
-        ]
+        return top_news
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching news signals: {e}")

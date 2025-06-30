@@ -6,13 +6,13 @@ from typing import List, Dict
 from pydantic import BaseModel
 
 from app.db.db import SessionLocal
-from app.utils.shortterm.volume_surge_scraper import scan_and_save_volume_surges, get_latest_volume_surges, fetch_intraday_prices
+from app.utils.shortterm.volume_surge_scraper import scan_and_save_volume_surges, get_latest_volume_surges, fetch_intraday_prices, get_intraday_volume_info_for_ticker
 from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
 from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
 from app.utils.shortterm.yahoo_general_news import fetch_news_signals
-from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, analyze_stock_surge_with_news
+from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, analyze_stock_surge_with_news, get_volume_info
 from app.utils.shortterm.breakout_detector import detect_breakout
 from app.utils.shortterm.candle_pattern_detector import analyze_candle_pattern_for_ticker
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
@@ -109,11 +109,13 @@ def trigger_volume_scan(
         if not news:
             continue
 
+        volume_info = get_volume_info(db, ticker=ticker)
         try:
             analyze_stock_surge_with_news(
                 db=db,
                 ticker=ticker,
                 news_items=news,
+                volume_info=volume_info,
                 top_n=5,
             )
         except Exception as e:
@@ -122,9 +124,42 @@ def trigger_volume_scan(
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed and stored."}
 
 # For Use
+def get_latest_analysis_signal_data(db: Session, ticker: str) -> dict:
+    signal = (
+        db.query(ShortTermAnalysisSignal)
+        .filter(ShortTermAnalysisSignal.ticker == ticker)
+        .order_by(ShortTermAnalysisSignal.updated_at.desc())
+        .first()
+    )
+
+    if not signal:
+        return {}
+
+    return {
+        "candle_pattern": signal.candle_pattern,
+        "breakout_detected": signal.breakout_detected,
+        "resistance_level": signal.resistance_level,
+        "close_today": signal.close_today,
+        "rsi": signal.rsi,
+        "macd_line": signal.macd_line,
+        "macd_signal": signal.macd_signal,
+        "macd_hist": signal.macd_hist,
+        "bb_upper": signal.bb_upper,
+        "bb_middle": signal.bb_middle,
+        "bb_lower": signal.bb_lower,
+        "bb_current_price": signal.bb_current_price,
+        "sma_50": signal.sma_50,
+        "sma_200": signal.sma_200,
+        "ema_20": signal.ema_20,
+        "sma_crossover": signal.sma_crossover,
+        "w_shape": signal.w_shape,
+        "flags_pennants": signal.flags_pennants,
+        "triangle": signal.triangle,
+    }
+
+# For Use
 @router.get("/{ticker}/volume_surge/analysis", response_model=Dict)
 def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
-    # Fetch latest VolumeSnapshot for ticker
     vs = (
         db.query(VolumeSnapshot)
         .filter(VolumeSnapshot.ticker == ticker)
@@ -134,7 +169,6 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
     if not vs:
         raise HTTPException(status_code=404, detail="No saved analysis found")
 
-    # Parse top news JSON
     top_news = []
     if vs.top_news:
         try:
@@ -142,38 +176,7 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
         except Exception:
             top_news = []
 
-    # Fetch latest ShortTermAnalysisSignal for the ticker
-    analysis_signal = (
-        db.query(ShortTermAnalysisSignal)
-        .filter(ShortTermAnalysisSignal.ticker == ticker)
-        .order_by(ShortTermAnalysisSignal.updated_at.desc())
-        .first()
-    )
-
-    # Prepare analysis signals data or empty dict if none
-    analysis_signal_data = {}
-    if analysis_signal:
-        analysis_signal_data = {
-            "candle_pattern": analysis_signal.candle_pattern,
-            "breakout_detected": analysis_signal.breakout_detected,
-            "resistance_level": analysis_signal.resistance_level,
-            "close_today": analysis_signal.close_today,
-            "rsi": analysis_signal.rsi,
-            "macd_line": analysis_signal.macd_line,
-            "macd_signal": analysis_signal.macd_signal,
-            "macd_hist": analysis_signal.macd_hist,
-            "bb_upper": analysis_signal.bb_upper,
-            "bb_middle": analysis_signal.bb_middle,
-            "bb_lower": analysis_signal.bb_lower,
-            "bb_current_price": analysis_signal.bb_current_price,
-            "sma_50": analysis_signal.sma_50,
-            "sma_200": analysis_signal.sma_200,
-            "ema_20": analysis_signal.ema_20,
-            "sma_crossover": analysis_signal.sma_crossover,
-            "w_shape": analysis_signal.w_shape,
-            "flags_pennants": analysis_signal.flags_pennants,
-            "triangle": analysis_signal.triangle,
-        }
+    analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
     return {
         "volume_info": {
@@ -238,11 +241,13 @@ async def get_kabutan_news_analysis(
     if not news:
         raise HTTPException(status_code=404, detail="No news found")
 
+    volume_info = get_volume_info(db, ticker=ticker)
     result = analyze_stock_surge_with_news(
         db=db,
         ticker=ticker,
         news_items=news,
         top_n=top_n,
+        volume_info=volume_info,
         user_prompt=user_prompt,
     )
 
@@ -369,3 +374,54 @@ def triangle_pattern(ticker: str, db: Session = Depends(get_db)):
 @router.post("/{ticker}/analyze_shortterm")
 def analyze_shortterm(ticker: str, db: Session = Depends(get_db)):
     return save_shortterm_analysis_signal(db, ticker)
+
+# For use
+@router.get("/analyze_ticker/{ticker}")
+def analyze_ticker_with_gpt(ticker: str, db: Session = Depends(get_db)):
+    # 1. Get volume info from Yahoo Finance
+    volume_info = get_intraday_volume_info_for_ticker(db, ticker)
+    if not volume_info:
+        raise HTTPException(status_code=404, detail="Could not fetch intraday info")
+
+    # 2. Get Kabutan news
+    news = scrape_kabutan_news(ticker, limit=30)
+    if not news:
+        raise HTTPException(status_code=404, detail="No Kabutan news found")
+
+    # 3. Ensure technical signal is up to date
+    save_shortterm_analysis_signal(db, ticker)
+
+    # 4. Fetch technical analysis signal
+    analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
+
+    # 5. Analyze with GPT using live volume_info (not from DB)
+    gpt_result = analyze_stock_surge_with_news(
+        db=db,
+        ticker=ticker,
+        news_items=news,
+        top_n=5,
+        volume_info=volume_info,  # ⚠️ make sure your analyze_stock_surge_with_news supports this
+    )
+
+    # 6. Compose response
+    return {
+        "ticker": ticker,
+        "volume_info": {
+            "ticker": volume_info.ticker,
+            "name": volume_info.name,
+            "current_price": volume_info.current_price,
+            "price_change": volume_info.price_change,
+            "volume_rate": volume_info.volume_rate,
+            "money_flow_rate": volume_info.money_flow_rate,
+            "current_volume": volume_info.current_volume,
+            "avg_volume_5d": volume_info.avg_volume_5d,
+            "detected_at": volume_info.detected_at.isoformat(),
+            "reasoning": volume_info.reasoning,
+            "recommendation": volume_info.recommendation,
+            "promising_score": volume_info.promising_score,
+            "top_news": volume_info.top_news,
+        },
+        "top_news": gpt_result.get("top_news", []),
+        "analysis_signal": analysis_signal_data,
+        "gpt_summary": gpt_result.get("gpt_summary", ""),
+    }
