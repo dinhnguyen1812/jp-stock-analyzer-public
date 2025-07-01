@@ -35,7 +35,7 @@ const FetchAnalyzeCard: React.FC<FetchAnalyzeCardProps> = ({
       <Card.Body>
         <Form>
           <Row className="align-items-center g-2" style={{ flexWrap: "nowrap" }}>
-            <Col style={{ flexGrow: 1.0, minWidth: 90 }}>
+            <Col style={{ flexGrow: 1.2, minWidth: 90 }}>
               <InputGroup>
                 <InputGroup.Text style={{ minWidth: 60, justifyContent: "center" }}>Surge ≥</InputGroup.Text>
                 <Form.Control

@@ -137,19 +137,25 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
         if not analysis:
             return None
 
-        # 5. Wrap into in-memory VolumeSnapshot object (not inserted)
+        # 5. Create and store VolumeSnapshot
         now = datetime.now(JP_TZ)
-        return VolumeSnapshot(
+        snapshot = VolumeSnapshot(
             ticker=ticker,
             name=name,
             current_price=analysis["current_price"],
-            price_change=percent_change,  # now correct percent
+            price_change=percent_change,
             current_volume=current_volume,
             avg_volume_5d=analysis["avg_volume_5d"],
             volume_rate=analysis["volume_rate"],
             money_flow_rate=analysis["money_flow_rate"],
             detected_at=now,
         )
+
+        db.add(snapshot)
+        db.commit()
+        db.refresh(snapshot)  # ensures snapshot has its ID and is attached to session
+
+        return snapshot
 
     except Exception as e:
         print(f"❌ Failed to fetch intraday info for {ticker}: {e}")

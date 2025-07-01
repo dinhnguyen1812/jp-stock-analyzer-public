@@ -1,20 +1,19 @@
 import httpx
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict
 import os
 import re
+import json
 import openai
-from datetime import datetime, timedelta
+import difflib
 from sqlalchemy import func
 from sqlalchemy.orm import Session, aliased
 from app.models import VolumeSnapshot, ShortTermAnalysisSignal
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
-import json
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Use same or tailored keywords for Kabutan news
 KEYWORDS = [
     "決算", "業績", "売上", "増益", "減益", "黒字", "赤字",
     "予想", "上方修正", "下方修正", "利益", "損失", "配当",
@@ -97,7 +96,6 @@ def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
         print(f"❌ Error scraping Kabutan news: {e}")
         return []
 
-
 def get_volume_info(db: Session, ticker: str):
     since = datetime.utcnow() - timedelta(hours=24)
     subquery = (
@@ -111,13 +109,12 @@ def get_volume_info(db: Session, ticker: str):
     )
 
     VS = aliased(VolumeSnapshot)
-    volume_info = (
+    return (
         db.query(VS)
         .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
         .filter(VS.ticker == ticker)
         .first()
     )
-    return volume_info
 
 def analyze_stock_surge_with_news(
     db: Session,
@@ -201,8 +198,9 @@ def analyze_stock_surge_with_news(
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
         "\n\n### Task:\n"
         "- Focus primarily on recent news to explain the trading volume surge and price movement.\n"
-        "- Evaluate whether the news sentiment is bullish or bearish.\n"
-        "- Use technical indicators and candlestick patterns as supporting context.\n"
+        "- Use recent news and technical indicators to forecast the likely future short-term price movement and volume trend.\n"
+        "- For the top relevant news, evaluate whether it is likely to significantly impact the price.\n"
+        "- Evaluate whether the news sentiment is bullish, bearish, or neutral.\n"
         "- Provide an investment recommendation: **Buy**, **Hold**, or **Sell**.\n"
         "- Justify your recommendation with key reasoning.\n"
         "- Score its short-term promise (0-100) based on risk/reward and likelihood of continued movement.\n\n"
@@ -237,9 +235,12 @@ def analyze_stock_surge_with_news(
 
         selected_items = []
         for h in headline_lines:
-            match = next((item for item in news_items if h in item["headline"]), None)
-            if match and match not in selected_items:
-                selected_items.append(match)
+            h_clean = re.sub(r"^\[[^\]]+\]\s*", "", h)
+            matches = difflib.get_close_matches(h_clean, [item["headline"] for item in news_items], n=1, cutoff=0.5)
+            if matches:
+                match_obj = next((item for item in news_items if item["headline"] == matches[0]), None)
+                if match_obj and match_obj not in selected_items:
+                    selected_items.append(match_obj)
             if len(selected_items) >= top_n:
                 break
 
