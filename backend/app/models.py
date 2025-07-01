@@ -53,6 +53,7 @@ class VolumeSnapshot(Base):
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),
+        UniqueConstraint("ticker", "detected_at", name="uq_ticker_detected_at"),
     )
 
 class StarredStock(Base):

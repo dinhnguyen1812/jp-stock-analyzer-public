@@ -345,7 +345,7 @@ def get_latest_volume_surges(
         .filter(VS.volume_rate >= surge_threshold)
         .filter(VS.current_price <= price_threshold)
         .filter(VS.promising_score >= promising_score_threshold)
-        .order_by(VS.volume_rate.desc())
+        .order_by(VS.ticker, VS.detected_at.desc())  # ✅ Fix: match DISTINCT ON
         .all()
     )
 

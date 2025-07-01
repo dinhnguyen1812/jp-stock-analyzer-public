@@ -46,4 +46,5 @@ You can track new listings on the JPX New Listings page, which includes market s
   - Daily price OK
   - Volume history (for average) OK
   - Moneyflow history (for average) OK -->
-- Get news (from multiple categories), take those with more impacts
+<!-- - Get news (from multiple categories), take those with more impacts -->
+- Analyze starred stocks

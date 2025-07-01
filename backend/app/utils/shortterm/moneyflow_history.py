@@ -27,7 +27,10 @@ def fetch_daily_money_flow_history(ticker: str, days: int = 5):
         rows = soup.select("table tbody tr")
         results = []
 
-        for row in rows[:days]:
+        valid_count = 0
+        for row in rows:
+            if valid_count >= days:
+                break
             try:
                 date_th = row.find("th")
                 if not date_th:
@@ -37,6 +40,7 @@ def fetch_daily_money_flow_history(ticker: str, days: int = 5):
 
                 cols = row.find_all("td")
                 if len(cols) < 6:
+                    # This likely a non-data row (e.g., stock split note), skip it
                     continue
 
                 open_price = parse_price(cols[0].text.strip())
@@ -55,6 +59,8 @@ def fetch_daily_money_flow_history(ticker: str, days: int = 5):
                     "volume": volume,
                     "money_flow": money_flow,
                 })
+
+                valid_count += 1
 
             except Exception as e:
                 print(f"⚠️ Error parsing row: {e}")
