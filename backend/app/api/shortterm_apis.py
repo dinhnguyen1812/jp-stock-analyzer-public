@@ -437,3 +437,75 @@ def analyze_ticker_with_gpt(ticker: str, db: Session = Depends(get_db)):
         "analysis_signal": analysis_signal_data,
         "gpt_summary": gpt_result.get("gpt_summary", ""),
     }
+
+@router.get("/analyze_starred")
+def analyze_all_starred_stocks(db: Session = Depends(get_db)):
+    starred = db.query(StarredStock).all()
+    results = []
+
+    for star in starred:
+        ticker = star.ticker
+        try:
+            # 1. Get intraday volume info
+            volume_info = get_intraday_volume_info_for_ticker(db, ticker)
+            if not volume_info:
+                results.append({
+                    "ticker": ticker,
+                    "error": "Could not fetch intraday info"
+                })
+                continue
+
+            # 2. Scrape Kabutan news
+            news = scrape_kabutan_news(ticker, limit=30)
+            if not news:
+                results.append({
+                    "ticker": ticker,
+                    "error": "No Kabutan news found"
+                })
+                continue
+
+            # 3. Update signal
+            save_shortterm_analysis_signal(db, ticker)
+
+            # 4. Fetch signal data
+            analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
+
+            # 5. Run GPT analysis
+            gpt_result = analyze_stock_surge_with_news(
+                db=db,
+                ticker=ticker,
+                news_items=news,
+                top_n=5,
+                volume_info=volume_info,
+            )
+
+            # 6. Compose result
+            results.append({
+                "ticker": ticker,
+                "volume_info": {
+                    "ticker": volume_info.ticker,
+                    "name": volume_info.name,
+                    "current_price": volume_info.current_price,
+                    "price_change": volume_info.price_change,
+                    "volume_rate": volume_info.volume_rate,
+                    "money_flow_rate": volume_info.money_flow_rate,
+                    "current_volume": volume_info.current_volume,
+                    "avg_volume_5d": volume_info.avg_volume_5d,
+                    "detected_at": volume_info.detected_at.isoformat(),
+                    "reasoning": volume_info.reasoning,
+                    "recommendation": volume_info.recommendation,
+                    "promising_score": volume_info.promising_score,
+                    "top_news": volume_info.top_news,
+                },
+                "top_news": gpt_result.get("top_news", []),
+                "analysis_signal": analysis_signal_data,
+                "gpt_summary": gpt_result.get("gpt_summary", ""),
+            })
+
+        except Exception as e:
+            results.append({
+                "ticker": ticker,
+                "error": str(e)
+            })
+
+    return results

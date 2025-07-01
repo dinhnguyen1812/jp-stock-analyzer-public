@@ -8,7 +8,7 @@ import type { VolumeSurgeStock } from "../types";
 import {
   triggerVolumeScan,
   fetchRecentVolumeSurges,
-  fetchIntradayAnalysis
+  fetchIntradayAnalysis,
 } from "../api";
 
 const ShortTermPage: React.FC = () => {
@@ -18,7 +18,7 @@ const ShortTermPage: React.FC = () => {
 
   const [surgeThreshold, setSurgeThreshold] = useState(2.0);
   const [priceThreshold, setPriceThreshold] = useState(150.0);
-  const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(0);  // NEW
+  const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(0);
 
   const [fromPage, setFromPage] = useState(1);
   const [toPage, setToPage] = useState(1);
@@ -69,12 +69,12 @@ const ShortTermPage: React.FC = () => {
   const handleFetchResults = async () => {
     setLoadingFetch(true);
     try {
-      // Pass promisingScoreThreshold as well
       const data = await fetchRecentVolumeSurges(
         surgeThreshold,
         priceThreshold,
         promisingScoreThreshold
       );
+      console.log("Fetched stocks with star status:", data);
       setStocks(data);
     } catch (error) {
       console.error(error);
@@ -82,6 +82,15 @@ const ShortTermPage: React.FC = () => {
     } finally {
       setLoadingFetch(false);
     }
+  };
+
+  // New handler to update star status in stocks state
+  const handleStarToggle = (ticker: string, starred: boolean) => {
+    setStocks((prevStocks) =>
+      prevStocks.map((stock) =>
+        stock.ticker === ticker ? { ...stock, starred } : stock
+      )
+    );
   };
 
   return (
@@ -104,13 +113,13 @@ const ShortTermPage: React.FC = () => {
       <FetchAnalyzeCard
         surgeThreshold={surgeThreshold}
         priceThreshold={priceThreshold}
-        promisingScoreThreshold={promisingScoreThreshold}         // NEW
+        promisingScoreThreshold={promisingScoreThreshold}
         tickerInput={tickerInput}
         loadingFetch={loadingFetch}
         loadingAnalyze={loadingAnalyze}
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
-        onPromisingScoreChange={setPromisingScoreThreshold}        // NEW
+        onPromisingScoreChange={setPromisingScoreThreshold}
         onTickerInputChange={setTickerInput}
         onFetch={handleFetchResults}
         onAnalyze={handleAnalyzeTicker}
@@ -125,7 +134,9 @@ const ShortTermPage: React.FC = () => {
       />
 
       {/* TABLE */}
-      {stocks.length > 0 && <StockTable stocks={stocks} />}
+      {stocks.length > 0 && (
+        <StockTable stocks={stocks} onStarToggle={handleStarToggle} />
+      )}
     </Container>
   );
 };

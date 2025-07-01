@@ -7,6 +7,7 @@ import { formatDistance } from "date-fns";
 interface StockRowProps {
   stock: VolumeSurgeStock;
   latestDetectedAt: string;
+  onStarToggle: (ticker: string, starred: boolean) => void;
 }
 
 export interface SavedAnalysis {
@@ -14,13 +15,17 @@ export interface SavedAnalysis {
   analysis_signal: AnalysisSignal;
 }
 
-const StockRow: React.FC<StockRowProps> = ({ stock, latestDetectedAt }) => {
+const StockRow: React.FC<StockRowProps> = ({
+  stock,
+  latestDetectedAt,
+  onStarToggle,
+}) => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starLoading, setStarLoading] = useState(false);
-  const [, setForceUpdate] = useState(0);
+  const [, setForceUpdate] = useState(0); // to force re-render on star toggle
 
   const handleAnalyzeClick = useCallback(async () => {
     setLoading(true);
@@ -39,20 +44,20 @@ const StockRow: React.FC<StockRowProps> = ({ stock, latestDetectedAt }) => {
   const handleToggleStar = useCallback(async () => {
     setStarLoading(true);
     try {
-      if (stock.starred) {
-        await unstarStock(stock.ticker);
-        stock.starred = false;
-      } else {
+      const newStarredStatus = !stock.starred;
+      if (newStarredStatus) {
         await starStock(stock.ticker);
-        stock.starred = true;
+      } else {
+        await unstarStock(stock.ticker);
       }
+      onStarToggle(stock.ticker, newStarredStatus);
       setForceUpdate((prev) => prev + 1);
     } catch {
       alert("Failed to update star status.");
     } finally {
       setStarLoading(false);
     }
-  }, [stock]);
+  }, [stock, onStarToggle]);
 
   const recommendationVariant = (rec?: string) => {
     switch (rec) {
@@ -103,34 +108,48 @@ const StockRow: React.FC<StockRowProps> = ({ stock, latestDetectedAt }) => {
 
         <td className="align-middle">{stock.ticker}</td>
         <td className="align-middle">{stock.name}</td>
-        <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td>
+        <td className="align-middle text-center">
+          {stock.current_price.toFixed(2)}
+        </td>
+        <td className="align-middle text-center">
+          {stock.price_change.toFixed(2)}
+        </td>
         <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
-        <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td>
+        <td className="align-middle text-center">
+          {stock.money_flow_rate.toFixed(2)}
+        </td>
+        <td className="align-middle text-center">
+          {stock.current_volume.toLocaleString()}
+        </td>
+        <td className="align-middle text-center">
+          {stock.avg_volume_5d.toLocaleString()}
+        </td>
 
         <td className="align-middle text-center">
-        <span
-          style={{
-            color: isOld ? "#999" : undefined,
-            fontStyle: isOld ? "italic" : undefined,
-          }}
-          title={new Date(stock.detected_at + "Z").toLocaleString()}
-        >
-          {formatDistance(
-            new Date(stock.detected_at + "Z"),
-            new Date(new Date().toISOString()),
-            { addSuffix: true }
-          )}
-        </span>
+          <span
+            style={{
+              color: isOld ? "#999" : undefined,
+              fontStyle: isOld ? "italic" : undefined,
+            }}
+            title={new Date(stock.detected_at + "Z").toLocaleString()}
+          >
+            {formatDistance(
+              new Date(stock.detected_at + "Z"),
+              new Date(new Date().toISOString()),
+              { addSuffix: true }
+            )}
+          </span>
         </td>
 
         <td className="align-middle">
           <div className="d-flex flex-column align-items-center justify-content-center gap-2">
             {stock.recommendation && (
               <div>
-                <Badge pill bg={recommendationVariant(stock.recommendation)} className="me-2">
+                <Badge
+                  pill
+                  bg={recommendationVariant(stock.recommendation)}
+                  className="me-2"
+                >
                   {stock.recommendation}
                 </Badge>
                 <Badge bg="light" text="dark" className="border">

@@ -5,6 +5,7 @@ import type { VolumeSurgeStock } from "../../types";
 
 interface StockTableProps {
   stocks: VolumeSurgeStock[];
+  onStarToggle: (ticker: string, starred: boolean) => void;
 }
 
 type SortKey = keyof Pick<
@@ -19,7 +20,7 @@ type SortKey = keyof Pick<
   | "promising_score"
 >;
 
-const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
+const StockTable: React.FC<StockTableProps> = ({ stocks, onStarToggle }) => {
   const [sortKey, setSortKey] = useState<SortKey>("volume_rate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -69,8 +70,18 @@ const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
         <thead className="table-light sticky-top">
           <tr>
             <th style={{ width: "40px" }}> </th>
-            <th style={{ width: "80px" }} className="align-top text-center">Ticker</th>
-            <th style={{ minWidth: "140px" }} className="align-top text-center">Name</th>
+            <th
+              style={{ width: "80px" }}
+              className="align-top text-center"
+            >
+              Ticker
+            </th>
+            <th
+              style={{ minWidth: "140px" }}
+              className="align-top text-center"
+            >
+              Name
+            </th>
             <th
               style={{ width: "120px" }}
               className="align-top text-center clickable"
@@ -135,6 +146,7 @@ const StockTable: React.FC<StockTableProps> = ({ stocks }) => {
               key={stock.ticker}
               stock={stock}
               latestDetectedAt={latestDetectedAt}
+              onStarToggle={onStarToggle}
             />
           ))}
         </tbody>

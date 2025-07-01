@@ -6,7 +6,7 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func
-from app.models import VolumeSnapshot, AverageVolume, AverageMoneyFlow
+from app.models import VolumeSnapshot, AverageVolume, AverageMoneyFlow, StarredStock
 from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_daily_volumes
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
@@ -351,9 +351,12 @@ def get_latest_volume_surges(
         .filter(VS.volume_rate >= surge_threshold)
         .filter(VS.current_price <= price_threshold)
         .filter(VS.promising_score >= promising_score_threshold)
-        .order_by(VS.ticker, VS.detected_at.desc())  # ✅ Fix: match DISTINCT ON
+        .order_by(VS.ticker, VS.detected_at.desc())
         .all()
     )
+
+    # Fetch all starred tickers globally
+    starred_tickers = {s.ticker for s in db.query(StarredStock).all()}
 
     return [
         {
@@ -370,6 +373,7 @@ def get_latest_volume_surges(
             "recommendation": r.recommendation,
             "promising_score": r.promising_score,
             "top_news": r.top_news,
+            "starred": r.ticker in starred_tickers,  # Mark star
         }
         for r in results
     ]
