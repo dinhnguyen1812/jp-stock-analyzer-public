@@ -102,7 +102,7 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
         name_tag = soup.select_one("h2.PriceBoardMain__name__6uDh")
         name = name_tag.text.strip() if name_tag else ticker
 
-        # 2. Extract 出来高
+        # 2. Extract 出来高 (current volume)
         current_volume = None
         labels = soup.select("span.DataListItem__name__3RQJ")
         for label in labels:
@@ -116,19 +116,23 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
             print(f"❌ 出来高 not found for {ticker}")
             return None
 
-        # 3. Extract price change %
+        # 3. Extract price change percentage
         percent_change = 0.0
-        change_label = soup.select_one("dt.PriceChangeLabel__term__3H4k")
-        if change_label and "前日比" in change_label.text:
-            percent_span = change_label.find_next("span", class_="StyledNumber__value__3rXW")
-            if percent_span:
-                percent_text = percent_span.text.replace("+", "").replace("%", "").strip()
+        change_container = soup.select_one("dd.PriceChangeLabel__description__a5Lp")
+        if change_container:
+            percent_spans = change_container.select("span.StyledNumber__value__3rXW")
+            if len(percent_spans) >= 2:
+                percent_text = percent_spans[1].text.replace("+", "").replace("%", "").strip()
                 try:
                     percent_change = float(percent_text)
                 except ValueError:
                     pass
+            else:
+                print(f"⚠️ Couldn't find percentage span for {ticker}")
+        else:
+            print(f"⚠️ Price change container not found for {ticker}")
 
-        # 4. Call analyzer
+        # 4. Analyze volume/money flow
         analysis = analyze_intraday_activity(db, ticker, current_volume)
         if not analysis:
             return None
@@ -139,7 +143,7 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
             ticker=ticker,
             name=name,
             current_price=analysis["current_price"],
-            price_change=percent_change,
+            price_change=percent_change,  # now correct percent
             current_volume=current_volume,
             avg_volume_5d=analysis["avg_volume_5d"],
             volume_rate=analysis["volume_rate"],
@@ -150,6 +154,7 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
     except Exception as e:
         print(f"❌ Failed to fetch intraday info for {ticker}: {e}")
         return None
+
 
 def fetch_volume_page(db: Session, page: int = 1):
     url = f"https://finance.yahoo.co.jp/stocks/ranking/volume?market=all&term=daily&page={page}"
@@ -314,7 +319,13 @@ def fetch_intraday_prices(ticker: str):
         print(f"❌ Failed to fetch quote info for {ticker}: {e}")
         return None, None, None
 
-def get_latest_volume_surges(db: Session, hours: int = 24) -> list[dict]:
+def get_latest_volume_surges(
+    db: Session,
+    hours: int = 24,
+    surge_threshold: float = 2.0,
+    price_threshold: float = 300.0,
+    promising_score_threshold: float = 0.0,
+) -> List[dict]:
     since = datetime.utcnow() - timedelta(hours=hours)
 
     subquery = (
@@ -331,6 +342,9 @@ def get_latest_volume_surges(db: Session, hours: int = 24) -> list[dict]:
     results = (
         db.query(VS)
         .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
+        .filter(VS.volume_rate >= surge_threshold)
+        .filter(VS.current_price <= price_threshold)
+        .filter(VS.promising_score >= promising_score_threshold)
         .order_by(VS.volume_rate.desc())
         .all()
     )

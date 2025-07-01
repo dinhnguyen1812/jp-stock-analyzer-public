@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Container, Button, Spinner, Form, InputGroup, Row, Col } from "react-bootstrap";
+import { Container } from "react-bootstrap";
 import ScanForm from "../components/shortterm/ScanForm";
+import FetchAnalyzeCard from "../components/shortterm/FetchAnalyzeCard";
 import StockTable from "../components/shortterm/StockTable";
 import IntradayAnalysisModal from "../components/shortterm/TickerAnalysisResult";
 import type { VolumeSurgeStock } from "../types";
-import { 
-  triggerVolumeScan, 
-  fetchRecentVolumeSurges, 
-  fetchIntradayAnalysis 
+import {
+  triggerVolumeScan,
+  fetchRecentVolumeSurges,
+  fetchIntradayAnalysis
 } from "../api";
 
 const ShortTermPage: React.FC = () => {
@@ -16,7 +17,9 @@ const ShortTermPage: React.FC = () => {
   }, []);
 
   const [surgeThreshold, setSurgeThreshold] = useState(2.0);
-  const [priceThreshold, setPriceThreshold] = useState(300.0);
+  const [priceThreshold, setPriceThreshold] = useState(150.0);
+  const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(0);  // NEW
+
   const [fromPage, setFromPage] = useState(1);
   const [toPage, setToPage] = useState(1);
 
@@ -29,7 +32,6 @@ const ShortTermPage: React.FC = () => {
   const [intradayAnalysis, setIntradayAnalysis] = useState<any | null>(null);
   const [targetTicker, setTargetTicker] = useState<string>("");
 
-  // New loading state for Analyze button
   const [loadingAnalyze, setLoadingAnalyze] = useState(false);
 
   const handleAnalyzeTicker = async (ticker: string) => {
@@ -43,14 +45,13 @@ const ShortTermPage: React.FC = () => {
       setTargetTicker(ticker.trim());
       setIntradayAnalysis(data);
       setShowIntradayModal(true);
-    } catch (err) {
+    } catch {
       alert("Failed to analyze ticker.");
     } finally {
       setLoadingAnalyze(false);
     }
   };
 
-  // Trigger scan only
   const handleScan = async () => {
     setLoadingScan(true);
     try {
@@ -65,11 +66,15 @@ const ShortTermPage: React.FC = () => {
     }
   };
 
-  // Fetch saved volume surge results only
   const handleFetchResults = async () => {
     setLoadingFetch(true);
     try {
-      const data = await fetchRecentVolumeSurges();
+      // Pass promisingScoreThreshold as well
+      const data = await fetchRecentVolumeSurges(
+        surgeThreshold,
+        priceThreshold,
+        promisingScoreThreshold
+      );
       setStocks(data);
     } catch (error) {
       console.error(error);
@@ -81,6 +86,7 @@ const ShortTermPage: React.FC = () => {
 
   return (
     <Container className="py-4">
+      {/* SCAN CONTROL */}
       <ScanForm
         surgeThreshold={surgeThreshold}
         priceThreshold={priceThreshold}
@@ -94,47 +100,23 @@ const ShortTermPage: React.FC = () => {
         onScan={handleScan}
       />
 
-      <Row className="mb-3 align-items-center">
-        <Col xs="auto">
-          <Button onClick={handleFetchResults} disabled={loadingFetch}>
-            {loadingFetch ? <Spinner animation="border" size="sm" /> : "Fetch Volume Surge Stocks"}
-          </Button>
-        </Col>
+      {/* FETCH & ANALYZE CARD */}
+      <FetchAnalyzeCard
+        surgeThreshold={surgeThreshold}
+        priceThreshold={priceThreshold}
+        promisingScoreThreshold={promisingScoreThreshold}         // NEW
+        tickerInput={tickerInput}
+        loadingFetch={loadingFetch}
+        loadingAnalyze={loadingAnalyze}
+        onSurgeThresholdChange={setSurgeThreshold}
+        onPriceThresholdChange={setPriceThreshold}
+        onPromisingScoreChange={setPromisingScoreThreshold}        // NEW
+        onTickerInputChange={setTickerInput}
+        onFetch={handleFetchResults}
+        onAnalyze={handleAnalyzeTicker}
+      />
 
-        <Col xs="auto">
-          <InputGroup style={{ minWidth: 250 }}>
-            <Form.Control
-              placeholder="Enter ticker"
-              value={tickerInput}
-              onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAnalyzeTicker(tickerInput);
-                }
-              }}
-              aria-label="Ticker input"
-              disabled={loadingAnalyze}
-            />
-            <Button
-              variant="primary"
-              onClick={() => handleAnalyzeTicker(tickerInput)}
-              disabled={loadingAnalyze}
-            >
-              {loadingAnalyze ? (
-                <>
-                  <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
-                  {" "}Analyzing...
-                </>
-              ) : (
-                "Analyze"
-              )}
-            </Button>
-          </InputGroup>
-        </Col>
-      </Row>
-
-      {/* Render the analysis modal */}
+      {/* MODAL */}
       <IntradayAnalysisModal
         show={showIntradayModal}
         onHide={() => setShowIntradayModal(false)}
@@ -142,6 +124,7 @@ const ShortTermPage: React.FC = () => {
         ticker={targetTicker}
       />
 
+      {/* TABLE */}
       {stocks.length > 0 && <StockTable stocks={stocks} />}
     </Container>
   );

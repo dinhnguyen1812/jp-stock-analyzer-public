@@ -18,10 +18,10 @@ const ScanForm: React.FC<ScanFormProps> = ({
     <Card className="mb-4 shadow-sm">
       <Card.Body>
         <Form>
-          <Row className="g-3 align-items-end">
+          <Row className="align-items-center g-3">
             <Col md={3}>
-              <Form.Label>Surge Threshold</Form.Label>
               <InputGroup>
+                <InputGroup.Text>Surge ≥</InputGroup.Text>
                 <Form.Control
                   type="number"
                   step="0.1"
@@ -35,8 +35,8 @@ const ScanForm: React.FC<ScanFormProps> = ({
             </Col>
 
             <Col md={3}>
-              <Form.Label>Price Threshold</Form.Label>
               <InputGroup>
+                <InputGroup.Text>Price ≤</InputGroup.Text>
                 <Form.Control
                   type="number"
                   min="0"
@@ -49,25 +49,29 @@ const ScanForm: React.FC<ScanFormProps> = ({
             </Col>
 
             <Col md={2}>
-              <Form.Label>From Page</Form.Label>
-              <Form.Control
-                type="number"
-                min="1"
-                value={fromPage}
-                onChange={(e) => onFromPageChange(Number(e.target.value) || 1)}
-                disabled={loading}
-              />
+              <InputGroup>
+                <InputGroup.Text>From</InputGroup.Text>
+                <Form.Control
+                  type="number"
+                  min="1"
+                  value={fromPage}
+                  onChange={(e) => onFromPageChange(Number(e.target.value) || 1)}
+                  disabled={loading}
+                />
+              </InputGroup>
             </Col>
 
             <Col md={2}>
-              <Form.Label>To Page</Form.Label>
-              <Form.Control
-                type="number"
-                min={fromPage}
-                value={toPage}
-                onChange={(e) => onToPageChange(Number(e.target.value) || fromPage)}
-                disabled={loading}
-              />
+              <InputGroup>
+                <InputGroup.Text>To</InputGroup.Text>
+                <Form.Control
+                  type="number"
+                  min={fromPage}
+                  value={toPage}
+                  onChange={(e) => onToPageChange(Number(e.target.value) || fromPage)}
+                  disabled={loading}
+                />
+              </InputGroup>
             </Col>
 
             <Col md={2}>

@@ -31,11 +31,18 @@ export async function triggerVolumeScan(
   return await res.json();
 }
 
-export async function fetchRecentVolumeSurges(hours: number = 24) {
-  const res = await fetch(`${BASE_URL}/shortterm/volume_surges?hours=${hours}`);
+export async function fetchRecentVolumeSurges(
+  surgeThreshold: number = 2.0,
+  priceThreshold: number = 150.0,
+  promisingScoreThreshold: number = 0.0
+) {
+  const res = await fetch(
+    `${BASE_URL}/shortterm/volume_surges?surge_threshold=${surgeThreshold}&price_threshold=${priceThreshold}&promising_score_threshold=${promisingScoreThreshold}`
+  );
   if (!res.ok) throw new Error("Failed to fetch volume surge results");
   return await res.json();
 }
+
 
 export async function fetchKabutanNewsAnalysis(ticker: string, limit = 30, top_n = 10, user_prompt?: string) {
   const params = new URLSearchParams({

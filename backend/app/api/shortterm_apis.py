@@ -200,9 +200,21 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
 
 # For Use
 @router.get("/volume_surges")
-def get_recent_volume_surges(hours: int = 24, db: Session = Depends(get_db)):
-    """Return stocks with volume surges in the last `hours`."""
-    return get_latest_volume_surges(db, hours)
+def get_recent_volume_surges(
+    hours: int = 24,
+    surge_threshold: float = 2.0,
+    price_threshold: float = 150.0,
+    promising_score_threshold: float = 0.0,
+    db: Session = Depends(get_db),
+):
+    """Return stocks with volume surges in the last `hours` filtered by thresholds."""
+    return get_latest_volume_surges(
+        db,
+        hours=hours,
+        surge_threshold=surge_threshold,
+        price_threshold=price_threshold,
+        promising_score_threshold=promising_score_threshold,
+    )
 
 # For Use (haven't be used)
 @router.get("/news_signals", response_model=List[Dict])
