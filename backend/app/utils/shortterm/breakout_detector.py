@@ -2,13 +2,13 @@ from typing import Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models import DailyPrice
+from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices  # ✅ import
 
 def detect_breakout(db: Session, ticker: str, lookback_days: int = 20) -> Dict:
     """
-    Detect price breakout using the last N+1 daily price records from DB.
-    Assumes price data already exists in DB.
+    Detect price breakout using the last N daily price records and today's current intraday price.
     """
-    required_days = lookback_days + 1
+    required_days = lookback_days
 
     price_data: List[DailyPrice] = (
         db.query(DailyPrice)
@@ -29,14 +29,19 @@ def detect_breakout(db: Session, ticker: str, lookback_days: int = 20) -> Dict:
         "close": p.close
     } for p in price_data]
 
-    today = price_list[0]
-    resistance = max(day["high"] for day in price_list[1:])  # exclude today
+    resistance = max(day["high"] for day in price_list)
 
-    breakout = today["close"] > resistance
+    # ✅ Fetch current intraday price
+    current_price, _, _ = fetch_intraday_prices(ticker)
+    if current_price is None:
+        return {"breakout_detected": False, "reason": "Failed to fetch current price"}
+
+    today = price_list[0]
+    breakout = max(current_price, today["close"]) > resistance
 
     return {
         "breakout_detected": breakout,
         "resistance_level": resistance,
-        "close_today": today["close"],
-        "date": today["date"]
+        "current_price": current_price,
+        "date": price_list[0]["date"]
     }
