@@ -117,6 +117,7 @@ def trigger_volume_scan(
                 news_items=news,
                 volume_info=volume_info,
                 top_n=5,
+                model="gpt-3.5-turbo",
             )
         except Exception as e:
             print(f"⚠️ GPT analysis failed for {ticker}: {e}")
@@ -205,6 +206,7 @@ def get_recent_volume_surges(
     surge_threshold: float = 2.0,
     price_threshold: float = 150.0,
     promising_score_threshold: float = 0.0,
+    starred_only: bool = False,
     db: Session = Depends(get_db),
 ):
     """Return stocks with volume surges in the last `hours` filtered by thresholds."""
@@ -214,7 +216,9 @@ def get_recent_volume_surges(
         surge_threshold=surge_threshold,
         price_threshold=price_threshold,
         promising_score_threshold=promising_score_threshold,
+        starred_only=starred_only,
     )
+
 
 # For Use (haven't be used)
 @router.get("/news_signals", response_model=List[Dict])
@@ -438,6 +442,7 @@ def analyze_ticker_with_gpt(ticker: str, db: Session = Depends(get_db)):
         "gpt_summary": gpt_result.get("gpt_summary", ""),
     }
 
+# For Use
 @router.get("/analyze_starred")
 def analyze_all_starred_stocks(db: Session = Depends(get_db)):
     starred = db.query(StarredStock).all()

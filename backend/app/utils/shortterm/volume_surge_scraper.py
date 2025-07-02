@@ -331,6 +331,7 @@ def get_latest_volume_surges(
     surge_threshold: float = 2.0,
     price_threshold: float = 300.0,
     promising_score_threshold: float = 0.0,
+    starred_only: bool = False,
 ) -> List[dict]:
     since = datetime.utcnow() - timedelta(hours=hours)
 
@@ -345,18 +346,21 @@ def get_latest_volume_surges(
     )
 
     VS = aliased(VolumeSnapshot)
-    results = (
+    query = (
         db.query(VS)
         .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
         .filter(VS.volume_rate >= surge_threshold)
         .filter(VS.current_price <= price_threshold)
         .filter(VS.promising_score >= promising_score_threshold)
-        .order_by(VS.ticker, VS.detected_at.desc())
-        .all()
     )
 
-    # Fetch all starred tickers globally
+    # Get starred tickers
     starred_tickers = {s.ticker for s in db.query(StarredStock).all()}
+
+    if starred_only:
+        query = query.filter(VS.ticker.in_(starred_tickers))
+
+    results = query.order_by(VS.ticker, VS.detected_at.desc()).all()
 
     return [
         {
@@ -373,7 +377,7 @@ def get_latest_volume_surges(
             "recommendation": r.recommendation,
             "promising_score": r.promising_score,
             "top_news": r.top_news,
-            "starred": r.ticker in starred_tickers,  # Mark star
+            "starred": r.ticker in starred_tickers,
         }
         for r in results
     ]

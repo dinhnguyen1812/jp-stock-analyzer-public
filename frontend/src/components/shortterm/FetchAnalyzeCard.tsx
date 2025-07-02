@@ -8,12 +8,16 @@ interface FetchAnalyzeCardProps {
   tickerInput: string;
   loadingFetch: boolean;
   loadingAnalyze: boolean;
+  starredOnly: boolean; // ⭐ New
+  loadingAnalyzeStarred: boolean; // ⭐ loading state for that action
   onSurgeThresholdChange: (value: number) => void;
   onPriceThresholdChange: (value: number) => void;
   onPromisingScoreChange: (value: number) => void;
   onTickerInputChange: (value: string) => void;
   onFetch: () => void;
   onAnalyze: (ticker: string) => void;
+  onStarredOnlyChange: (value: boolean) => void; // ⭐ New
+  onAnalyzeStarred: () => void;  // ⭐ new prop for analyzing all starred
 }
 
 const FetchAnalyzeCard: React.FC<FetchAnalyzeCardProps> = ({
@@ -23,12 +27,16 @@ const FetchAnalyzeCard: React.FC<FetchAnalyzeCardProps> = ({
   tickerInput,
   loadingFetch,
   loadingAnalyze,
+  starredOnly,
+  loadingAnalyzeStarred,
   onSurgeThresholdChange,
   onPriceThresholdChange,
   onPromisingScoreChange,
   onTickerInputChange,
   onFetch,
   onAnalyze,
+  onStarredOnlyChange,
+  onAnalyzeStarred,
 }) => {
   return (
     <Card className="mb-4 shadow-sm">
@@ -79,7 +87,18 @@ const FetchAnalyzeCard: React.FC<FetchAnalyzeCardProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ flexGrow: 1, minWidth: 110 }}>
+            {/* ⭐ Starred Only Checkbox */}
+            <Col style={{ flexGrow: 0.1, minWidth: 50 }}>
+              <Form.Check
+                type="checkbox"
+                label="⭐"
+                checked={starredOnly}
+                onChange={(e) => onStarredOnlyChange(e.target.checked)}
+                disabled={loadingFetch}
+              />
+            </Col>
+
+            <Col style={{ flexGrow: 0.6, minWidth: 80 }}>
               <Button
                 variant="primary"
                 onClick={onFetch}
@@ -94,8 +113,24 @@ const FetchAnalyzeCard: React.FC<FetchAnalyzeCardProps> = ({
                 )}
               </Button>
             </Col>
+            <Col xs="auto">
+              <Button
+                variant="warning"
+                onClick={onAnalyzeStarred}
+                disabled={loadingAnalyzeStarred}
+                title="Analyze all starred stocks"
+              >
+                {loadingAnalyzeStarred ? (
+                  <>
+                    <Spinner animation="border" size="sm" /> Analyzing Starred...
+                  </>
+                ) : (
+                  "Analyze Starred"
+                )}
+              </Button>
+            </Col>
 
-            <Col style={{ flexGrow: 2, minWidth: 200 }}>
+            <Col style={{ flexGrow: 1, minWidth: 200 }}>
               <InputGroup>
                 <Form.Control
                   placeholder="Ticker"

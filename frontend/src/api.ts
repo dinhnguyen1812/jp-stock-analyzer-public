@@ -34,10 +34,11 @@ export async function triggerVolumeScan(
 export async function fetchRecentVolumeSurges(
   surgeThreshold: number = 2.0,
   priceThreshold: number = 150.0,
-  promisingScoreThreshold: number = 0.0
+  promisingScoreThreshold: number = 0.0,
+  starredOnly: boolean = false
 ) {
   const res = await fetch(
-    `${BASE_URL}/shortterm/volume_surges?surge_threshold=${surgeThreshold}&price_threshold=${priceThreshold}&promising_score_threshold=${promisingScoreThreshold}`
+    `${BASE_URL}/shortterm/volume_surges?surge_threshold=${surgeThreshold}&price_threshold=${priceThreshold}&promising_score_threshold=${promisingScoreThreshold}&starred_only=${starredOnly}`
   );
   if (!res.ok) throw new Error("Failed to fetch volume surge results");
   return await res.json();
@@ -86,4 +87,10 @@ export async function fetchIntradayAnalysis(ticker: string) {
     throw new Error(`Failed to fetch intraday analysis for ${ticker}`);
   }
   return await response.json();
+}
+
+export async function analyzeAllStarredStocks() {
+  const res = await fetch(`${BASE_URL}/shortterm/analyze_starred`);
+  if (!res.ok) throw new Error("Failed to analyze starred stocks");
+  return await res.json();
 }

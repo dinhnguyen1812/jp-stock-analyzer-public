@@ -70,15 +70,16 @@ const StockRow: React.FC<StockRowProps> = ({
     }
   };
 
+  const ONE_HOUR_MS = 1000 * 60 * 60;
   const isOld =
-    new Date(stock.detected_at).getTime() < new Date(latestDetectedAt).getTime();
+    new Date(stock.detected_at).getTime() < new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
 
   return (
     <>
       <tr>
         <td className="text-center align-middle" style={{ width: 40 }}>
           <Button
-            variant={stock.starred ? "warning" : "outline-secondary"}
+            variant="outline-secondary" // keep neutral variant, no yellow background
             size="sm"
             title={stock.starred ? "Unstar stock" : "Star stock"}
             aria-pressed={stock.starred}
@@ -97,6 +98,9 @@ const StockRow: React.FC<StockRowProps> = ({
                   userSelect: "none",
                   color: stock.starred ? "#ffc107" : "#6c757d",
                   pointerEvents: "none",
+                  textShadow: stock.starred
+                    ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
+                    : "none", // glow only if starred
                 }}
                 aria-hidden="true"
               >
@@ -104,6 +108,7 @@ const StockRow: React.FC<StockRowProps> = ({
               </span>
             )}
           </Button>
+
         </td>
 
         <td className="align-middle">{stock.ticker}</td>

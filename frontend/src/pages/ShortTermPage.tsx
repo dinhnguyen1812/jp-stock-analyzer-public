@@ -9,6 +9,7 @@ import {
   triggerVolumeScan,
   fetchRecentVolumeSurges,
   fetchIntradayAnalysis,
+  analyzeAllStarredStocks,
 } from "../api";
 
 const ShortTermPage: React.FC = () => {
@@ -19,6 +20,7 @@ const ShortTermPage: React.FC = () => {
   const [surgeThreshold, setSurgeThreshold] = useState(2.0);
   const [priceThreshold, setPriceThreshold] = useState(150.0);
   const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(0);
+  const [starredOnly, setStarredOnly] = useState(false); // ⭐ NEW
 
   const [fromPage, setFromPage] = useState(1);
   const [toPage, setToPage] = useState(1);
@@ -33,6 +35,9 @@ const ShortTermPage: React.FC = () => {
   const [targetTicker, setTargetTicker] = useState<string>("");
 
   const [loadingAnalyze, setLoadingAnalyze] = useState(false);
+
+  const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState(false);
+  const [starredAnalyzeResults, setStarredAnalyzeResults] = useState<any[]>([]);
 
   const handleAnalyzeTicker = async (ticker: string) => {
     if (!ticker.trim()) {
@@ -72,7 +77,8 @@ const ShortTermPage: React.FC = () => {
       const data = await fetchRecentVolumeSurges(
         surgeThreshold,
         priceThreshold,
-        promisingScoreThreshold
+        promisingScoreThreshold,
+        starredOnly // ⭐ NEW
       );
       console.log("Fetched stocks with star status:", data);
       setStocks(data);
@@ -91,6 +97,24 @@ const ShortTermPage: React.FC = () => {
         stock.ticker === ticker ? { ...stock, starred } : stock
       )
     );
+  };
+
+  const handleAnalyzeStarred = async () => {
+    setLoadingAnalyzeStarred(true);
+    try {
+      const results = await analyzeAllStarredStocks();
+      setStarredAnalyzeResults(results);
+      alert(`Analyzed ${results.length} starred stocks.`);
+      console.log("Starred Analyze Results:", results);
+
+      // Refetch starred stocks to update UI table
+      await handleFetchResults();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to analyze starred stocks.");
+    } finally {
+      setLoadingAnalyzeStarred(false);
+    }
   };
 
   return (
@@ -117,12 +141,16 @@ const ShortTermPage: React.FC = () => {
         tickerInput={tickerInput}
         loadingFetch={loadingFetch}
         loadingAnalyze={loadingAnalyze}
+        starredOnly={starredOnly}
+        loadingAnalyzeStarred={loadingAnalyzeStarred} // ⭐
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
         onPromisingScoreChange={setPromisingScoreThreshold}
         onTickerInputChange={setTickerInput}
         onFetch={handleFetchResults}
         onAnalyze={handleAnalyzeTicker}
+        onStarredOnlyChange={setStarredOnly}
+        onAnalyzeStarred={handleAnalyzeStarred} // ⭐
       />
 
       {/* MODAL */}
