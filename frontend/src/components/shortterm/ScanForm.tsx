@@ -2,7 +2,12 @@ import React from "react";
 import { Form, Button, Spinner, Row, Col, InputGroup, Card } from "react-bootstrap";
 import type { ScanFormProps } from "../../types";
 
-const ScanForm: React.FC<ScanFormProps> = ({
+interface ExtendedScanFormProps extends ScanFormProps {
+  onFetchNewsSignals: () => void;
+  loadingNewsSignals: boolean;
+}
+
+const ScanForm: React.FC<ExtendedScanFormProps> = ({
   surgeThreshold,
   priceThreshold,
   fromPage,
@@ -13,13 +18,15 @@ const ScanForm: React.FC<ScanFormProps> = ({
   onFromPageChange,
   onToPageChange,
   onScan,
+  onFetchNewsSignals,
+  loadingNewsSignals,
 }) => {
   return (
     <Card className="mb-4 shadow-sm">
       <Card.Body>
         <Form>
-          <Row className="align-items-center g-3">
-            <Col md={3}>
+          <Row className="align-items-center g-3 flex-nowrap" style={{ overflowX: "auto" }}>
+            <Col style={{ minWidth: 200 }}>
               <InputGroup>
                 <InputGroup.Text>Surge ≥</InputGroup.Text>
                 <Form.Control
@@ -34,7 +41,7 @@ const ScanForm: React.FC<ScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col md={3}>
+            <Col style={{ minWidth: 200 }}>
               <InputGroup>
                 <InputGroup.Text>Price ≤</InputGroup.Text>
                 <Form.Control
@@ -48,7 +55,7 @@ const ScanForm: React.FC<ScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col md={2}>
+            <Col style={{ minWidth: 150 }}>
               <InputGroup>
                 <InputGroup.Text>From</InputGroup.Text>
                 <Form.Control
@@ -61,7 +68,7 @@ const ScanForm: React.FC<ScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col md={2}>
+            <Col style={{ minWidth: 150 }}>
               <InputGroup>
                 <InputGroup.Text>To</InputGroup.Text>
                 <Form.Control
@@ -74,7 +81,7 @@ const ScanForm: React.FC<ScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col md={2}>
+            <Col style={{ minWidth: 80 }}>
               <Button
                 variant="primary"
                 className="w-100"
@@ -82,6 +89,21 @@ const ScanForm: React.FC<ScanFormProps> = ({
                 disabled={loading}
               >
                 {loading ? <Spinner animation="border" size="sm" /> : "Scan"}
+              </Button>
+            </Col>
+
+            <Col style={{ minWidth: 180 }}>
+              <Button
+                variant="info"
+                className="w-100"
+                onClick={onFetchNewsSignals}
+                disabled={loadingNewsSignals}
+              >
+                {loadingNewsSignals ? (
+                  <Spinner animation="border" size="sm" />
+                ) : (
+                  "News + Stock Impact"
+                )}
               </Button>
             </Col>
           </Row>

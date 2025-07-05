@@ -233,13 +233,13 @@ def scan_and_save_volume_surges(
     from_page: int = 1,
     to_page: int = 1
 ) -> List[str]:
-    one_hour_ago = datetime.now(JP_TZ) - timedelta(hours=1)
+    half_hour_ago = datetime.now(JP_TZ) - timedelta(hours=0.5)
 
     # Step 1: Get tickers already scanned within the past hour
     recent_tickers = {
         row.ticker
         for row in db.query(VolumeSnapshot)
-        .filter(VolumeSnapshot.detected_at >= one_hour_ago)
+        .filter(VolumeSnapshot.detected_at >= half_hour_ago)
         .all()
     }
 
@@ -327,20 +327,17 @@ def fetch_intraday_prices(ticker: str):
 
 def get_latest_volume_surges(
     db: Session,
-    hours: int = 24,
     surge_threshold: float = 2.0,
     price_threshold: float = 300.0,
     promising_score_threshold: float = 0.0,
     starred_only: bool = False,
 ) -> List[dict]:
-    since = datetime.utcnow() - timedelta(hours=hours)
-
+    # Remove time filtering
     subquery = (
         db.query(
             VolumeSnapshot.ticker,
             func.max(VolumeSnapshot.detected_at).label("latest_time")
         )
-        .filter(VolumeSnapshot.detected_at >= since)
         .group_by(VolumeSnapshot.ticker)
         .subquery()
     )
@@ -354,9 +351,7 @@ def get_latest_volume_surges(
         .filter(VS.promising_score >= promising_score_threshold)
     )
 
-    # Get starred tickers
     starred_tickers = {s.ticker for s in db.query(StarredStock).all()}
-
     if starred_only:
         query = query.filter(VS.ticker.in_(starred_tickers))
 
@@ -381,3 +376,4 @@ def get_latest_volume_surges(
         }
         for r in results
     ]
+

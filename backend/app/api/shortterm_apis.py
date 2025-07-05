@@ -11,7 +11,7 @@ from app.utils.shortterm.volume_history import fetch_daily_volume_history, save_
 from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, save_daily_money_flows
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
-from app.utils.shortterm.yahoo_general_news import fetch_news_signals
+from app.utils.shortterm.yahoo_general_news import fetch_news_signals_with_stock_impacts
 from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, analyze_stock_surge_with_news, get_volume_info
 from app.utils.shortterm.breakout_detector import detect_breakout
 from app.utils.shortterm.candle_pattern_detector import analyze_candle_pattern_for_ticker
@@ -202,17 +202,14 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
 # For Use
 @router.get("/volume_surges")
 def get_recent_volume_surges(
-    hours: int = 24,
     surge_threshold: float = 2.0,
     price_threshold: float = 150.0,
     promising_score_threshold: float = 0.0,
     starred_only: bool = False,
     db: Session = Depends(get_db),
 ):
-    """Return stocks with volume surges in the last `hours` filtered by thresholds."""
     return get_latest_volume_surges(
         db,
-        hours=hours,
         surge_threshold=surge_threshold,
         price_threshold=price_threshold,
         promising_score_threshold=promising_score_threshold,
@@ -221,9 +218,12 @@ def get_recent_volume_surges(
 
 
 # For Use (haven't be used)
-@router.get("/news_signals", response_model=List[Dict])
-def get_news_signals(db: Session = Depends(get_db)):
-    return fetch_news_signals()
+@router.get("/news_signals")
+def get_news_signals_with_stock_impacts(db: Session = Depends(get_db)):
+    try:
+        return fetch_news_signals_with_stock_impacts(db=db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # For Use
 @router.post("/{ticker}/star")

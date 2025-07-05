@@ -39,3 +39,6 @@ frontend/build/
 # Docker volumes (optional)
 pgdata/
 
+# Other files
+.TRADING_RULES.*
+.GIAODICH.*

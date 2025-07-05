@@ -94,3 +94,9 @@ export async function analyzeAllStarredStocks() {
   if (!res.ok) throw new Error("Failed to analyze starred stocks");
   return await res.json();
 }
+
+export async function fetchNewsSignalsWithImpacts() {
+  const res = await fetch(`${BASE_URL}/shortterm/news_signals`);
+  if (!res.ok) throw new Error("Failed to fetch news signals");
+  return await res.json();
+}

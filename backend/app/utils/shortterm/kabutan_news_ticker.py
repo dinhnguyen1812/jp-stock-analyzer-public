@@ -97,13 +97,11 @@ def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
         return []
 
 def get_volume_info(db: Session, ticker: str):
-    since = datetime.utcnow() - timedelta(hours=24)
     subquery = (
         db.query(
             VolumeSnapshot.ticker,
             func.max(VolumeSnapshot.detected_at).label("latest_time")
         )
-        .filter(VolumeSnapshot.detected_at >= since)
         .group_by(VolumeSnapshot.ticker)
         .subquery()
     )
@@ -115,6 +113,7 @@ def get_volume_info(db: Session, ticker: str):
         .filter(VS.ticker == ticker)
         .first()
     )
+
 
 def analyze_stock_surge_with_news(
     db: Session,
@@ -203,19 +202,23 @@ def analyze_stock_surge_with_news(
         "  3. **Chart patterns** such as W-shape, flags/pennants, or triangle formations\n"
         "  4. **Momentum indicators** like RSI and MACD — use these as supportive, not decisive\n"
         "  5. **Trend indicators** like SMA/EMA — use for additional context\n"
-        "  6. **News headlines** — consider news impact only if it's relevant and likely to influence short-term movement\n\n"
+        "  6. **News headlines** — consider news impact only if it's relevant and likely to influence short-term movement\n"
+        "- Pay special attention to news related to major market themes such as **Bitcoin**, **AI**, **semiconductors**, and macro-political events like **wars**, **tariffs**, **elections**, or statements by influential figures (e.g., **Trump**), as these can significantly impact certain stocks.\n"
         "- Focus on explaining recent price and volume movements based on the above priorities\n"
         "- Use relevant news to support or challenge the technical signals, but do not rely on news alone\n"
         "- Evaluate whether the news sentiment is bullish, bearish, or neutral\n"
         "- Provide an investment recommendation: **Buy**, **Hold**, or **Sell**\n"
         "- Justify your recommendation in clear and concise bullet points (2–3 max)\n"
-        "- Score the stock's short-term promise from 0–100, based on risk/reward and likelihood of sustained move\n\n"
+        "- Score the stock's short-term promise from 0–100, based on risk/reward and likelihood of sustained move\n"
+        "- Estimate a short-term price target based on the analysis\n\n"
         "### Output Format:\n"
         "Headline List:\n1. ...\n2. ...\n\n"
         "Summary:\n<Brief analysis paragraph>\n\n"
         "- Investment Recommendation: Buy / Hold / Sell\n"
-        "- Promising Score: (0–100)"
+        "- Promising Score: (0–100)\n"
+        "- Expected Price Target (in JPY): <target price>"
     )
+
 
     try:
         response = openai.chat.completions.create(

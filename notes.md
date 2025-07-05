@@ -49,5 +49,7 @@ You can track new listings on the JPX New Listings page, which includes market s
 <!-- - Get news (from multiple categories), take those with more impacts -->
 <!-- - Add Analyze starred stocks - button
 - Add star option to Fetch -->
-- Change breakout to using current price (not close price)
-- Check breakout
+<!-- - Change breakout to using current price (not close price)
+- Check breakout -->
+- General yahoo news scan: add evaluate effect of the news to starred stocks
+- 

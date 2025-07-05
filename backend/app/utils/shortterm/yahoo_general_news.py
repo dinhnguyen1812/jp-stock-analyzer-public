@@ -6,6 +6,9 @@ from typing import List, Dict, Optional
 import os
 import openai
 
+from app.models import StarredStock
+from sqlalchemy.orm import Session
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 KEYWORDS = [
@@ -40,10 +43,7 @@ def add_keyword_scores(news_items: List[Dict]) -> List[Dict]:
         item["score"] = relevance_score(headline)
     return news_items
 
-def scrape_yahoo_general_market_news(
-    limit_per_category: int = 10,
-    categories: Optional[List[str]] = None,
-) -> List[Dict]:
+def scrape_yahoo_general_market_news(limit_per_category: int = 10, categories: Optional[List[str]] = None) -> List[Dict]:
     url = "https://finance.yahoo.co.jp/news?category=market"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -114,66 +114,51 @@ def scrape_yahoo_general_market_news(
         print(f"❌ Error scraping Yahoo Finance general news: {e}")
         return []
 
-def rerank_news_with_gpt(news_items: List[Dict], top_n: int = 10, model: str = "gpt-4o") -> List[Dict]:
+def analyze_news_and_starred_stocks_with_gpt(news_items: List[Dict], starred_stocks: List[StarredStock], top_n: int = 10, model: str = "gpt-4o") -> Dict:
     if not news_items or not openai.api_key:
-        return sorted(news_items, key=lambda x: x.get("score", 0), reverse=True)[:top_n]
+        return {"top_news": news_items[:top_n], "stock_impacts": []}
 
     headlines = [item["headline"] for item in news_items]
 
     prompt = (
-        "You are a financial market analyst.\n"
-        f"From the following recent Japanese finance news headlines, please select and rank the top {top_n} headlines "
-        "that are most likely to impact the Japanese stock market in the short term.\n\n"
-        "News headlines:\n"
+        "You are a financial analyst. Given the following recent Japanese finance news headlines and a list of Japanese stocks,"
+        " identify the most impactful news items for the market and evaluate potential impact on each stock.\n\n"
+        "News Headlines:\n"
         + "\n".join([f"{i+1}. {headline}" for i, headline in enumerate(headlines)]) +
-        "\n\nFor each selected headline, provide the following:\n"
-        "- Headline (shortened if needed)\n"
-        "- Field/Sector most likely impacted (e.g. semiconductors, retail, banks)\n"
-        "- Prominent Japanese company/ticker related (if any)\n"
-        "- Estimated impact magnitude: Low / Medium / High\n"
-        "- Suggested trader action: Buy / Sell / Watch / Avoid\n\n"
-        f"Return only the top {top_n} headlines in order of impact, numbered. Be concise and factual."
+        "\n\nStarred Stocks:\n"
+        + "\n".join([f"- {s.ticker}" for s in starred_stocks]) +
+        "\n\nTasks:\n"
+        "1. Rank the top 10 most impactful headlines for the Japanese market.\n"
+        "2. For each starred stock, indicate:\n"
+        "   - Whether any headlines may impact it\n"
+        "   - The estimated impact (Positive / Negative / Neutral)\n"
+        "   - A brief reason\n\n"
+        "Output Format:\n"
+        "Top News:\n1. ...\n2. ...\n\n"
+        "Stock Impact:\nTicker: XXXX\nImpact: Positive\nReason: ...\n"
     )
 
     try:
         response = openai.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=0.4,
         )
-
         reply = response.choices[0].message.content.strip()
-
-        selected_lines = reply.split("\n\n")
-        parsed_items = []
-
-        for block in selected_lines:
-            lines = block.strip().split("\n")
-            if len(lines) < 5:
-                continue
-            parsed_items.append({
-                "headline": lines[0].lstrip("1234567890. "),
-                "field": lines[1].replace("Field/Sector:", "").strip(),
-                "company": lines[2].replace("Prominent Japanese company/ticker:", "").strip(),
-                "impact": lines[3].replace("Impact:", "").strip(),
-                "action": lines[4].replace("Action:", "").strip(),
-            })
-
-        return parsed_items[:top_n] if parsed_items else news_items[:top_n]
-
+        return {"raw_response": reply}  # optionally parse later
     except Exception as e:
-        print(f"❌ GPT reranking failed: {e}")
-        return sorted(news_items, key=lambda x: x.get("score", 0), reverse=True)[:top_n]
+        print(f"❌ GPT analysis failed: {e}")
+        return {"top_news": news_items[:top_n], "stock_impacts": []}
 
-def fetch_news_signals(limit_per_category: int = 10, top_n: int = 10) -> List[Dict]:
+def fetch_news_signals_with_stock_impacts(db: Session, limit_per_category: int = 10, top_n: int = 10) -> Dict:
     try:
         news_items = scrape_yahoo_general_market_news(limit_per_category=limit_per_category)
         if not news_items:
             raise ValueError("Failed to fetch market news.")
 
-        top_news = rerank_news_with_gpt(news_items, top_n=top_n)
+        starred_stocks = db.query(StarredStock).all()
+        result = analyze_news_and_starred_stocks_with_gpt(news_items, starred_stocks, top_n=top_n)
 
-        return top_news
-
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching news signals: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching news + stock analysis: {e}")
