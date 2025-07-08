@@ -21,7 +21,7 @@ from app.utils.shortterm.w_shape_detector import detect_w_shape_for_ticker
 from app.utils.shortterm.flag_pennant_detector import detect_flags_pennants_for_ticker
 from app.utils.shortterm.triangle_detector import detect_triangle_for_ticker
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
-from app.utils.shortterm.holdings import get_current_holdings
+from app.utils.shortterm.holdings import get_current_holdings, create_entry_and_analyze, ask_gpt_holding_advice
 
 router = APIRouter()
 
@@ -469,7 +469,7 @@ def analyze_all_starred_stocks(db: Session = Depends(get_db)):
 # For Use
 @router.get("/analyze_entried")
 def analyze_all_entried_stocks(db: Session = Depends(get_db)):
-    entried = db.query(EntriedStock).all()
+    entried = db.query(EntriedStock).filter(EntriedStock.is_sold == False).all()
     results = []
 
     for entry in entried:
@@ -489,41 +489,46 @@ class EntryRequest(BaseModel):
 
 @router.post("/add_entry_and_analyze")
 def add_entry_and_analyze(request: EntryRequest, db: Session = Depends(get_db)):
-    ticker = request.ticker.upper()
-
-    # 1. Get VolumeSnapshot (live intraday info)
-    volume_info = get_intraday_volume_info_for_ticker(db, ticker)
-    if not volume_info:
-        raise HTTPException(status_code=404, detail="Volume info not available")
-
-    # 2. Update technical signal if needed
-    save_shortterm_analysis_signal(db, ticker)
-
-    # 3. Get latest signal (for updated_at)
-    analysis_signal = (
-        db.query(ShortTermAnalysisSignal)
-        .filter(ShortTermAnalysisSignal.ticker == ticker)
-        .order_by(ShortTermAnalysisSignal.updated_at.desc())
-        .first()
-    )
-    if not analysis_signal:
-        raise HTTPException(status_code=404, detail="No signal found")
-
-    # 4. Insert entry into DB
-    entry = EntriedStock(
-        ticker=ticker,
-        detected_at=volume_info.detected_at,
-        updated_at=analysis_signal.updated_at,
-        entry_price=volume_info.current_price,
-        amount=request.amount
-    )
-    db.add(entry)
-    db.commit()
-    return {
-        "message": "Entry added and analyzed.",
-        "entry_id": entry.id,
-    }
+    return create_entry_and_analyze(db, request.ticker, request.amount)
 
 @router.get("/current_entries")
 def current_entries(db: Session = Depends(get_db)):
     return get_current_holdings(db)
+
+@router.get("/gpt_advice_for_holdings")
+def gpt_advice_for_all_holdings(db: Session = Depends(get_db)):
+    entries = db.query(EntriedStock).filter(EntriedStock.is_sold == False).all()
+    if not entries:
+        return {"message": "No active holdings found.", "results": []}
+
+    # Group by ticker, keeping only the most recent entry per ticker
+    latest_entries_by_ticker = {}
+    for entry in entries:
+        ticker = entry.ticker
+        if (
+            ticker not in latest_entries_by_ticker
+            or entry.created_at > latest_entries_by_ticker[ticker].created_at
+        ):
+            latest_entries_by_ticker[ticker] = entry
+
+    results = []
+    for entry in latest_entries_by_ticker.values():
+        try:
+            advice_result = ask_gpt_holding_advice(db, entry)
+            results.append({
+                "ticker": entry.ticker,
+                "entry_price": entry.entry_price,
+                "amount": entry.amount,
+                "entry_time": entry.created_at.isoformat(),
+                "gpt_advice": advice_result.get("gpt_advice", "(No advice returned)"),
+                "summary": advice_result.get("summary", ""),
+                "confidence": advice_result.get("confidence", None),
+                "recommendation": advice_result.get("recommendation", "Unknown")
+            })
+        except Exception as e:
+            results.append({
+                "ticker": entry.ticker,
+                "error": str(e)
+            })
+
+    return {"results": results}
