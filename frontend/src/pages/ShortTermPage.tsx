@@ -5,6 +5,7 @@ import FetchAnalyzeCard from "../components/shortterm/FetchAnalyzeCard";
 import StockTable from "../components/shortterm/StockTable";
 import IntradayAnalysisModal from "../components/shortterm/TickerAnalysisResult";
 import NewsImpactModal from "../components/shortterm/NewsImpactModal";
+import HoldingsCard from "../components/shortterm/HoldingsCard";
 import type { VolumeSurgeStock } from "../types";
 import {
   triggerVolumeScan,
@@ -19,8 +20,8 @@ const ShortTermPage: React.FC = () => {
     document.title = "Volume Surge Scanner";
   }, []);
 
-  const [surgeThreshold, setSurgeThreshold] = useState(2.0);
-  const [priceThreshold, setPriceThreshold] = useState(150.0);
+  const [surgeThreshold, setSurgeThreshold] = useState(1.5);
+  const [priceThreshold, setPriceThreshold] = useState(300.0);
   const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(0);
   const [starredOnly, setStarredOnly] = useState(false);
 
@@ -135,20 +136,28 @@ const ShortTermPage: React.FC = () => {
   return (
     <Container className="py-4">
       {/* SCAN CONTROL */}
-      <ScanForm
-        surgeThreshold={surgeThreshold}
-        priceThreshold={priceThreshold}
-        fromPage={fromPage}
-        toPage={toPage}
-        loading={loadingScan}
-        onSurgeThresholdChange={setSurgeThreshold}
-        onPriceThresholdChange={setPriceThreshold}
-        onFromPageChange={setFromPage}
-        onToPageChange={setToPage}
-        onScan={handleScan}
-        onFetchNewsSignals={handleFetchNewsSignals} // ✅ NEW
-        loadingNewsSignals={loadingNewsSignals}     // ✅ NEW
-      />
+      <div className="d-flex align-items-center mb-3 gap-3">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <ScanForm
+            surgeThreshold={surgeThreshold}
+            priceThreshold={priceThreshold}
+            fromPage={fromPage}
+            toPage={toPage}
+            loading={loadingScan}
+            onSurgeThresholdChange={setSurgeThreshold}
+            onPriceThresholdChange={setPriceThreshold}
+            onFromPageChange={setFromPage}
+            onToPageChange={setToPage}
+            onScan={handleScan}
+            onFetchNewsSignals={handleFetchNewsSignals}
+            loadingNewsSignals={loadingNewsSignals}
+          />
+        </div>
+        <div style={{ width: "280px", minWidth: "280px" }}>
+          <HoldingsCard />
+        </div>
+      </div>
+
 
       {/* FETCH & ANALYZE CARD */}
       <FetchAnalyzeCard

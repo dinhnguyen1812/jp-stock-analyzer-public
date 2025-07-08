@@ -9,7 +9,7 @@ export async function fetchStockAnalysis(ticker: string) {
 }
 
 export async function triggerVolumeScan(
-  surge_threshold = 2.0,
+  surge_threshold = 1.5,
   price_threshold = 300.0,
   from_page = 1,
   to_page = 1
@@ -32,8 +32,8 @@ export async function triggerVolumeScan(
 }
 
 export async function fetchRecentVolumeSurges(
-  surgeThreshold: number = 2.0,
-  priceThreshold: number = 150.0,
+  surgeThreshold: number = 1.5,
+  priceThreshold: number = 300.0,
   promisingScoreThreshold: number = 0.0,
   starredOnly: boolean = false
 ) {
@@ -98,5 +98,26 @@ export async function analyzeAllStarredStocks() {
 export async function fetchNewsSignalsWithImpacts() {
   const res = await fetch(`${BASE_URL}/shortterm/news_signals`);
   if (!res.ok) throw new Error("Failed to fetch news signals");
+  return await res.json();
+}
+
+export async function addEntryAndAnalyze(ticker: string, amount: number) {
+  const res = await fetch(`${BASE_URL}/shortterm/add_entry_and_analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker, amount }),
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Failed to add entry: ${errorBody}`);
+  }
+
+  return await res.json(); // { message, entry_id, analysis }
+}
+
+export async function fetchCurrentEntries() {
+  const res = await fetch(`${BASE_URL}/shortterm/current_entries`);
+  if (!res.ok) throw new Error("Failed to fetch holdings");
   return await res.json();
 }

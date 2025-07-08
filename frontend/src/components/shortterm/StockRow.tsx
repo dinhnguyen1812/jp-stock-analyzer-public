@@ -1,7 +1,12 @@
 import React, { useState, useCallback } from "react";
 import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
-import { fetchSavedAnalysis, starStock, unstarStock } from "../../api";
+import {
+  fetchSavedAnalysis,
+  starStock,
+  unstarStock,
+  addEntryAndAnalyze,
+} from "../../api";
 import { formatDistance } from "date-fns";
 
 interface StockRowProps {
@@ -25,6 +30,8 @@ const StockRow: React.FC<StockRowProps> = ({
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starLoading, setStarLoading] = useState(false);
+  const [entryLoading, setEntryLoading] = useState(false);
+  const [entryAmount, setEntryAmount] = useState<number>(0);
   const [, setForceUpdate] = useState(0); // to force re-render on star toggle
 
   const handleAnalyzeClick = useCallback(async () => {
@@ -59,6 +66,24 @@ const StockRow: React.FC<StockRowProps> = ({
     }
   }, [stock, onStarToggle]);
 
+const handleAddEntry = useCallback(async () => {
+  if (!entryAmount || entryAmount <= 0) {
+    alert("Please input a valid amount.");
+    return;
+  }
+  setEntryLoading(true);
+  setError(null);
+  try {
+    await addEntryAndAnalyze(stock.ticker, entryAmount);  // Just trigger the backend
+    alert(`Entry for ${stock.ticker} added successfully.`);
+  } catch (err: any) {
+    setError(err.message || "Failed to add entry");
+    alert("Failed to add entry: " + err.message || "");
+  } finally {
+    setEntryLoading(false);
+  }
+}, [stock.ticker, entryAmount]);
+
   const recommendationVariant = (rec?: string) => {
     switch (rec) {
       case "Buy":
@@ -77,9 +102,10 @@ const StockRow: React.FC<StockRowProps> = ({
   return (
     <>
       <tr>
+        {/* Star Button Column */}
         <td className="text-center align-middle" style={{ width: 40 }}>
           <Button
-            variant="outline-secondary" // keep neutral variant, no yellow background
+            variant="outline-secondary"
             size="sm"
             title={stock.starred ? "Unstar stock" : "Star stock"}
             aria-pressed={stock.starred}
@@ -100,7 +126,7 @@ const StockRow: React.FC<StockRowProps> = ({
                   pointerEvents: "none",
                   textShadow: stock.starred
                     ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
-                    : "none", // glow only if starred
+                    : "none",
                 }}
                 aria-hidden="true"
               >
@@ -108,28 +134,41 @@ const StockRow: React.FC<StockRowProps> = ({
               </span>
             )}
           </Button>
-
         </td>
 
+        {/* 🔽 NEW Entry Column */}
+        <td className="align-middle">
+          <div className="d-flex flex-column align-items-start gap-1">
+            <input
+              type="number"
+              min={1}
+              className="form-control form-control-sm"
+              style={{ width: "4.5rem" }}
+              value={entryAmount}
+              onChange={(e) => setEntryAmount(parseInt(e.target.value))}
+              placeholder="Qty"
+            />
+            <Button
+              variant="outline-primary"
+              size="sm"
+              disabled={entryLoading || !entryAmount}
+              onClick={handleAddEntry}
+              aria-label={`Add entry for ${stock.ticker}`}
+            >
+              {entryLoading ? <Spinner animation="border" size="sm" /> : "Add"}
+            </Button>
+          </div>
+        </td>
+
+        {/* Remaining Stock Data Columns */}
         <td className="align-middle">{stock.ticker}</td>
         <td className="align-middle">{stock.name}</td>
-        <td className="align-middle text-center">
-          {stock.current_price.toFixed(2)}
-        </td>
-        <td className="align-middle text-center">
-          {stock.price_change.toFixed(2)}
-        </td>
+        <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
+        <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
-        <td className="align-middle text-center">
-          {stock.money_flow_rate.toFixed(2)}
-        </td>
-        <td className="align-middle text-center">
-          {stock.current_volume.toLocaleString()}
-        </td>
-        <td className="align-middle text-center">
-          {stock.avg_volume_5d.toLocaleString()}
-        </td>
-
+        <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
+        <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
+        <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td>
         <td className="align-middle text-center">
           <span
             style={{
@@ -146,15 +185,12 @@ const StockRow: React.FC<StockRowProps> = ({
           </span>
         </td>
 
+        {/* Analysis Button */}
         <td className="align-middle">
           <div className="d-flex flex-column align-items-center justify-content-center gap-2">
             {stock.recommendation && (
               <div>
-                <Badge
-                  pill
-                  bg={recommendationVariant(stock.recommendation)}
-                  className="me-2"
-                >
+                <Badge pill bg={recommendationVariant(stock.recommendation)} className="me-2">
                   {stock.recommendation}
                 </Badge>
                 <Badge bg="light" text="dark" className="border">

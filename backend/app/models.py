@@ -150,3 +150,21 @@ class ShortTermAnalysisSignal(Base):
 
     updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False, onupdate=datetime.datetime.utcnow)
 
+class EntriedStock(Base):
+    __tablename__ = "entried_stocks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+
+    detected_at = Column(TIMESTAMP, nullable=False)  # from VolumeSnapshot.detected_at
+    updated_at = Column(TIMESTAMP, nullable=False)   # from ShortTermAnalysisSignal.updated_at
+
+    entry_price = Column(Float, nullable=False)
+    amount = Column(Integer, nullable=False)  # number of shares
+    is_sold = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("ticker", "detected_at", "updated_at", name="uq_entry_record"),
+    )

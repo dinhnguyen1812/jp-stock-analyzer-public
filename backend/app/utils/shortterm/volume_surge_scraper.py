@@ -228,7 +228,7 @@ def fetch_volume_page(db: Session, page: int = 1):
 
 def scan_and_save_volume_surges(
     db: Session,
-    surge_threshold: float = 2.0,
+    surge_threshold: float = 1.5,
     price_threshold: float = 300.0,
     from_page: int = 1,
     to_page: int = 1
@@ -294,12 +294,22 @@ def fetch_intraday_prices(ticker: str):
 
         # ⬇️ Get current price from dedicated HTML structure
         def get_current_price() -> Optional[float]:
+            # Try original selector first (during market open)
             price_tag = soup.select_one("div.PriceBoardMain__headerPrice__gbs7 span.StyledNumber__value__3rXW")
             if price_tag:
                 try:
                     return parse_price(price_tag.text)
                 except ValueError:
-                    return None
+                    pass
+
+            # Fallback selector (after market close)
+            price_tag_alt = soup.select_one("span.PriceBoard__price__1V0k span.StyledNumber__value__3rXW")
+            if price_tag_alt:
+                try:
+                    return parse_price(price_tag_alt.text)
+                except ValueError:
+                    pass
+
             return None
 
         def get_value_by_label(label_ja: str) -> Optional[float]:
@@ -348,6 +358,7 @@ def get_latest_volume_surges(
         .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
         .filter(VS.volume_rate >= surge_threshold)
         .filter(VS.current_price <= price_threshold)
+        .filter(VS.promising_score > 0)  # filter out empty or zero promising score
         .filter(VS.promising_score >= promising_score_threshold)
     )
 

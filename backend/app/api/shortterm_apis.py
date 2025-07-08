@@ -1,6 +1,6 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException
-from app.models import VolumeSnapshot, StarredStock, ShortTermAnalysisSignal
+from app.models import EntriedStock, VolumeSnapshot, StarredStock, ShortTermAnalysisSignal
 from sqlalchemy.orm import Session
 from typing import List, Dict
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ from app.utils.shortterm.w_shape_detector import detect_w_shape_for_ticker
 from app.utils.shortterm.flag_pennant_detector import detect_flags_pennants_for_ticker
 from app.utils.shortterm.triangle_detector import detect_triangle_for_ticker
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
+from app.utils.shortterm.holdings import get_current_holdings
 
 router = APIRouter()
 
@@ -216,7 +217,6 @@ def get_recent_volume_surges(
         starred_only=starred_only,
     )
 
-
 # For Use (haven't be used)
 @router.get("/news_signals")
 def get_news_signals_with_stock_impacts(db: Session = Depends(get_db)):
@@ -392,34 +392,36 @@ def analyze_shortterm(ticker: str, db: Session = Depends(get_db)):
     return save_shortterm_analysis_signal(db, ticker)
 
 # For use
-@router.get("/analyze_ticker/{ticker}")
-def analyze_ticker_with_gpt(ticker: str, db: Session = Depends(get_db)):
-    # 1. Get volume info from Yahoo Finance
+def analyze_single_ticker(
+    db: Session,
+    ticker: str,
+    top_n: int = 5,
+) -> Dict:
+    # 1. Get intraday volume info
     volume_info = get_intraday_volume_info_for_ticker(db, ticker)
     if not volume_info:
         raise HTTPException(status_code=404, detail="Could not fetch intraday info")
 
-    # 2. Get Kabutan news
+    # 2. Scrape news
     news = scrape_kabutan_news(ticker, limit=30)
     if not news:
         raise HTTPException(status_code=404, detail="No Kabutan news found")
 
-    # 3. Ensure technical signal is up to date
+    # 3. Save/Update technical signal
     save_shortterm_analysis_signal(db, ticker)
 
-    # 4. Fetch technical analysis signal
+    # 4. Fetch technical signal data
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
-    # 5. Analyze with GPT using live volume_info (not from DB)
+    # 5. Run GPT analysis
     gpt_result = analyze_stock_surge_with_news(
         db=db,
         ticker=ticker,
         news_items=news,
-        top_n=5,
-        volume_info=volume_info,  # ⚠️ make sure your analyze_stock_surge_with_news supports this
+        volume_info=volume_info,
+        top_n=top_n,
     )
 
-    # 6. Compose response
     return {
         "ticker": ticker,
         "volume_info": {
@@ -443,74 +445,85 @@ def analyze_ticker_with_gpt(ticker: str, db: Session = Depends(get_db)):
     }
 
 # For Use
+@router.get("/analyze_ticker/{ticker}")
+def analyze_ticker_with_gpt(ticker: str, db: Session = Depends(get_db)):
+    return analyze_single_ticker(db=db, ticker=ticker)
+
+# For Use
 @router.get("/analyze_starred")
 def analyze_all_starred_stocks(db: Session = Depends(get_db)):
     starred = db.query(StarredStock).all()
     results = []
 
     for star in starred:
-        ticker = star.ticker
         try:
-            # 1. Get intraday volume info
-            volume_info = get_intraday_volume_info_for_ticker(db, ticker)
-            if not volume_info:
-                results.append({
-                    "ticker": ticker,
-                    "error": "Could not fetch intraday info"
-                })
-                continue
-
-            # 2. Scrape Kabutan news
-            news = scrape_kabutan_news(ticker, limit=30)
-            if not news:
-                results.append({
-                    "ticker": ticker,
-                    "error": "No Kabutan news found"
-                })
-                continue
-
-            # 3. Update signal
-            save_shortterm_analysis_signal(db, ticker)
-
-            # 4. Fetch signal data
-            analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
-
-            # 5. Run GPT analysis
-            gpt_result = analyze_stock_surge_with_news(
-                db=db,
-                ticker=ticker,
-                news_items=news,
-                top_n=5,
-                volume_info=volume_info,
-            )
-
-            # 6. Compose result
-            results.append({
-                "ticker": ticker,
-                "volume_info": {
-                    "ticker": volume_info.ticker,
-                    "name": volume_info.name,
-                    "current_price": volume_info.current_price,
-                    "price_change": volume_info.price_change,
-                    "volume_rate": volume_info.volume_rate,
-                    "money_flow_rate": volume_info.money_flow_rate,
-                    "current_volume": volume_info.current_volume,
-                    "avg_volume_5d": volume_info.avg_volume_5d,
-                    "detected_at": volume_info.detected_at.isoformat(),
-                    "reasoning": volume_info.reasoning,
-                    "recommendation": volume_info.recommendation,
-                    "promising_score": volume_info.promising_score,
-                    "top_news": volume_info.top_news,
-                },
-                "top_news": gpt_result.get("top_news", []),
-                "analysis_signal": analysis_signal_data,
-                "gpt_summary": gpt_result.get("gpt_summary", ""),
-            })
-
+            results.append(analyze_single_ticker(db=db, ticker=star.ticker))
         except Exception as e:
             results.append({
-                "ticker": ticker,
+                "ticker": star.ticker,
                 "error": str(e)
             })
 
     return results
+
+# For Use
+@router.get("/analyze_entried")
+def analyze_all_entried_stocks(db: Session = Depends(get_db)):
+    entried = db.query(EntriedStock).all()
+    results = []
+
+    for entry in entried:
+        try:
+            results.append(analyze_single_ticker(db=db, ticker=entry.ticker))
+        except Exception as e:
+            results.append({
+                "ticker": entry.ticker,
+                "error": str(e)
+            })
+
+    return results
+
+class EntryRequest(BaseModel):
+    ticker: str
+    amount: int  # number of shares
+
+@router.post("/add_entry_and_analyze")
+def add_entry_and_analyze(request: EntryRequest, db: Session = Depends(get_db)):
+    ticker = request.ticker.upper()
+
+    # 1. Get VolumeSnapshot (live intraday info)
+    volume_info = get_intraday_volume_info_for_ticker(db, ticker)
+    if not volume_info:
+        raise HTTPException(status_code=404, detail="Volume info not available")
+
+    # 2. Update technical signal if needed
+    save_shortterm_analysis_signal(db, ticker)
+
+    # 3. Get latest signal (for updated_at)
+    analysis_signal = (
+        db.query(ShortTermAnalysisSignal)
+        .filter(ShortTermAnalysisSignal.ticker == ticker)
+        .order_by(ShortTermAnalysisSignal.updated_at.desc())
+        .first()
+    )
+    if not analysis_signal:
+        raise HTTPException(status_code=404, detail="No signal found")
+
+    # 4. Insert entry into DB
+    entry = EntriedStock(
+        ticker=ticker,
+        detected_at=volume_info.detected_at,
+        updated_at=analysis_signal.updated_at,
+        entry_price=volume_info.current_price,
+        amount=request.amount
+    )
+    db.add(entry)
+    db.commit()
+    return {
+        "message": "Entry added and analyzed.",
+        "entry_id": entry.id,
+    }
+
+@router.get("/current_entries")
+def current_entries(db: Session = Depends(get_db)):
+    return get_current_holdings(db)

@@ -59,7 +59,7 @@ const StockTable: React.FC<StockTableProps> = ({ stocks, onStarToggle }) => {
   };
 
   return (
-    <div>
+    <div className="small">
       <Table
         striped
         bordered
@@ -70,6 +70,12 @@ const StockTable: React.FC<StockTableProps> = ({ stocks, onStarToggle }) => {
         <thead className="table-light sticky-top">
           <tr>
             <th style={{ width: "40px" }}> </th>
+            <th
+              style={{ width: "40px" }}
+              className="align-top text-center"
+            >
+              Add Entry
+            </th>
             <th
               style={{ width: "80px" }}
               className="align-top text-center"

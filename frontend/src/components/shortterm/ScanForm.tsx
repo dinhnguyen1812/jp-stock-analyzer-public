@@ -22,10 +22,13 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
   loadingNewsSignals,
 }) => {
   return (
-    <Card className="mb-4 shadow-sm">
-      <Card.Body>
+    <Card className="mb-3 py-2 px-3 shadow-sm">
+      <Card.Body className="py-2 px-1">
         <Form>
-          <Row className="align-items-center g-3 flex-nowrap" style={{ overflowX: "auto" }}>
+          <Row
+            className="align-items-center g-2 flex-nowrap"
+            style={{ overflowX: "auto", fontSize: "0.85rem" }}
+          >
             <Col style={{ minWidth: 200 }}>
               <InputGroup>
                 <InputGroup.Text>Surge ≥</InputGroup.Text>
@@ -55,7 +58,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 150 }}>
+            <Col style={{ minWidth: 80 }}>
               <InputGroup>
                 <InputGroup.Text>From</InputGroup.Text>
                 <Form.Control
@@ -68,7 +71,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 150 }}>
+            <Col style={{ minWidth: 60 }}>
               <InputGroup>
                 <InputGroup.Text>To</InputGroup.Text>
                 <Form.Control
@@ -81,18 +84,18 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 80 }}>
+            <Col style={{ minWidth: 100 }}>
               <Button
                 variant="primary"
                 className="w-100"
                 onClick={onScan}
                 disabled={loading}
               >
-                {loading ? <Spinner animation="border" size="sm" /> : "Scan"}
+                {loading ? <Spinner animation="border" /> : "Scan VS"}
               </Button>
             </Col>
 
-            <Col style={{ minWidth: 180 }}>
+            <Col style={{ minWidth: 160 }}>
               <Button
                 variant="info"
                 className="w-100"
@@ -100,9 +103,9 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
                 disabled={loadingNewsSignals}
               >
                 {loadingNewsSignals ? (
-                  <Spinner animation="border" size="sm" />
+                  <Spinner animation="border" />
                 ) : (
-                  "News + Stock Impact"
+                  "News + Impact"
                 )}
               </Button>
             </Col>
