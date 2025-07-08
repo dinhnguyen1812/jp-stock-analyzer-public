@@ -71,12 +71,6 @@ const StockTable: React.FC<StockTableProps> = ({ stocks, onStarToggle }) => {
           <tr>
             <th style={{ width: "40px" }}> </th>
             <th
-              style={{ width: "40px" }}
-              className="align-top text-center"
-            >
-              Add Entry
-            </th>
-            <th
               style={{ width: "80px" }}
               className="align-top text-center"
             >

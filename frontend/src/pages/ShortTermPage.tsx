@@ -22,11 +22,11 @@ const ShortTermPage: React.FC = () => {
 
   const [surgeThreshold, setSurgeThreshold] = useState(1.5);
   const [priceThreshold, setPriceThreshold] = useState(300.0);
-  const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(0);
+  const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(30);
   const [starredOnly, setStarredOnly] = useState(false);
 
   const [fromPage, setFromPage] = useState(1);
-  const [toPage, setToPage] = useState(1);
+  const [toPage, setToPage] = useState(3);
 
   const [stocks, setStocks] = useState<VolumeSurgeStock[]>([]);
   const [loadingScan, setLoadingScan] = useState(false);

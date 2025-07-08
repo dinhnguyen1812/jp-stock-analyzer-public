@@ -87,7 +87,7 @@ class ScanParams(BaseModel):
     surge_threshold: float = 2.0
     price_threshold: float = 300.0
     from_page: int = 1
-    to_page: int = 1
+    to_page: int = 3
 
 # For Use
 @router.post("/volume_scan")
@@ -165,11 +165,13 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
     vs = (
         db.query(VolumeSnapshot)
         .filter(VolumeSnapshot.ticker == ticker)
+        .filter(VolumeSnapshot.promising_score > 0)
         .order_by(VolumeSnapshot.detected_at.desc())
         .first()
     )
+
     if not vs:
-        raise HTTPException(status_code=404, detail="No saved analysis found")
+        raise HTTPException(status_code=404, detail="No saved analysis with sufficient promising score found")
 
     top_news = []
     if vs.top_news:
@@ -198,7 +200,6 @@ def get_saved_volume_analysis(ticker: str, db: Session = Depends(get_db)):
         },
         "analysis_signal": analysis_signal_data,
     }
-
 
 # For Use
 @router.get("/volume_surges")
@@ -469,10 +470,20 @@ def analyze_all_starred_stocks(db: Session = Depends(get_db)):
 # For Use
 @router.get("/analyze_entried")
 def analyze_all_entried_stocks(db: Session = Depends(get_db)):
-    entried = db.query(EntriedStock).filter(EntriedStock.is_sold == False).all()
+    entries = db.query(EntriedStock).filter(EntriedStock.is_sold == False).all()
+    # Group by ticker, keeping only the most recent entry per ticker
+    latest_entries_by_ticker = {}
+    for entry in entries:
+        ticker = entry.ticker
+        if (
+            ticker not in latest_entries_by_ticker
+            or entry.created_at > latest_entries_by_ticker[ticker].created_at
+        ):
+            latest_entries_by_ticker[ticker] = entry
+
     results = []
 
-    for entry in entried:
+    for entry in latest_entries_by_ticker.values():
         try:
             results.append(analyze_single_ticker(db=db, ticker=entry.ticker))
         except Exception as e:
@@ -485,11 +496,12 @@ def analyze_all_entried_stocks(db: Session = Depends(get_db)):
 
 class EntryRequest(BaseModel):
     ticker: str
-    amount: int  # number of shares
+    amount: int
+    entry_price: float
 
 @router.post("/add_entry_and_analyze")
 def add_entry_and_analyze(request: EntryRequest, db: Session = Depends(get_db)):
-    return create_entry_and_analyze(db, request.ticker, request.amount)
+    return create_entry_and_analyze(db, request.ticker, request.amount, request.entry_price)
 
 @router.get("/current_entries")
 def current_entries(db: Session = Depends(get_db)):
@@ -532,3 +544,13 @@ def gpt_advice_for_all_holdings(db: Session = Depends(get_db)):
             })
 
     return {"results": results}
+
+@router.post("/mark_sold/{entry_id}")
+def mark_entry_as_sold(entry_id: int, db: Session = Depends(get_db)):
+    entry = db.query(EntriedStock).filter(EntriedStock.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    entry.is_sold = True
+    db.commit()
+    return {"message": f"Entry {entry_id} marked as sold"}

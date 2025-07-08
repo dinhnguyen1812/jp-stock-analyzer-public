@@ -5,7 +5,6 @@ import {
   fetchSavedAnalysis,
   starStock,
   unstarStock,
-  addEntryAndAnalyze,
 } from "../../api";
 import { formatDistance } from "date-fns";
 
@@ -30,8 +29,6 @@ const StockRow: React.FC<StockRowProps> = ({
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starLoading, setStarLoading] = useState(false);
-  const [entryLoading, setEntryLoading] = useState(false);
-  const [entryAmount, setEntryAmount] = useState<number>(0);
   const [, setForceUpdate] = useState(0); // to force re-render on star toggle
 
   const handleAnalyzeClick = useCallback(async () => {
@@ -65,24 +62,6 @@ const StockRow: React.FC<StockRowProps> = ({
       setStarLoading(false);
     }
   }, [stock, onStarToggle]);
-
-const handleAddEntry = useCallback(async () => {
-  if (!entryAmount || entryAmount <= 0) {
-    alert("Please input a valid amount.");
-    return;
-  }
-  setEntryLoading(true);
-  setError(null);
-  try {
-    await addEntryAndAnalyze(stock.ticker, entryAmount);  // Just trigger the backend
-    alert(`Entry for ${stock.ticker} added successfully.`);
-  } catch (err: any) {
-    setError(err.message || "Failed to add entry");
-    alert("Failed to add entry: " + err.message || "");
-  } finally {
-    setEntryLoading(false);
-  }
-}, [stock.ticker, entryAmount]);
 
   const recommendationVariant = (rec?: string) => {
     switch (rec) {
@@ -134,30 +113,6 @@ const handleAddEntry = useCallback(async () => {
               </span>
             )}
           </Button>
-        </td>
-
-        {/* 🔽 NEW Entry Column */}
-        <td className="align-middle">
-          <div className="d-flex flex-column align-items-start gap-1">
-            <input
-              type="number"
-              min={1}
-              className="form-control form-control-sm"
-              style={{ width: "4.5rem" }}
-              value={entryAmount}
-              onChange={(e) => setEntryAmount(parseInt(e.target.value))}
-              placeholder="Qty"
-            />
-            <Button
-              variant="outline-primary"
-              size="sm"
-              disabled={entryLoading || !entryAmount}
-              onClick={handleAddEntry}
-              aria-label={`Add entry for ${stock.ticker}`}
-            >
-              {entryLoading ? <Spinner animation="border" size="sm" /> : "Add"}
-            </Button>
-          </div>
         </td>
 
         {/* Remaining Stock Data Columns */}

@@ -1,14 +1,37 @@
 import React, { useState } from "react";
-import { Button, Modal, Table, Spinner } from "react-bootstrap";
-import { fetchCurrentEntries } from "../../api";
+import {
+  Button,
+  Modal,
+  Table,
+  Spinner,
+  Form,
+  Row,
+  Col,
+  Card,
+} from "react-bootstrap";
+import {
+  fetchCurrentEntries,
+  addEntryAndAnalyze,
+  markEntryAsSold,
+  analyzeAllEntriedStocks,
+} from "../../api";
 
 const HoldingsCard: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [holdings, setHoldings] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [ticker, setTicker] = useState("");
+  const [amount, setAmount] = useState<number>(0);
+  const [entryPrice, setEntryPrice] = useState<number | null>(null);
+  const [analyzingEntried, setAnalyzingEntried] = useState(false);
 
   const handleShow = async () => {
     setShowModal(true);
+    await loadHoldings();
+  };
+
+  const loadHoldings = async () => {
     setLoading(true);
     try {
       const data = await fetchCurrentEntries();
@@ -20,8 +43,41 @@ const HoldingsCard: React.FC = () => {
     }
   };
 
+  const handleAdd = async () => {
+    if (!ticker || amount <= 0 || entryPrice === null || entryPrice <= 0) {
+      alert("Please enter valid ticker, amount, and entry price.");
+      return;
+    }
+    setAdding(true);
+    try {
+      await addEntryAndAnalyze(ticker, amount, entryPrice);
+      await loadHoldings();
+      setTicker("");
+      setAmount(0);
+      setEntryPrice(null);
+    } catch (error: any) {
+      alert(error.message || "Failed to add entry");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleAnalyzeEntried = async () => {
+    setAnalyzingEntried(true);
+    try {
+      const result = await analyzeAllEntriedStocks();
+      console.log("✅ Entried analysis result:", result);
+      alert("Entried stocks analyzed. Check logs or integrate result display.");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to analyze entried stocks.");
+    } finally {
+      setAnalyzingEntried(false);
+    }
+  };
+
   const formatToJST = (utcString: string) => {
-    const date = new Date(utcString + "Z"); // force UTC parsing
+    const date = new Date(utcString + "Z");
     return date.toLocaleString("ja-JP", {
       timeZone: "Asia/Tokyo",
       hour12: false,
@@ -30,15 +86,93 @@ const HoldingsCard: React.FC = () => {
 
   return (
     <>
-      <Button variant="dark" onClick={handleShow}>
-        💼 Holdings List
-      </Button>
+      <Card className="mb-3 p-3 shadow-sm">
+        <div className="d-flex gap-2 flex-wrap">
+          <Button variant="dark" size="sm" onClick={handleShow}>
+            💼 Holdings
+          </Button>
+          <Button
+            size="sm"
+            variant="warning"
+            onClick={handleAnalyzeEntried}
+            disabled={analyzingEntried}
+            title="Analyze latest unsold entries by ticker"
+          >
+            {analyzingEntried ? (
+              <>
+                <Spinner size="sm" animation="border" /> Analyzing...
+              </>
+            ) : (
+              "📊 Analyze Entried"
+            )}
+          </Button>
+        </div>
+      </Card>
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" scrollable>
+
+      <Modal
+        show={showModal}
+        onHide={() => setShowModal(false)}
+        size="lg"
+        scrollable
+      >
         <Modal.Header closeButton>
           <Modal.Title>Current Holdings</Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          {/* ➕ Entry Form */}
+          <Form className="mb-3">
+            <Row className="align-items-end">
+              <Col sm={4}>
+                <Form.Label>Ticker</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={ticker}
+                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                  placeholder="e.g. 7203"
+                />
+              </Col>
+              <Col sm={2}>
+                <Form.Label>Amount</Form.Label>
+                <Form.Control
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(parseInt(e.target.value))}
+                  placeholder="e.g. 100"
+                  min={1}
+                />
+              </Col>
+              <Col sm={3}>
+                <Form.Label>Entry Price (¥)</Form.Label>
+                <Form.Control
+                  type="number"
+                  value={entryPrice ?? ""}
+                  onChange={(e) =>
+                    setEntryPrice(parseFloat(e.target.value) || 0)
+                  }
+                  placeholder="e.g. 1450"
+                  min={0}
+                  step={0.01}
+                />
+              </Col>
+              <Col sm={3}>
+                <Button
+                  variant="success"
+                  className="w-100"
+                  onClick={handleAdd}
+                  disabled={adding}
+                >
+                  {adding ? (
+                    <Spinner size="sm" animation="border" />
+                  ) : (
+                    "➕ Add Entry"
+                  )}
+                </Button>
+              </Col>
+            </Row>
+          </Form>
+
+          {/* 📊 Holdings Table */}
           {loading ? (
             <div className="text-center">
               <Spinner animation="border" />
@@ -55,6 +189,7 @@ const HoldingsCard: React.FC = () => {
                     <th>Entry Time</th>
                     <th>P/L (¥)</th>
                     <th>P/L (%)</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -67,28 +202,66 @@ const HoldingsCard: React.FC = () => {
                       <td style={{ fontSize: "0.75rem" }}>
                         {formatToJST(entry.entry_time)}
                       </td>
-                      <td style={{ color: entry.profit_amount >= 0 ? "green" : "red" }}>
+                      <td
+                        style={{
+                          color: entry.profit_amount >= 0 ? "green" : "red",
+                        }}
+                      >
                         {entry.profit_amount}
                       </td>
-                      <td style={{ color: entry.profit_percent >= 0 ? "green" : "red" }}>
+                      <td
+                        style={{
+                          color: entry.profit_percent >= 0 ? "green" : "red",
+                        }}
+                      >
                         {entry.profit_percent}%
+                      </td>
+                      <td>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={async () => {
+                            if (
+                              window.confirm(`Mark ${entry.ticker} as sold?`)
+                            ) {
+                              try {
+                                console.log("Marking sold entry with id:", entry.id);
+                                await markEntryAsSold(entry.id);
+                                await loadHoldings();
+                              } catch (err: any) {
+                                alert(err.message);
+                              }
+                            }
+                          }}
+                        >
+                          Sold
+                        </Button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </Table>
 
+              {/* 💰 Summary */}
               <div className="mt-3">
                 <p>
-                  <strong>Total Capital:</strong> ¥{holdings.summary.total_invested.toLocaleString()}
+                  <strong>Total Capital:</strong>{" "}
+                  ¥{holdings.summary.total_invested.toLocaleString()}
                 </p>
                 <p>
-                  <strong>Total Current Value:</strong> ¥{holdings.summary.total_current_value.toLocaleString()}
+                  <strong>Total Current Value:</strong>{" "}
+                  ¥{holdings.summary.total_current_value.toLocaleString()}
                 </p>
                 <p>
                   <strong>Total Profit:</strong>{" "}
-                  <span style={{ color: holdings.summary.total_profit >= 0 ? "green" : "red" }}>
-                    ¥{holdings.summary.total_profit} ({holdings.summary.total_profit_percent}%)
+                  <span
+                    style={{
+                      color:
+                        holdings.summary.total_profit >= 0 ? "green" : "red",
+                    }}
+                  >
+                    ¥{holdings.summary.total_profit} (
+                    {holdings.summary.total_profit_percent}%)
                   </span>
                 </p>
               </div>

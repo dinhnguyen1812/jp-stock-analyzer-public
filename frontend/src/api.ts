@@ -12,7 +12,7 @@ export async function triggerVolumeScan(
   surge_threshold = 1.5,
   price_threshold = 300.0,
   from_page = 1,
-  to_page = 1
+  to_page = 3
 ) {
   const res = await fetch(`${BASE_URL}/shortterm/volume_scan`, {
     method: "POST",
@@ -101,11 +101,11 @@ export async function fetchNewsSignalsWithImpacts() {
   return await res.json();
 }
 
-export async function addEntryAndAnalyze(ticker: string, amount: number) {
+export async function addEntryAndAnalyze(ticker: string, amount: number, entry_price: number) {
   const res = await fetch(`${BASE_URL}/shortterm/add_entry_and_analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ticker, amount }),
+    body: JSON.stringify({ ticker, amount, entry_price }),
   });
 
   if (!res.ok) {
@@ -113,11 +113,31 @@ export async function addEntryAndAnalyze(ticker: string, amount: number) {
     throw new Error(`Failed to add entry: ${errorBody}`);
   }
 
-  return await res.json(); // { message, entry_id, analysis }
+  return await res.json();
 }
 
 export async function fetchCurrentEntries() {
   const res = await fetch(`${BASE_URL}/shortterm/current_entries`);
   if (!res.ok) throw new Error("Failed to fetch holdings");
+  return await res.json();
+}
+
+export async function markEntryAsSold(entryId: number) {
+  const res = await fetch(`${BASE_URL}/shortterm/mark_sold/${entryId}`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Failed to mark as sold: ${errorBody}`);
+  }
+
+  return await res.json();
+}
+
+export async function analyzeAllEntriedStocks() {
+  const res = await fetch(`${BASE_URL}/shortterm/analyze_entried`);
+  if (!res.ok) throw new Error("Failed to analyze entried stocks");
   return await res.json();
 }

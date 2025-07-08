@@ -22,7 +22,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
   loadingNewsSignals,
 }) => {
   return (
-    <Card className="mb-3 py-2 px-3 shadow-sm">
+    <Card className="mb-3 py-2 px-2 shadow-sm">
       <Card.Body className="py-2 px-1">
         <Form>
           <Row
@@ -71,7 +71,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 60 }}>
+            <Col style={{ minWidth: 40 }}>
               <InputGroup>
                 <InputGroup.Text>To</InputGroup.Text>
                 <Form.Control
@@ -84,7 +84,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 100 }}>
+            <Col style={{ minWidth: 80 }}>
               <Button
                 variant="primary"
                 className="w-100"

@@ -34,6 +34,7 @@ def get_current_holdings(db: Session):
         total_current_value += current_value
 
         result.append({
+            "id": entry.id,
             "ticker": entry.ticker,
             "entry_price": entry.entry_price,
             "current_price": current_price,
@@ -56,7 +57,7 @@ def get_current_holdings(db: Session):
         }
     }
 
-def create_entry_and_analyze(db: Session, ticker: str, amount: int):
+def create_entry_and_analyze(db: Session, ticker: str, amount: int, entry_price: float):
     ticker = ticker.upper()
 
     # 1. Get VolumeSnapshot (live intraday info)
@@ -82,7 +83,7 @@ def create_entry_and_analyze(db: Session, ticker: str, amount: int):
         ticker=ticker,
         detected_at=volume_info.detected_at,
         updated_at=analysis_signal.updated_at,
-        entry_price=volume_info.current_price,
+        entry_price=entry_price,  # ✅ Use user-provided entry price
         amount=amount,
     )
     db.add(entry)

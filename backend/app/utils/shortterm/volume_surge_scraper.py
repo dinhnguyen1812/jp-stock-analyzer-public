@@ -99,7 +99,10 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
         soup = BeautifulSoup(resp.text, "html.parser")
 
         # 1. Extract name
-        name_tag = soup.select_one("h2.PriceBoardMain__name__6uDh")
+        name_tag = (
+            soup.select_one("h2.PriceBoardMain__name__6uDh")  # during trading
+            or soup.select_one("h2.PriceBoard__name__166W")   # after close
+        )
         name = name_tag.text.strip() if name_tag else ticker
 
         # 2. Extract 出来高 (current volume)
@@ -109,12 +112,17 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
             if "出来高" in label.text:
                 value_span = label.find_next("span", class_="StyledNumber__value__3rXW")
                 if value_span:
-                    current_volume = parse_volume(value_span.text.strip())
-                    break
-
-        if current_volume is None:
-            print(f"❌ 出来高 not found for {ticker}")
-            return None
+                    raw_volume = value_span.text.strip()
+                    if raw_volume not in {"---", "-", ""}:
+                        try:
+                            current_volume = parse_volume(raw_volume)
+                        except ValueError:
+                            print(f"⚠️ Invalid volume format for {ticker}: {raw_volume}")
+                            return None
+                    else:
+                        print(f"⚠️ No valid volume for {ticker} (got: {raw_volume})")
+                        return None
+                break
 
         # 3. Extract price change percentage
         percent_change = 0.0
@@ -313,7 +321,7 @@ def fetch_intraday_prices(ticker: str):
             return None
 
         def get_value_by_label(label_ja: str) -> Optional[float]:
-            dl_tags = soup.select("dl.DataListItem__38iJ")
+            dl_tags = (soup.select("dl.DataListItem__38iJ") or soup.select("dl.DataListItem__name__3RQJ"))
             for dl in dl_tags:
                 term = dl.find("dt")
                 if term and label_ja in term.get_text():
@@ -339,34 +347,39 @@ def get_latest_volume_surges(
     db: Session,
     surge_threshold: float = 2.0,
     price_threshold: float = 300.0,
-    promising_score_threshold: float = 0.0,
+    promising_score_threshold: float = 30.0,
     starred_only: bool = False,
 ) -> List[dict]:
-    # Remove time filtering
+    # Subquery: get latest snapshot per ticker with promising_score >= threshold
     subquery = (
         db.query(
             VolumeSnapshot.ticker,
             func.max(VolumeSnapshot.detected_at).label("latest_time")
         )
+        .filter(VolumeSnapshot.promising_score >= promising_score_threshold)
         .group_by(VolumeSnapshot.ticker)
         .subquery()
     )
 
     VS = aliased(VolumeSnapshot)
+
     query = (
         db.query(VS)
         .join(subquery, (VS.ticker == subquery.c.ticker) & (VS.detected_at == subquery.c.latest_time))
         .filter(VS.volume_rate >= surge_threshold)
         .filter(VS.current_price <= price_threshold)
-        .filter(VS.promising_score > 0)  # filter out empty or zero promising score
-        .filter(VS.promising_score >= promising_score_threshold)
     )
 
-    starred_tickers = {s.ticker for s in db.query(StarredStock).all()}
     if starred_only:
+        starred_tickers = {s.ticker for s in db.query(StarredStock).all()}
         query = query.filter(VS.ticker.in_(starred_tickers))
+    else:
+        starred_tickers = set()
 
-    results = query.order_by(VS.ticker, VS.detected_at.desc()).all()
+    results = query.all()
+    for r in results:
+        if r.ticker=="7610":
+            print(f"ticker: {r.ticker}, promising_score: {r.promising_score}, recommendation: {r.recommendation}")
 
     return [
         {
@@ -387,4 +400,5 @@ def get_latest_volume_surges(
         }
         for r in results
     ]
+
 
