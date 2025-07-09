@@ -1,4 +1,5 @@
 import datetime
+import re
 import openai
 import os
 from fastapi import HTTPException
@@ -94,32 +95,35 @@ def create_entry_and_analyze(db: Session, ticker: str, amount: int, entry_price:
         "entry_id": entry.id,
     }
 
+def extract_recommendation_and_score(text: str):
+    cleaned = re.sub(r"[*#•\-–—●★▶◆]", "", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+    rec_match = re.search(r"advice\s*[:\-]?\s*(buy|sell|hold)", cleaned, re.I)
+    recommendation = rec_match.group(1).capitalize() if rec_match else "Unknown"
+    score_match = re.search(r"confidence score\s*[:\-]?\s*(\d{1,3})", cleaned)
+    promising_score = int(score_match.group(1)) if score_match else -1
+    promising_score = max(0, min(promising_score, 100))
+    return recommendation, promising_score
+
 def ask_gpt_holding_advice(db: Session, entry, model: str = "gpt-4o"):
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
 
     ticker = entry.ticker
 
-    # Historical data at entry time
+    # Historical info
     entry_snapshot = (
         db.query(VolumeSnapshot)
-        .filter(
-            VolumeSnapshot.ticker == ticker,
-            VolumeSnapshot.detected_at == entry.detected_at
-        )
+        .filter(VolumeSnapshot.ticker == ticker, VolumeSnapshot.detected_at == entry.detected_at)
         .first()
     )
-
     entry_signal = (
         db.query(ShortTermAnalysisSignal)
-        .filter(
-            ShortTermAnalysisSignal.ticker == ticker,
-            ShortTermAnalysisSignal.updated_at == entry.updated_at
-        )
+        .filter(ShortTermAnalysisSignal.ticker == ticker, ShortTermAnalysisSignal.updated_at == entry.updated_at)
         .first()
     )
 
-    # Current data
+    # Current info
     current_volume_info = get_intraday_volume_info_for_ticker(db, ticker)
     if not current_volume_info:
         raise HTTPException(status_code=404, detail="Current volume info not available")
@@ -136,88 +140,88 @@ def ask_gpt_holding_advice(db: Session, entry, model: str = "gpt-4o"):
     if not signal:
         raise HTTPException(status_code=404, detail="Missing technical signal")
 
-    # Construct summaries
-    def format_volume_info(volume_info):
+    # Formatters
+    def format_volume_info(v):
         return (
-            f"Ticker: {volume_info.ticker}\n"
-            f"Name: {volume_info.name}\n"
-            f"Price: ¥{volume_info.current_price}\n"
-            f"Price Change: {volume_info.price_change}%\n"
-            f"Volume Surge: {volume_info.volume_rate:.2f}x\n"
-            f"Estimated Money Flow Rate: {volume_info.money_flow_rate:.2f}x\n"
-            f"Volume: {volume_info.current_volume:,} 株\n"
-            f"5-Day Avg Volume: {volume_info.avg_volume_5d:,} 株\n"
-            f"Detected At: {volume_info.detected_at.strftime('%Y-%m-%d %H:%M')}"
+            f"Ticker: {v.ticker}\n"
+            f"Name: {v.name}\n"
+            f"Price: ¥{v.current_price}\n"
+            f"Price Change: {v.price_change}%\n"
+            f"Volume Surge: {v.volume_rate:.2f}x\n"
+            f"Estimated Money Flow Rate: {v.money_flow_rate:.2f}x\n"
+            f"Volume: {v.current_volume:,} 株\n"
+            f"5-Day Avg Volume: {v.avg_volume_5d:,} 株\n"
+            f"Detected At: {v.detected_at.strftime('%Y-%m-%d %H:%M')}"
         )
 
-    def format_signal(sig):
+    def format_signal(s):
         return (
-            f"RSI: {sig.rsi or 'N/A'}\n"
-            f"MACD: line={sig.macd_line or 'N/A'}, signal={sig.macd_signal or 'N/A'}, hist={sig.macd_hist or 'N/A'}\n"
-            f"Bollinger Bands: upper={sig.bb_upper or 'N/A'}, middle={sig.bb_middle or 'N/A'}, "
-            f"lower={sig.bb_lower or 'N/A'}, price={sig.bb_current_price or 'N/A'}\n"
-            f"MA: SMA50={sig.sma_50 or 'N/A'}, SMA200={sig.sma_200 or 'N/A'}, EMA20={sig.ema_20 or 'N/A'}, "
-            f"Crossover={sig.sma_crossover or 'N/A'}\n"
-            f"Candle Pattern: {sig.candle_pattern or 'None'}\n"
-            f"Breakout: {sig.breakout_detected}, Resistance: {sig.resistance_level or 'N/A'}, "
-            f"Close: {sig.close_today or 'N/A'}\n"
-            f"W-Shape: {sig.w_shape}, Flags/Pennants: {sig.flags_pennants}, Triangle: {sig.triangle}"
+            f"RSI: {s.rsi or 'N/A'}\n"
+            f"MACD: line={s.macd_line or 'N/A'}, signal={s.macd_signal or 'N/A'}, hist={s.macd_hist or 'N/A'}\n"
+            f"Bollinger Bands: upper={s.bb_upper or 'N/A'}, middle={s.bb_middle or 'N/A'}, "
+            f"lower={s.bb_lower or 'N/A'}, price={s.bb_current_price or 'N/A'}\n"
+            f"MA: SMA50={s.sma_50 or 'N/A'}, SMA200={s.sma_200 or 'N/A'}, EMA20={s.ema_20 or 'N/A'}, "
+            f"Crossover={s.sma_crossover or 'N/A'}\n"
+            f"Candle Pattern: {s.candle_pattern or 'None'}\n"
+            f"Breakout: {s.breakout_detected}, Resistance: {s.resistance_level or 'N/A'}, "
+            f"Close: {s.close_today or 'N/A'}\n"
+            f"W-Shape: {s.w_shape}, Flags/Pennants: {s.flags_pennants}, Triangle: {s.triangle}"
         )
 
-    # Profit calc
+    # P/L
     profit = round((current_volume_info.current_price - entry.entry_price) * entry.amount)
     profit_pct = round(((current_volume_info.current_price - entry.entry_price) / entry.entry_price) * 100, 2)
 
-    # JST time
     now_str = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime("%Y/%m/%d %H:%M:%S")
 
-    # Final GPT Prompt
+    # GPT Prompt
     prompt = f"""
-You are a short-term trading advisor. A user entered a trade for the Japanese stock {ticker} and is now seeking advice.
+You are a Japanese short-term trading advisor. A user entered a trade for stock {ticker} and wants quick advice.
 
-## Trade Info
-- Ticker: {ticker}
-- Entry Price: ¥{entry.entry_price}
-- Entry Amount: {entry.amount} shares
-- Entry Time Volume Snapshot:
+## Trade
+- Ticker: {ticker}, Entry: ¥{entry.entry_price}, Amount: {entry.amount}
+- P/L: ¥{profit} ({profit_pct}%)
+
+## Entry Info
 {format_volume_info(entry_snapshot) if entry_snapshot else '(No entry volume snapshot)'}
-- Entry Time Technical Signals:
 {format_signal(entry_signal) if entry_signal else '(No entry signal)'}
 
 ## Current Info
-- Current Volume Snapshot:
 {format_volume_info(current_volume_info)}
-- Current Technical Signals:
 {format_signal(signal)}
-- Current Time: {now_str}
-- Profit/Loss: ¥{profit} ({profit_pct}%)
 
-## User Objective
-The user is pursuing short-term gains through active trading, targeting an average daily return of 3–5%. 
-Some loss days are acceptable if the overall strategy trends toward steady short-term growth.
+## Objective
+The user targets daily profit of 3–5%. Usually sells same day to lock profit unless very strong upside.
 
 ### Output:
-- Summary of key changes from entry to now
+- Key changes since entry (2–3 lines)
 - Advice: **SELL** or **HOLD**
-- Justify your advice (2–3 bullet points)
-- Confidence Score (0–100) based on whether target profit is likely to be achieved soon
+- 2 short bullet justifications
+- Confidence Score (0–100)
 """
 
-    response = openai.chat.completions.create(
-        model=model,
-        temperature=0,
-        messages=[
-            {"role": "system", "content": "You are a professional Japanese stock trading advisor."},
-            {"role": "user", "content": prompt.strip()}
-        ]
-    )
+    try:
+        response = openai.chat.completions.create(
+            model=model,
+            temperature=0.4,
+            messages=[
+                {"role": "system", "content": "You are a professional Japanese stock trading advisor."},
+                {"role": "user", "content": prompt.strip()}
+            ]
+        )
+        content = response.choices[0].message.content.strip()
+        recommendation, confidence = extract_recommendation_and_score(content)
 
-    content = response.choices[0].message.content.strip()
+        return {
+            "gpt_advice": content,
+            "recommendation": recommendation,
+            "confidence": confidence
+        }
 
-    return {
-        "gpt_advice": content,
-        "summary": signal.gpt_summary if signal else "",
-        "confidence": signal.promising_score if signal else None,
-        "recommendation": "SELL" if "SELL" in content.upper() else "HOLD"
-    }
-
+    except Exception as e:
+        print(f"❌ GPT advice generation failed: {e}")
+        return {
+            "gpt_advice": "GPT advice unavailable due to error.",
+            "recommendation": "Unknown",
+            "confidence": -1
+        }

@@ -1,9 +1,9 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import EntriedStock, VolumeSnapshot, StarredStock, ShortTermAnalysisSignal
+from app.schemas import ScanParams, EntryRequest
 from sqlalchemy.orm import Session
-from typing import List, Dict
-from pydantic import BaseModel
+from typing import Any, List, Dict
 
 from app.db.db import SessionLocal
 from app.utils.shortterm.volume_surge_scraper import scan_and_save_volume_surges, get_latest_volume_surges, fetch_intraday_prices, get_intraday_volume_info_for_ticker
@@ -22,6 +22,7 @@ from app.utils.shortterm.flag_pennant_detector import detect_flags_pennants_for_
 from app.utils.shortterm.triangle_detector import detect_triangle_for_ticker
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
 from app.utils.shortterm.holdings import get_current_holdings, create_entry_and_analyze, ask_gpt_holding_advice
+from app.utils.shortterm.spike_scanner import volume_surge_news_downtrend_scan
 
 router = APIRouter()
 
@@ -81,13 +82,6 @@ def update_money_flow_average(ticker: str, db: Session = Depends(get_db)):
 def get_intraday_prices(ticker: str):
     last, high, low = fetch_intraday_prices(ticker)
     return {"message": f"Intraday price for {ticker}: {last, high, low}"}
-
-# For Use
-class ScanParams(BaseModel):
-    surge_threshold: float = 2.0
-    price_threshold: float = 300.0
-    from_page: int = 1
-    to_page: int = 3
 
 # For Use
 @router.post("/volume_scan")
@@ -494,11 +488,6 @@ def analyze_all_entried_stocks(db: Session = Depends(get_db)):
 
     return results
 
-class EntryRequest(BaseModel):
-    ticker: str
-    amount: int
-    entry_price: float
-
 @router.post("/add_entry_and_analyze")
 def add_entry_and_analyze(request: EntryRequest, db: Session = Depends(get_db)):
     return create_entry_and_analyze(db, request.ticker, request.amount, request.entry_price)
@@ -554,3 +543,14 @@ def mark_entry_as_sold(entry_id: int, db: Session = Depends(get_db)):
     entry.is_sold = True
     db.commit()
     return {"message": f"Entry {entry_id} marked as sold"}
+
+@router.post("/scan_spike")
+def scan_volume_surges_full(
+    params: ScanParams,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Scan volume surges, check downtrend and GPT top news.
+    """
+    result = volume_surge_news_downtrend_scan(params, db)
+    return result

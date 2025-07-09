@@ -5,6 +5,8 @@ import type { ScanFormProps } from "../../types";
 interface ExtendedScanFormProps extends ScanFormProps {
   onFetchNewsSignals: () => void;
   loadingNewsSignals: boolean;
+  onScanSpike: () => void;
+  loadingSpikeScan: boolean;
 }
 
 const ScanForm: React.FC<ExtendedScanFormProps> = ({
@@ -18,8 +20,10 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
   onFromPageChange,
   onToPageChange,
   onScan,
+  onScanSpike,
   onFetchNewsSignals,
   loadingNewsSignals,
+  loadingSpikeScan,
 }) => {
   return (
     <Card className="mb-3 py-2 px-2 shadow-sm">
@@ -29,7 +33,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
             className="align-items-center g-2 flex-nowrap"
             style={{ overflowX: "auto", fontSize: "0.85rem" }}
           >
-            <Col style={{ minWidth: 200 }}>
+            <Col style={{ minWidth: 190 }}>
               <InputGroup>
                 <InputGroup.Text>Surge ≥</InputGroup.Text>
                 <Form.Control
@@ -44,7 +48,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 200 }}>
+            <Col style={{ minWidth: 195 }}>
               <InputGroup>
                 <InputGroup.Text>Price ≤</InputGroup.Text>
                 <Form.Control
@@ -58,7 +62,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 80 }}>
+            <Col style={{ minWidth: 125 }}>
               <InputGroup>
                 <InputGroup.Text>From</InputGroup.Text>
                 <Form.Control
@@ -71,7 +75,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 40 }}>
+            <Col style={{ minWidth: 110 }}>
               <InputGroup>
                 <InputGroup.Text>To</InputGroup.Text>
                 <Form.Control
@@ -84,7 +88,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 80 }}>
+            <Col style={{ minWidth: 100 }}>
               <Button
                 variant="primary"
                 className="w-100"
@@ -95,7 +99,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </Button>
             </Col>
 
-            <Col style={{ minWidth: 160 }}>
+            <Col style={{ minWidth: 150 }}>
               <Button
                 variant="info"
                 className="w-100"
@@ -107,6 +111,16 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
                 ) : (
                   "News + Impact"
                 )}
+              </Button>
+            </Col>
+            <Col style={{ minWidth: 120 }}>
+              <Button
+                variant="warning"
+                className="w-100"
+                onClick={onScanSpike}
+                disabled={loadingSpikeScan}
+              >
+                {loadingSpikeScan ? <Spinner animation="border" /> : "Scan Spike"}
               </Button>
             </Col>
           </Row>

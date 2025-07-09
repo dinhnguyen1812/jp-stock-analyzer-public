@@ -241,13 +241,13 @@ def scan_and_save_volume_surges(
     from_page: int = 1,
     to_page: int = 1
 ) -> List[str]:
-    half_hour_ago = datetime.now(JP_TZ) - timedelta(hours=0.5)
+    quater_hour_ago = datetime.now(JP_TZ) - timedelta(hours=0.25)
 
     # Step 1: Get tickers already scanned within the past hour
     recent_tickers = {
         row.ticker
         for row in db.query(VolumeSnapshot)
-        .filter(VolumeSnapshot.detected_at >= half_hour_ago)
+        .filter(VolumeSnapshot.detected_at >= quater_hour_ago)
         .all()
     }
 

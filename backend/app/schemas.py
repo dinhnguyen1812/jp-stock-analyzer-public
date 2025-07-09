@@ -19,3 +19,14 @@ class Stock(BaseModel):
 
     class Config:
         orm_mode = True
+
+class EntryRequest(BaseModel):
+    ticker: str
+    amount: int
+    entry_price: float
+
+class ScanParams(BaseModel):
+    surge_threshold: float = 2.0
+    price_threshold: float = 300.0
+    from_page: int = 1
+    to_page: int = 3

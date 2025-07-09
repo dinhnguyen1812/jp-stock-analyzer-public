@@ -141,3 +141,30 @@ export async function analyzeAllEntriedStocks() {
   if (!res.ok) throw new Error("Failed to analyze entried stocks");
   return await res.json();
 }
+
+export async function getGptAdviceForHoldings() {
+  const res = await fetch(`${BASE_URL}/shortterm/gpt_advice_for_holdings`);
+  if (!res.ok) throw new Error("Failed to get GPT advice");
+  return res.json();
+}
+
+export async function triggerVolumeSurgeFullScan(
+  surgeThreshold: number,
+  fromPage: number,
+  toPage: number
+): Promise<{ report: string }> {
+  const res = await fetch(`${BASE_URL}/shortterm/scan_spike`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      surge_threshold: surgeThreshold,
+      from_page: fromPage,
+      to_page: toPage,
+    }),
+  });
+
+  if (!res.ok) throw new Error("Failed to trigger full spike scan.");
+  return res.json();
+}

@@ -14,6 +14,7 @@ import {
   addEntryAndAnalyze,
   markEntryAsSold,
   analyzeAllEntriedStocks,
+  getGptAdviceForHoldings, // ✅ New import
 } from "../../api";
 
 const HoldingsCard: React.FC = () => {
@@ -25,6 +26,8 @@ const HoldingsCard: React.FC = () => {
   const [amount, setAmount] = useState<number>(0);
   const [entryPrice, setEntryPrice] = useState<number | null>(null);
   const [analyzingEntried, setAnalyzingEntried] = useState(false);
+  const [gptResults, setGptResults] = useState<any[]>([]); // ✅ Advice results
+  const [loadingAdvice, setLoadingAdvice] = useState(false); // ✅ GPT loading state
 
   const handleShow = async () => {
     setShowModal(true);
@@ -76,6 +79,18 @@ const HoldingsCard: React.FC = () => {
     }
   };
 
+  const handleGptAdvice = async () => {
+    setLoadingAdvice(true);
+    try {
+      const res = await getGptAdviceForHoldings();
+      setGptResults(res.results || []);
+    } catch (err: any) {
+      alert(err.message || "Failed to fetch GPT advice");
+    } finally {
+      setLoadingAdvice(false);
+    }
+  };
+
   const formatToJST = (utcString: string) => {
     const date = new Date(utcString + "Z");
     return date.toLocaleString("ja-JP", {
@@ -108,7 +123,6 @@ const HoldingsCard: React.FC = () => {
           </Button>
         </div>
       </Card>
-
 
       <Modal
         show={showModal}
@@ -225,7 +239,6 @@ const HoldingsCard: React.FC = () => {
                               window.confirm(`Mark ${entry.ticker} as sold?`)
                             ) {
                               try {
-                                console.log("Marking sold entry with id:", entry.id);
                                 await markEntryAsSold(entry.id);
                                 await loadHoldings();
                               } catch (err: any) {
@@ -265,6 +278,121 @@ const HoldingsCard: React.FC = () => {
                   </span>
                 </p>
               </div>
+
+              {/* 🧠 GPT Advice Button */}
+              <div className="d-flex justify-content-end mb-2">
+                <Button
+                  variant="info"
+                  onClick={handleGptAdvice}
+                  disabled={loadingAdvice}
+                >
+                  {loadingAdvice ? (
+                    <>
+                      <Spinner size="sm" animation="border" /> Asking GPT...
+                    </>
+                  ) : (
+                    "🧠 GPT Advice"
+                  )}
+                </Button>
+              </div>
+
+              {/* 📋 GPT Advice Results */}
+              {gptResults.length > 0 && (
+                <div className="mt-3">
+                  <h5>🧠 GPT Advice for Holdings</h5>
+                  {gptResults.map((res, idx) => (
+                    <Card key={idx} className="mb-3 shadow-sm">
+                      <Card.Body>
+                        <Card.Title>
+                          {res.ticker} — <strong>{res.recommendation}</strong>{" "}
+                          {res.confidence !== null && (
+                            <span className="ms-2 text-muted">
+                              Confidence: {res.confidence}
+                            </span>
+                          )}
+                        </Card.Title>
+                        {(() => {
+                          const lines = res.gpt_advice
+                            .split("\n")
+                            .map((l: string) => l.trim());
+                          const summaryStart = lines.findIndex((l: string) =>
+                            l.toLowerCase().includes("summary of key")
+                          );
+                          const adviceStart = lines.findIndex((l: string) =>
+                            l.toLowerCase().startsWith("advice:")
+                          );
+                          const bulletStart = lines.findIndex(
+                            (l: string, i: number) =>
+                              i > adviceStart && /^[\-\*●•]/.test(l)
+                          );
+                          const confidenceStart = lines.findIndex((l: string) =>
+                            l.toLowerCase().includes("confidence score")
+                          );
+
+                          const summaryLines = lines.slice(
+                            summaryStart + 1,
+                            adviceStart > 0 ? adviceStart : lines.length
+                          );
+                          const bullets = lines.slice(bulletStart, confidenceStart);
+                          const confidenceLine = lines[confidenceStart] || "";
+
+                          return (
+                            <>
+                              {summaryLines.length > 0 && (
+                                <>
+                                  <strong>📌 Summary of Key Changes</strong>
+                                  <ul>
+                                    {summaryLines
+                                      .filter(
+                                        (l: string) =>
+                                          l && !l.startsWith("###")
+                                      )
+                                      .map(
+                                        (
+                                          l: string | number | bigint | boolean | React.ReactElement<
+                                            unknown,
+                                            string | React.JSXElementConstructor<any>
+                                          > | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<
+                                            unknown,
+                                            string | React.JSXElementConstructor<any>
+                                          > | Iterable<React.ReactNode> | null | undefined> | null | undefined,
+                                          i: any
+                                        ) => <li key={`s-${i}`}>{l}</li>
+                                      )}
+                                  </ul>
+                                </>
+                              )}
+
+                              <p>
+                                <strong>{lines[adviceStart] || "Advice: -"}</strong>
+                              </p>
+
+                              {bullets.length > 0 && (
+                                <>
+                                  <strong>🔍 Justification</strong>
+                                  <ul>
+                                    {bullets.map((l: string, i: any) => (
+                                      <li key={`b-${i}`}>
+                                        {l.replace(/^[-*●•] ?/, "")}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </>
+                              )}
+
+                              {confidenceLine && (
+                                <p>
+                                  <strong>🎯 {confidenceLine}</strong>
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </Card.Body>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <p>(No holdings yet)</p>
