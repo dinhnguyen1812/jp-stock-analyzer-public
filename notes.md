@@ -65,5 +65,8 @@ You can track new listings on the JPX New Listings page, which includes market s
   - downtrend - update after one day
   - news - update after one hour
 - Add fetch spike -->
-- Highlight words in analyze
-- Modify display in fetch spike
+<!-- - Highlight words in analyze -->
+<!-- - Modify display in fetch spike -->
+- Reset some table after 2 days
+- Auto scan each 10 min with sound alert
+- Include current price, current price / lowest and / highest

@@ -7,7 +7,7 @@ import IntradayAnalysisModal from "../components/shortterm/TickerAnalysisResult"
 import NewsImpactModal from "../components/shortterm/NewsImpactModal";
 import HoldingsCard from "../components/shortterm/HoldingsCard";
 import ScanSpikeCard from "../components/shortterm/ScanSpikeCard";
-import SpikeScanCard from "../components/shortterm/SpikeScanCard";
+import SpikeScanCard from "../components/shortterm/FetchSpikeCard";
 import type { VolumeSurgeStock } from "../types";
 import {
   triggerVolumeScan,

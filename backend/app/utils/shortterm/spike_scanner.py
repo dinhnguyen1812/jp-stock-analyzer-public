@@ -228,14 +228,51 @@ def volume_surge_news_downtrend_scan(
 
 def get_all_spike_scans(db: Session) -> List[dict]:
     scans = db.query(SpikeScan).order_by(SpikeScan.updated_at.desc()).all()
+    today = datetime.date.today()
+    start_date = today - datetime.timedelta(days=30)
 
-    return [{
-        "ticker": scan.ticker,
-        "volume_rate": scan.volume_rate,
-        "money_flow_rate": scan.money_flow_rate,
-        "current_price": scan.current_price,
-        "detected_at": scan.detected_at.isoformat() if scan.detected_at else None,
-        "downtrend": scan.downtrend,
-        "top_news": scan.top_news,
-        "updated_at": scan.updated_at.isoformat() if scan.updated_at else None
-    } for scan in scans]
+    results = []
+    for scan in scans:
+        prices = (
+            db.query(DailyPrice)
+            .filter(
+                DailyPrice.ticker == scan.ticker,
+                DailyPrice.date >= start_date
+            )
+            .order_by(DailyPrice.date.asc())
+            .all()
+        )
+
+        highest, lowest = None, None
+        drop_from_high, rebound_from_low = None, None
+
+        if prices:
+            highs = [p.high for p in prices]
+            lows = [p.low for p in prices]
+
+            highest = max(highs)
+            lowest = min(lows)
+
+            if highest and highest > 0:
+                drop_from_high = round((highest - scan.current_price) / highest * 100, 2)
+
+            if lowest and lowest > 0:
+                rebound_from_low = round((scan.current_price - lowest) / lowest * 100, 2)
+
+        results.append({
+            "ticker": scan.ticker,
+            "volume_rate": scan.volume_rate,
+            "money_flow_rate": scan.money_flow_rate,
+            "current_price": scan.current_price,
+            "detected_at": scan.detected_at.isoformat() if scan.detected_at else None,
+            "downtrend": scan.downtrend,
+            "top_news": scan.top_news,
+            "updated_at": scan.updated_at.isoformat() if scan.updated_at else None,
+            "drop_from_high_pct": drop_from_high,
+            "rebound_from_low_pct": rebound_from_low,
+            "highest_price": highest,
+            "lowest_price": lowest,
+        })
+
+    return results
+
