@@ -67,6 +67,7 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Add fetch spike -->
 <!-- - Highlight words in analyze -->
 <!-- - Modify display in fetch spike -->
+<!-- - Auto scan each 10 min with sound alert
+- Include current price, current price / lowest and / highest -->
 - Reset some table after 2 days
-- Auto scan each 10 min with sound alert
-- Include current price, current price / lowest and / highest
+- 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Container } from "react-bootstrap";
 import ScanForm from "../components/shortterm/ScanForm";
 import FetchAnalyzeCard from "../components/shortterm/FetchAnalyzeCard";
@@ -6,9 +6,9 @@ import StockTable from "../components/shortterm/StockTable";
 import IntradayAnalysisModal from "../components/shortterm/TickerAnalysisResult";
 import NewsImpactModal from "../components/shortterm/NewsImpactModal";
 import HoldingsCard from "../components/shortterm/HoldingsCard";
-import ScanSpikeCard from "../components/shortterm/ScanSpikeCard";
 import SpikeScanCard from "../components/shortterm/FetchSpikeCard";
 import type { VolumeSurgeStock } from "../types";
+import alertSound from "../../sounds/alert.mp3";
 import {
   triggerVolumeScan,
   fetchRecentVolumeSurges,
@@ -19,10 +19,6 @@ import {
 } from "../api";
 
 const ShortTermPage: React.FC = () => {
-  useEffect(() => {
-    document.title = "Volume Surge Scanner";
-  }, []);
-
   const [surgeThreshold, setSurgeThreshold] = useState(1.5);
   const [priceThreshold, setPriceThreshold] = useState(300.0);
   const [promisingScoreThreshold, setPromisingScoreThreshold] = useState(30);
@@ -50,6 +46,19 @@ const ShortTermPage: React.FC = () => {
 
   const [loadingSpikeScan, setLoadingSpikeScan] = useState(false);
   const [spikeScanReport, setSpikeScanReport] = useState("");
+  const [autoScanEnabled, setAutoScanEnabled] = useState(false);
+
+  const [lastTickers, setLastTickers] = useState<string[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    document.title = "Volume Surge Scanner";
+    audioRef.current = new Audio(alertSound);
+    return () => {
+      if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    };
+  }, []);
 
   const handleScan = async () => {
     setLoadingScan(true);
@@ -138,6 +147,23 @@ const ShortTermPage: React.FC = () => {
   };
 
   const handleScanSpike = async () => {
+    if (!autoScanEnabled) {
+      // Start auto scan
+      setAutoScanEnabled(true);
+      scanIntervalRef.current = setInterval(scanSpikeOnce, 10 * 60 * 1000);
+      await scanSpikeOnce(); // Run immediately
+    } else {
+      // Stop auto scan
+      setAutoScanEnabled(false);
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+      alert("⛔ Auto scan stopped.");
+    }
+  };
+
+  const scanSpikeOnce = async () => {
     setLoadingSpikeScan(true);
     try {
       const result = await triggerVolumeSurgeFullScan(
@@ -146,6 +172,16 @@ const ShortTermPage: React.FC = () => {
         toPage
       );
       setSpikeScanReport(result.report);
+
+      const currentTickers: string[] = result.results?.map((r: any) => r.ticker) || [];
+      const newTickers = currentTickers.filter((t) => !lastTickers.includes(t));
+
+      if (newTickers.length > 0 && audioRef.current) {
+        audioRef.current.play().catch((e) => console.error("🔇 Cannot play sound", e));
+        alert(`🎯 New spike(s): ${newTickers.join(", ")}`);
+      }
+
+      setLastTickers(currentTickers);
     } catch (err) {
       alert("Spike scan failed.");
     } finally {
@@ -173,6 +209,7 @@ const ShortTermPage: React.FC = () => {
             loadingNewsSignals={loadingNewsSignals}
             onScanSpike={handleScanSpike}
             loadingSpikeScan={loadingSpikeScan}
+            autoScanEnabled={autoScanEnabled}
           />
         </div>
         <div style={{ width: "280px", minWidth: "280px" }}>
@@ -200,7 +237,6 @@ const ShortTermPage: React.FC = () => {
         onAnalyzeStarred={handleAnalyzeStarred}
       />
 
-      {/* SPIKE SCAN CARD (Below FetchAnalyzeCard) */}
       <SpikeScanCard />
 
       {/* MODALS */}
@@ -217,13 +253,9 @@ const ShortTermPage: React.FC = () => {
         rawResponse={newsImpactResult?.raw_response || "(No data available)"}
       />
 
-      {/* TABLE */}
       {stocks.length > 0 && (
         <StockTable stocks={stocks} onStarToggle={handleStarToggle} />
       )}
-
-      {/* SPIKE SCAN RESULT (TEXT REPORT) */}
-      {spikeScanReport && <ScanSpikeCard report={spikeScanReport} />}
     </Container>
   );
 };

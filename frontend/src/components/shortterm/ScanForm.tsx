@@ -7,6 +7,7 @@ interface ExtendedScanFormProps extends ScanFormProps {
   loadingNewsSignals: boolean;
   onScanSpike: () => void;
   loadingSpikeScan: boolean;
+  autoScanEnabled: boolean; // ← NEW prop
 }
 
 const ScanForm: React.FC<ExtendedScanFormProps> = ({
@@ -24,6 +25,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
   onFetchNewsSignals,
   loadingNewsSignals,
   loadingSpikeScan,
+  autoScanEnabled, // ← NEW
 }) => {
   return (
     <Card className="mb-3 py-2 px-2 shadow-sm">
@@ -88,7 +90,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ minWidth: 100 }}>
+            <Col style={{ minWidth: 95 }}>
               <Button
                 variant="primary"
                 className="w-100"
@@ -99,7 +101,7 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
               </Button>
             </Col>
 
-            <Col style={{ minWidth: 150 }}>
+            <Col style={{ minWidth: 145 }}>
               <Button
                 variant="info"
                 className="w-100"
@@ -113,14 +115,21 @@ const ScanForm: React.FC<ExtendedScanFormProps> = ({
                 )}
               </Button>
             </Col>
+
             <Col style={{ minWidth: 120 }}>
               <Button
-                variant="warning"
+                variant={autoScanEnabled ? "danger" : "warning"}
                 className="w-100"
                 onClick={onScanSpike}
                 disabled={loadingSpikeScan}
               >
-                {loadingSpikeScan ? <Spinner animation="border" /> : "Scan Spike"}
+                {loadingSpikeScan ? (
+                  <Spinner animation="border" />
+                ) : autoScanEnabled ? (
+                  "Stop Auto Scan ✖"
+                ) : (
+                  "Scan Spike"
+                )}
               </Button>
             </Col>
           </Row>

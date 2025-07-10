@@ -152,7 +152,9 @@ export async function triggerVolumeSurgeFullScan(
   surgeThreshold: number,
   fromPage: number,
   toPage: number
-): Promise<{ report: string }> {
+): Promise<{
+  results: any; report: string 
+}> {
   const res = await fetch(`${BASE_URL}/shortterm/scan_spike`, {
     method: "POST",
     headers: {
