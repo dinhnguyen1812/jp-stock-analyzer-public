@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, type JSX } from "react";
 import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 import {
@@ -18,6 +18,33 @@ export interface SavedAnalysis {
   volume_info: VolumeSurgeStock;
   analysis_signal: AnalysisSignal;
 }
+
+const sentimentKeywords = [
+  { word: "bullish", variant: "success" },
+  { word: "bearish", variant: "danger" },
+  { word: "neutral", variant: "secondary" },
+];
+
+const highlightSentiment = (text: string): JSX.Element => {
+  const parts = text.split(/(\b(?:bullish|bearish|neutral)\b)/gi);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = sentimentKeywords.find(
+          (k) => k.word.toLowerCase() === part.toLowerCase()
+        );
+        return match ? (
+          <Badge key={i} bg={match.variant} className="mx-1">
+            {part}
+          </Badge>
+        ) : (
+          <span key={i}>{part}</span>
+        );
+      })}
+    </>
+  );
+};
 
 const StockRow: React.FC<StockRowProps> = ({
   stock,
@@ -212,32 +239,20 @@ const StockRow: React.FC<StockRowProps> = ({
                     <ul>
                       <li>Candle Pattern: {analysis.analysis_signal.candle_pattern ?? "None"}</li>
                       <li>
-                        Breakout: {analysis.analysis_signal.breakout_detected ? "Yes" : "No"},{" "}
-                        Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},{" "}
-                        Close: {analysis.analysis_signal.close_today ?? "N/A"}
+                        Breakout: {analysis.analysis_signal.breakout_detected ? "Yes" : "No"}, Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"}, Close: {analysis.analysis_signal.close_today ?? "N/A"}
                       </li>
                       <li>RSI: {analysis.analysis_signal.rsi ?? "N/A"}</li>
                       <li>
-                        MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal=
-                        {analysis.analysis_signal.macd_signal ?? "N/A"}, Hist=
-                        {analysis.analysis_signal.macd_hist ?? "N/A"}
+                        MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal={analysis.analysis_signal.macd_signal ?? "N/A"}, Hist={analysis.analysis_signal.macd_hist ?? "N/A"}
                       </li>
                       <li>
-                        BBands: Upper={analysis.analysis_signal.bb_upper ?? "N/A"}, Middle=
-                        {analysis.analysis_signal.bb_middle ?? "N/A"}, Lower=
-                        {analysis.analysis_signal.bb_lower ?? "N/A"}, Price=
-                        {analysis.analysis_signal.bb_current_price ?? "N/A"}
+                        BBands: Upper={analysis.analysis_signal.bb_upper ?? "N/A"}, Middle={analysis.analysis_signal.bb_middle ?? "N/A"}, Lower={analysis.analysis_signal.bb_lower ?? "N/A"}, Price={analysis.analysis_signal.bb_current_price ?? "N/A"}
                       </li>
                       <li>
-                        MA: SMA50={analysis.analysis_signal.sma_50 ?? "N/A"}, SMA200=
-                        {analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20=
-                        {analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover=
-                        {analysis.analysis_signal.sma_crossover ?? "N/A"}
+                        MA: SMA50={analysis.analysis_signal.sma_50 ?? "N/A"}, SMA200={analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20={analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover={analysis.analysis_signal.sma_crossover ?? "N/A"}
                       </li>
                       <li>
-                        Patterns: W-Shape={analysis.analysis_signal.w_shape ? "Yes" : "No"},{" "}
-                        Flags/Pennants={analysis.analysis_signal.flags_pennants ? "Yes" : "No"},{" "}
-                        Triangle={analysis.analysis_signal.triangle ? "Yes" : "No"}
+                        Patterns: W-Shape={analysis.analysis_signal.w_shape ? "Yes" : "No"}, Flags/Pennants={analysis.analysis_signal.flags_pennants ? "Yes" : "No"}, Triangle={analysis.analysis_signal.triangle ? "Yes" : "No"}
                       </li>
                     </ul>
                   ) : (
@@ -264,7 +279,7 @@ const StockRow: React.FC<StockRowProps> = ({
 
               <h6>GPT Reasoning</h6>
               <p style={{ whiteSpace: "pre-wrap" }}>
-                {analysis.volume_info.reasoning || "(No reasoning provided)"}
+                {highlightSentiment(analysis.volume_info.reasoning || "(No reasoning provided)")}
               </p>
 
               {Array.isArray(analysis.volume_info.top_news) &&
@@ -279,8 +294,7 @@ const StockRow: React.FC<StockRowProps> = ({
                           </a>
                           <br />
                           <small className="text-muted">
-                            [{newsItem.category}]{" "}
-                            {new Date(newsItem.published_at).toLocaleString()}
+                            [{newsItem.category}] {new Date(newsItem.published_at).toLocaleString()}
                           </small>
                         </li>
                       ))}

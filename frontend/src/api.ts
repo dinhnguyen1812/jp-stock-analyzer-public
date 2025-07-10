@@ -168,3 +168,9 @@ export async function triggerVolumeSurgeFullScan(
   if (!res.ok) throw new Error("Failed to trigger full spike scan.");
   return res.json();
 }
+
+export async function fetchSpikeScans(): Promise<any[]> {
+  const res = await fetch(`${BASE_URL}/shortterm/get_spike`);
+  if (!res.ok) throw new Error("Failed to fetch spike scan data.");
+  return res.json();
+}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type JSX } from "react";
 import { Modal, Row, Col, Badge } from "react-bootstrap";
 
 interface IntradayAnalysisModalProps {
@@ -14,9 +14,38 @@ const recommendationVariant = (rec?: string) => {
       return "success";
     case "Sell":
       return "danger";
+    case "Hold":
+      return "warning";
     default:
       return "secondary";
   }
+};
+
+const sentimentKeywords = [
+  { word: "bullish", variant: "success" },
+  { word: "bearish", variant: "danger" },
+  { word: "neutral", variant: "secondary" },
+];
+
+const highlightSentiment = (text: string): JSX.Element => {
+  const parts = text.split(/(\b(?:bullish|bearish|neutral)\b)/gi);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = sentimentKeywords.find(
+          (k) => k.word.toLowerCase() === part.toLowerCase()
+        );
+        return match ? (
+          <Badge key={i} bg={match.variant} className="mx-1">
+            {part}
+          </Badge>
+        ) : (
+          <span key={i}>{part}</span>
+        );
+      })}
+    </>
+  );
 };
 
 const IntradayAnalysisModal: React.FC<IntradayAnalysisModalProps> = ({
@@ -35,7 +64,7 @@ const IntradayAnalysisModal: React.FC<IntradayAnalysisModalProps> = ({
       <Modal.Body>
         <Row>
           <Col md={6}>
-            <h5>Volume Info</h5>
+            <h5>📊 Volume Info</h5>
             <ul>
               <li>Name: {analysis.volume_info.name}</li>
               <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
@@ -49,38 +78,84 @@ const IntradayAnalysisModal: React.FC<IntradayAnalysisModalProps> = ({
           </Col>
 
           <Col md={6}>
-            <h5>Technical Signals</h5>
+            <h5>📈 Technical Signals</h5>
             <ul>
               <li>Candle: {analysis.analysis_signal?.candle_pattern ?? "None"}</li>
               <li>Breakout: {analysis.analysis_signal?.breakout_detected ? "Yes" : "No"}</li>
               <li>RSI: {analysis.analysis_signal?.rsi}</li>
-              <li>MACD: Line={analysis.analysis_signal?.macd_line}, Signal={analysis.analysis_signal?.macd_signal}, Hist={analysis.analysis_signal?.macd_hist}</li>
-              <li>SMA50: {analysis.analysis_signal?.sma_50}, EMA20: {analysis.analysis_signal?.ema_20}</li>
+              <li>
+                MACD: Line={analysis.analysis_signal?.macd_line}, Signal=
+                {analysis.analysis_signal?.macd_signal}, Hist=
+                {analysis.analysis_signal?.macd_hist}
+              </li>
+              <li>
+                SMA50: {analysis.analysis_signal?.sma_50}, EMA20:{" "}
+                {analysis.analysis_signal?.ema_20}
+              </li>
               <li>W-Shape: {analysis.analysis_signal?.w_shape ? "Yes" : "No"}</li>
             </ul>
           </Col>
         </Row>
 
-        <h5>Summary</h5>
-        <p><strong>Recommendation: </strong>
+        <h5 className="mt-3">💡 Summary</h5>
+        <p>
+          <strong>Recommendation: </strong>
           <Badge bg={recommendationVariant(analysis.volume_info.recommendation)}>
             {analysis.volume_info.recommendation}
           </Badge>
         </p>
-        <p><strong>Promising Score: </strong>{analysis.volume_info.promising_score}</p>
+        <p>
+          <strong>Promising Score: </strong>
+          {analysis.volume_info.promising_score}
+        </p>
 
-        <h6>GPT Reasoning</h6>
-        <p style={{ whiteSpace: "pre-wrap" }}>{analysis.volume_info.reasoning}</p>
+        <h6>🧠 GPT Reasoning</h6>
+        <p
+          style={{
+            whiteSpace: "pre-wrap",
+            background: "#f8f9fa",
+            padding: "0.5rem",
+            borderRadius: "0.3rem",
+          }}
+        >
+          {highlightSentiment(analysis.volume_info.reasoning)}
+        </p>
 
-        <h6>Top News</h6>
+        <h6>📰 Top News</h6>
         <ul>
           {analysis.top_news?.map((newsItem: any, i: number) => (
-            <li key={i}>
-              <a href={newsItem.url} target="_blank" rel="noopener noreferrer">{newsItem.headline}</a>
+            <li key={i} style={{ marginBottom: "0.5rem" }}>
+              <a href={newsItem.url} target="_blank" rel="noopener noreferrer">
+                {newsItem.headline}
+              </a>
               <br />
               <small className="text-muted">
                 [{newsItem.category}] {new Date(newsItem.published_at).toLocaleString()}
               </small>
+              {newsItem.verdict && (
+                <>
+                  {" "}
+                  <Badge
+                    bg={
+                      newsItem.verdict === "Great"
+                        ? "success"
+                        : newsItem.verdict === "Good"
+                        ? "primary"
+                        : newsItem.verdict === "Neutral"
+                        ? "secondary"
+                        : "warning"
+                    }
+                    className="ms-2"
+                  >
+                    {newsItem.verdict}
+                  </Badge>
+                </>
+              )}
+              {newsItem.reason && (
+                <div style={{ fontSize: "0.85rem", color: "#555" }}>
+                  <em>{newsItem.reason}</em>
+                </div>
+              )}
             </li>
           ))}
         </ul>

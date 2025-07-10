@@ -146,7 +146,6 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
             return None
 
         # 5. Create and store VolumeSnapshot
-        now = datetime.now(JP_TZ)
         snapshot = VolumeSnapshot(
             ticker=ticker,
             name=name,
@@ -156,7 +155,7 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[Vo
             avg_volume_5d=analysis["avg_volume_5d"],
             volume_rate=analysis["volume_rate"],
             money_flow_rate=analysis["money_flow_rate"],
-            detected_at=now,
+            detected_at=datetime.now(JP_TZ),
         )
 
         db.add(snapshot)
@@ -256,7 +255,6 @@ def scan_and_save_volume_surges(
         page_data = fetch_volume_page(db, page)
         all_results.extend(page_data)
 
-    now = datetime.now(JP_TZ)
     saved_tickers = []
     for stock in all_results:
         ticker = stock["ticker"]
@@ -276,7 +274,7 @@ def scan_and_save_volume_surges(
             avg_volume_5d=stock["avg_volume_5d"],
             volume_rate=stock["volume_rate"],
             money_flow_rate=stock["money_flow_rate"],
-            detected_at=now,
+            detected_at=datetime.now(JP_TZ),
         )
         db.add(snapshot)
         saved_tickers.append(ticker)

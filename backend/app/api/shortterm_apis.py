@@ -22,7 +22,7 @@ from app.utils.shortterm.flag_pennant_detector import detect_flags_pennants_for_
 from app.utils.shortterm.triangle_detector import detect_triangle_for_ticker
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
 from app.utils.shortterm.holdings import get_current_holdings, create_entry_and_analyze, ask_gpt_holding_advice
-from app.utils.shortterm.spike_scanner import volume_surge_news_downtrend_scan
+from app.utils.shortterm.spike_scanner import volume_surge_news_downtrend_scan, get_all_spike_scans
 
 router = APIRouter()
 
@@ -554,3 +554,10 @@ def scan_volume_surges_full(
     """
     result = volume_surge_news_downtrend_scan(params, db)
     return result
+
+@router.get("/get_spike")
+def fetch_all_spike_scans(db: Session = Depends(get_db)) -> Any:
+    """
+    Return all spike scan results (latest first)
+    """
+    return get_all_spike_scans(db)

@@ -25,8 +25,6 @@ KEYWORDS = [
     "役員", "人事", "内部統制", "不祥事", "リストラ", "業務提携"
 ]
 
-ASK_GPT = True
-
 def relevance_score(headline: str) -> int:
     return sum(1 for kw in KEYWORDS if kw in headline)
 

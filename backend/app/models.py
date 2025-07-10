@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, Text, Boolean
+from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, Text, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 import datetime
 
@@ -168,3 +168,21 @@ class EntriedStock(Base):
     __table_args__ = (
         UniqueConstraint("ticker", "detected_at", "updated_at", name="uq_entry_record"),
     )
+
+class SpikeScan(Base):
+    __tablename__ = "spike_scans"
+
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String, unique=True, index=True)
+    volume_rate = Column(Float)
+    money_flow_rate = Column(Float)
+    current_price = Column(Float)
+    detected_at = Column(TIMESTAMP)
+
+    downtrend = Column(JSON, nullable=True)
+    downtrend_checked_at = Column(TIMESTAMP, nullable=True)
+
+    top_news = Column(JSON, nullable=True)
+    news_checked_at = Column(TIMESTAMP, nullable=True)
+
+    updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

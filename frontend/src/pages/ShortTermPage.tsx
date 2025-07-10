@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Container, Card } from "react-bootstrap";
+import { Container } from "react-bootstrap";
 import ScanForm from "../components/shortterm/ScanForm";
 import FetchAnalyzeCard from "../components/shortterm/FetchAnalyzeCard";
 import StockTable from "../components/shortterm/StockTable";
@@ -7,6 +7,7 @@ import IntradayAnalysisModal from "../components/shortterm/TickerAnalysisResult"
 import NewsImpactModal from "../components/shortterm/NewsImpactModal";
 import HoldingsCard from "../components/shortterm/HoldingsCard";
 import ScanSpikeCard from "../components/shortterm/ScanSpikeCard";
+import SpikeScanCard from "../components/shortterm/SpikeScanCard";
 import type { VolumeSurgeStock } from "../types";
 import {
   triggerVolumeScan,
@@ -45,45 +46,10 @@ const ShortTermPage: React.FC = () => {
 
   const [loadingNewsSignals, setLoadingNewsSignals] = useState(false);
   const [newsImpactResult, setNewsImpactResult] = useState<any | null>(null);
-
   const [showNewsModal, setShowNewsModal] = useState(false);
 
   const [loadingSpikeScan, setLoadingSpikeScan] = useState(false);
   const [spikeScanReport, setSpikeScanReport] = useState("");
-
-  const handleScanSpike = async () => {
-    setLoadingSpikeScan(true);
-    try {
-      const result = await triggerVolumeSurgeFullScan(
-        surgeThreshold,
-        fromPage,
-        toPage
-      );
-      setSpikeScanReport(result.report);
-    } catch (err) {
-      alert("Spike scan failed.");
-    } finally {
-      setLoadingSpikeScan(false);
-    }
-  };
-
-  const handleAnalyzeTicker = async (ticker: string) => {
-    if (!ticker.trim()) {
-      alert("Please enter a ticker.");
-      return;
-    }
-    setLoadingAnalyze(true);
-    try {
-      const data = await fetchIntradayAnalysis(ticker.trim());
-      setTargetTicker(ticker.trim());
-      setIntradayAnalysis(data);
-      setShowIntradayModal(true);
-    } catch {
-      alert("Failed to analyze ticker.");
-    } finally {
-      setLoadingAnalyze(false);
-    }
-  };
 
   const handleScan = async () => {
     setLoadingScan(true);
@@ -117,6 +83,24 @@ const ShortTermPage: React.FC = () => {
     }
   };
 
+  const handleAnalyzeTicker = async (ticker: string) => {
+    if (!ticker.trim()) {
+      alert("Please enter a ticker.");
+      return;
+    }
+    setLoadingAnalyze(true);
+    try {
+      const data = await fetchIntradayAnalysis(ticker.trim());
+      setTargetTicker(ticker.trim());
+      setIntradayAnalysis(data);
+      setShowIntradayModal(true);
+    } catch {
+      alert("Failed to analyze ticker.");
+    } finally {
+      setLoadingAnalyze(false);
+    }
+  };
+
   const handleStarToggle = (ticker: string, starred: boolean) => {
     setStocks((prevStocks) =>
       prevStocks.map((stock) =>
@@ -145,7 +129,7 @@ const ShortTermPage: React.FC = () => {
       setLoadingNewsSignals(true);
       const result = await fetchNewsSignalsWithImpacts();
       setNewsImpactResult(result);
-      setShowNewsModal(true); // 👉 Show modal after fetch
+      setShowNewsModal(true);
     } catch (error) {
       console.error("Failed to fetch news signals", error);
     } finally {
@@ -153,9 +137,25 @@ const ShortTermPage: React.FC = () => {
     }
   };
 
+  const handleScanSpike = async () => {
+    setLoadingSpikeScan(true);
+    try {
+      const result = await triggerVolumeSurgeFullScan(
+        surgeThreshold,
+        fromPage,
+        toPage
+      );
+      setSpikeScanReport(result.report);
+    } catch (err) {
+      alert("Spike scan failed.");
+    } finally {
+      setLoadingSpikeScan(false);
+    }
+  };
+
   return (
     <Container className="py-4">
-      {/* SCAN CONTROL */}
+      {/* SCAN FORM + HOLDINGS */}
       <div className="d-flex align-items-center mb-3 gap-3">
         <div style={{ flex: 1, minWidth: 0 }}>
           <ScanForm
@@ -200,7 +200,10 @@ const ShortTermPage: React.FC = () => {
         onAnalyzeStarred={handleAnalyzeStarred}
       />
 
-      {/* MODAL */}
+      {/* SPIKE SCAN CARD (Below FetchAnalyzeCard) */}
+      <SpikeScanCard />
+
+      {/* MODALS */}
       <IntradayAnalysisModal
         show={showIntradayModal}
         onHide={() => setShowIntradayModal(false)}
@@ -208,20 +211,19 @@ const ShortTermPage: React.FC = () => {
         ticker={targetTicker}
       />
 
-      {/* TABLE */}
-      {stocks.length > 0 && (
-        <StockTable stocks={stocks} onStarToggle={handleStarToggle} />
-      )}
-
-      {/* SPIKE SCAN REPORT CARD */}
-      {spikeScanReport && <ScanSpikeCard report={spikeScanReport} />}
-
-      {/* NEWS IMPACT RESULT MODAL */}
       <NewsImpactModal
         show={showNewsModal}
         onHide={() => setShowNewsModal(false)}
         rawResponse={newsImpactResult?.raw_response || "(No data available)"}
       />
+
+      {/* TABLE */}
+      {stocks.length > 0 && (
+        <StockTable stocks={stocks} onStarToggle={handleStarToggle} />
+      )}
+
+      {/* SPIKE SCAN RESULT (TEXT REPORT) */}
+      {spikeScanReport && <ScanSpikeCard report={spikeScanReport} />}
     </Container>
   );
 };

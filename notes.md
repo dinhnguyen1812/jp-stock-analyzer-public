@@ -39,8 +39,8 @@ You can track new listings on the JPX New Listings page, which includes market s
 
 <!-- - Add analysis signals to UI -->
 
-- Add expected price based on current situation.
-- Add endpoint to follow a ticker -> when input a number of stocks bought -> Save the info to db (price, number of stocks, date, relevant indicators and signals) -> when input this ticker (or something like "Ask about bought stocks") -> Get current situation, ask GPT if it's time to Buy more/Hold/Sell. Also add expected price based on current situation.
+<!-- - Add expected price based on current situation.
+- Add endpoint to follow a ticker -> when input a number of stocks bought -> Save the info to db (price, number of stocks, date, relevant indicators and signals) -> when input this ticker (or something like "Ask about bought stocks") -> Get current situation, ask GPT if it's time to Buy more/Hold/Sell. Also add expected price based on current situation. -->
 
 <!-- - Check database:
   - Daily price OK
@@ -52,7 +52,18 @@ You can track new listings on the JPX New Listings page, which includes market s
 <!-- - Change breakout to using current price (not close price)
 - Check breakout -->
 <!-- - General yahoo news scan: add evaluate effect of the news to starred stocks -->
-- Analyze　to be listed stocks?
+<!-- - Analyze　to be listed stocks?
 - Add star option to Analyze a certain stock display
 - Add trading journal
-- Add buying feature
+- Add buying feature -->
+
+<!-- - Add table (SpikeScan) for spike 
+  - keep one row for one ticker
+  - ticker
+    - if it's in VolumeSnapshot and VolumeSnapshot.detected_at >= open market time and volume_rate < 2x VolumeSnapshot.volume_rate -> skip
+    - if it's already in SpikeScan and volume_rate <= 2x SpikeScan.volume_rate -> skip update
+  - downtrend - update after one day
+  - news - update after one hour
+- Add fetch spike -->
+- Highlight words in analyze
+- Modify display in fetch spike

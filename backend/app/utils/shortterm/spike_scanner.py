@@ -1,23 +1,27 @@
 import datetime
+import openai
+import os
+from typing import List, Dict
 from sqlalchemy.orm import Session
-from app.models import DailyPrice
+
+from app.models import DailyPrice, SpikeScan, VolumeSnapshot
 from .price_updater import fetch_and_save_price_history
 from .volume_surge_scraper import scan_and_save_volume_surges
 from .kabutan_news_ticker import scrape_kabutan_news, get_volume_info
-import openai
-from typing import List, Dict
-import os
 from app.schemas import ScanParams
 
-def detect_recent_downtrend(db: Session, ticker: str, days: int = 30) -> dict:
-    """
-    Detects if there's been a significant downtrend in the last `days`.
-    Returns dict with result, percentage drop, and date range.
-    """
-    # Ensure we have enough data
-    fetch_and_save_price_history(db, ticker, max_days=150)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-    # Date range
+
+def normalize_downtrend_for_json(downtrend: dict) -> dict:
+    for key in ["from_date", "to_date"]:
+        if isinstance(downtrend.get(key), (datetime.date, datetime.datetime)):
+            downtrend[key] = downtrend[key].isoformat()
+    return downtrend
+
+
+def detect_recent_downtrend(db: Session, ticker: str, days: int = 30) -> dict:
+    fetch_and_save_price_history(db, ticker, max_days=150)
     today = datetime.date.today()
     start_date = today - datetime.timedelta(days=days + 5)
 
@@ -40,10 +44,8 @@ def detect_recent_downtrend(db: Session, ticker: str, days: int = 30) -> dict:
     close_prices = [p.close for p in prices]
     dates = [p.date for p in prices]
 
-    # Detect biggest drop from peak to trough
     max_drop = 0.0
     start_idx, end_idx = -1, -1
-
     for i in range(len(close_prices)):
         high = close_prices[i]
         for j in range(i + 1, len(close_prices)):
@@ -56,13 +58,12 @@ def detect_recent_downtrend(db: Session, ticker: str, days: int = 30) -> dict:
 
     return {
         "ticker": ticker,
-        "had_downtrend": max_drop <= -10,  # example threshold
+        "had_downtrend": max_drop <= -10,
         "drop_pct": round(max_drop, 2),
         "from_date": dates[start_idx] if start_idx >= 0 else None,
         "to_date": dates[end_idx] if end_idx >= 0 else None
     }
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def pick_top_news_by_gpt(
     ticker: str,
@@ -74,7 +75,6 @@ def pick_top_news_by_gpt(
         return []
 
     headlines = [f"{i+1}. {item['headline']}" for i, item in enumerate(news_items[:20])]
-
     prompt = f"""
 You are a Japanese stock market expert. Analyze the following news headlines for stock {ticker}.  
 For each, judge how impactful it is for short-term trading, based on relevance, positivity, and clarity.
@@ -92,17 +92,14 @@ For each, judge how impactful it is for short-term trading, based on relevance, 
     try:
         res = openai.chat.completions.create(
             model=model,
-            messages=[
-                {"role": "user", "content": prompt.strip()}
-            ],
+            messages=[{"role": "user", "content": prompt.strip()}],
             temperature=0.3
         )
         content = res.choices[0].message.content.strip()
-
-        # Example expected response parsing
         results = []
+
         for line in content.splitlines():
-            if not line.strip() or not any(word in line for word in ["Good", "Great", "Decisive", "Neutral"]):
+            if not line.strip() or not any(w in line for w in ["Good", "Great", "Decisive", "Neutral"]):
                 continue
             parts = line.split(":", 1)
             if len(parts) != 2:
@@ -127,11 +124,11 @@ For each, judge how impactful it is for short-term trading, based on relevance, 
         print(f"❌ GPT news analysis failed: {e}")
         return []
 
+
 def volume_surge_news_downtrend_scan(
     params: ScanParams,
     db: Session
 ):
-    # Step 1: Scan and save volume surge data
     tickers = scan_and_save_volume_surges(
         db=db,
         surge_threshold=params.surge_threshold,
@@ -141,25 +138,75 @@ def volume_surge_news_downtrend_scan(
     )
 
     results = []
+    now = datetime.datetime.utcnow()
+    today_open = datetime.datetime.combine(datetime.date.today(), datetime.time(0, 0))
 
     for ticker in tickers:
-        # Step 2: Get latest volume surge info
         volume_info = get_volume_info(db, ticker)
         if not volume_info:
             print(f"⚠️ No volume info for {ticker}, skipping.")
             continue
 
-        # Step 3: Detect recent downtrend in last 30 days
-        downtrend_info = detect_recent_downtrend(db, ticker, days=30)
+        today_snapshot = (
+            db.query(VolumeSnapshot)
+            .filter(
+                VolumeSnapshot.ticker == ticker,
+                VolumeSnapshot.detected_at >= today_open,
+                VolumeSnapshot.promising_score != None,
+                VolumeSnapshot.promising_score > 30
+            )
+            .order_by(VolumeSnapshot.detected_at.desc())
+            .first()
+        )
 
-        # Step 4: Scrape news for ticker
-        news_items = scrape_kabutan_news(ticker, limit=20)
-        if not news_items:
-            print(f"⚠️ No news found for {ticker}, skipping GPT news pick.")
-            top_news = []
+        if today_snapshot and volume_info.volume_rate < 1.5 * today_snapshot.volume_rate:
+            print(f"🛑 {ticker} spike weaker than today's snapshot. Skipped.")
+            continue
+
+        existing = db.query(SpikeScan).filter(SpikeScan.ticker == ticker).first()
+        if existing and volume_info.volume_rate <= 1.5 * existing.volume_rate:
+            print(f"⏭ {ticker} already scanned with similar or stronger volume_rate.")
+            continue
+
+        if not existing or not existing.downtrend_checked_at or (now - existing.downtrend_checked_at).total_seconds() > 86400:
+            downtrend_info = detect_recent_downtrend(db, ticker)
+            downtrend_info = normalize_downtrend_for_json(downtrend_info)
+            downtrend_checked_at = now
         else:
-            # Step 5: Pick top news using GPT (returns verdicts)
-            top_news = pick_top_news_by_gpt(ticker, news_items, top_n=3)
+            downtrend_info = existing.downtrend
+            downtrend_checked_at = existing.downtrend_checked_at
+
+        if not existing or not existing.news_checked_at or (now - existing.news_checked_at).total_seconds() > 3600:
+            news_items = scrape_kabutan_news(ticker, limit=20)
+            top_news = pick_top_news_by_gpt(ticker, news_items, top_n=3) if news_items else []
+            news_checked_at = now
+        else:
+            top_news = existing.top_news
+            news_checked_at = existing.news_checked_at
+
+        if existing:
+            existing.volume_rate = volume_info.volume_rate
+            existing.money_flow_rate = volume_info.money_flow_rate
+            existing.current_price = volume_info.current_price
+            existing.detected_at = volume_info.detected_at
+            existing.downtrend = downtrend_info
+            existing.downtrend_checked_at = downtrend_checked_at
+            existing.top_news = top_news
+            existing.news_checked_at = news_checked_at
+        else:
+            db.add(SpikeScan(
+                ticker=ticker,
+                volume_rate=volume_info.volume_rate,
+                money_flow_rate=volume_info.money_flow_rate,
+                current_price=volume_info.current_price,
+                detected_at=volume_info.detected_at,
+                downtrend=downtrend_info,
+                downtrend_checked_at=downtrend_checked_at,
+                top_news=top_news,
+                news_checked_at=news_checked_at,
+            ))
+
+        db.commit()
 
         results.append({
             "ticker": ticker,
@@ -174,6 +221,21 @@ def volume_surge_news_downtrend_scan(
         })
 
     return {
-        "message": f"Scan complete. {len(tickers)} tickers scanned.",
+        "message": f"Scan complete. {len(results)} tickers scanned.",
         "results": results
     }
+
+
+def get_all_spike_scans(db: Session) -> List[dict]:
+    scans = db.query(SpikeScan).order_by(SpikeScan.updated_at.desc()).all()
+
+    return [{
+        "ticker": scan.ticker,
+        "volume_rate": scan.volume_rate,
+        "money_flow_rate": scan.money_flow_rate,
+        "current_price": scan.current_price,
+        "detected_at": scan.detected_at.isoformat() if scan.detected_at else None,
+        "downtrend": scan.downtrend,
+        "top_news": scan.top_news,
+        "updated_at": scan.updated_at.isoformat() if scan.updated_at else None
+    } for scan in scans]
