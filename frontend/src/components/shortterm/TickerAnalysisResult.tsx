@@ -4,7 +4,7 @@ import { Modal, Row, Col, Badge } from "react-bootstrap";
 interface IntradayAnalysisModalProps {
   show: boolean;
   onHide: () => void;
-  analysis: any; // You can replace `any` with a type if desired
+  analysis: any;
   ticker: string;
 }
 
@@ -16,6 +16,8 @@ const recommendationVariant = (rec?: string) => {
       return "danger";
     case "Hold":
       return "warning";
+    case "Short":
+      return "dark"; // or "secondary" / "info" if you prefer
     default:
       return "secondary";
   }
@@ -29,7 +31,6 @@ const sentimentKeywords = [
 
 const highlightSentiment = (text: string): JSX.Element => {
   const parts = text.split(/(\b(?:bullish|bearish|neutral)\b)/gi);
-
   return (
     <>
       {parts.map((part, i) => {
@@ -89,8 +90,7 @@ const IntradayAnalysisModal: React.FC<IntradayAnalysisModalProps> = ({
                 {analysis.analysis_signal?.macd_hist}
               </li>
               <li>
-                SMA50: {analysis.analysis_signal?.sma_50}, EMA20:{" "}
-                {analysis.analysis_signal?.ema_20}
+                SMA50: {analysis.analysis_signal?.sma_50}, EMA20: {analysis.analysis_signal?.ema_20}
               </li>
               <li>W-Shape: {analysis.analysis_signal?.w_shape ? "Yes" : "No"}</li>
             </ul>
@@ -133,23 +133,20 @@ const IntradayAnalysisModal: React.FC<IntradayAnalysisModalProps> = ({
                 [{newsItem.category}] {new Date(newsItem.published_at).toLocaleString()}
               </small>
               {newsItem.verdict && (
-                <>
-                  {" "}
-                  <Badge
-                    bg={
-                      newsItem.verdict === "Great"
-                        ? "success"
-                        : newsItem.verdict === "Good"
-                        ? "primary"
-                        : newsItem.verdict === "Neutral"
-                        ? "secondary"
-                        : "warning"
-                    }
-                    className="ms-2"
-                  >
-                    {newsItem.verdict}
-                  </Badge>
-                </>
+                <Badge
+                  bg={
+                    newsItem.verdict === "Great"
+                      ? "success"
+                      : newsItem.verdict === "Good"
+                      ? "primary"
+                      : newsItem.verdict === "Neutral"
+                      ? "secondary"
+                      : "warning"
+                  }
+                  className="ms-2"
+                >
+                  {newsItem.verdict}
+                </Badge>
               )}
               {newsItem.reason && (
                 <div style={{ fontSize: "0.85rem", color: "#555" }}>

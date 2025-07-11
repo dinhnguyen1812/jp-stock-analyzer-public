@@ -56,7 +56,7 @@ const StockRow: React.FC<StockRowProps> = ({
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starLoading, setStarLoading] = useState(false);
-  const [, setForceUpdate] = useState(0); // to force re-render on star toggle
+  const [, setForceUpdate] = useState(0);
 
   const handleAnalyzeClick = useCallback(async () => {
     setLoading(true);
@@ -96,6 +96,8 @@ const StockRow: React.FC<StockRowProps> = ({
         return "success";
       case "Sell":
         return "danger";
+      case "Short":
+        return "warning"; // You can change to "dark" or custom variant
       default:
         return "secondary";
     }
@@ -103,12 +105,12 @@ const StockRow: React.FC<StockRowProps> = ({
 
   const ONE_HOUR_MS = 1000 * 60 * 60;
   const isOld =
-    new Date(stock.detected_at).getTime() < new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
+    new Date(stock.detected_at).getTime() <
+    new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
 
   return (
     <>
       <tr>
-        {/* Star Button Column */}
         <td className="text-center align-middle" style={{ width: 40 }}>
           <Button
             variant="outline-secondary"
@@ -142,15 +144,26 @@ const StockRow: React.FC<StockRowProps> = ({
           </Button>
         </td>
 
-        {/* Remaining Stock Data Columns */}
         <td className="align-middle">{stock.ticker}</td>
         <td className="align-middle">{stock.name}</td>
-        <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
-        <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td>
+        <td className="align-middle text-center">
+          {stock.current_price.toFixed(2)}
+        </td>
+        <td className="align-middle text-center">
+          {stock.price_change.toFixed(2)}
+        </td>
+        <td className="align-middle text-center">
+          {stock.volume_rate.toFixed(2)}
+        </td>
+        <td className="align-middle text-center">
+          {stock.money_flow_rate.toFixed(2)}
+        </td>
+        <td className="align-middle text-center">
+          {stock.current_volume.toLocaleString()}
+        </td>
+        <td className="align-middle text-center">
+          {stock.avg_volume_5d.toLocaleString()}
+        </td>
         <td className="align-middle text-center">
           <span
             style={{
@@ -161,13 +174,12 @@ const StockRow: React.FC<StockRowProps> = ({
           >
             {formatDistance(
               new Date(stock.detected_at + "Z"),
-              new Date(new Date().toISOString()),
+              new Date(),
               { addSuffix: true }
             )}
           </span>
         </td>
 
-        {/* Analysis Button */}
         <td className="align-middle">
           <div className="d-flex flex-column align-items-center justify-content-center gap-2">
             {stock.recommendation && (
@@ -206,7 +218,9 @@ const StockRow: React.FC<StockRowProps> = ({
         aria-labelledby="stock-analysis-modal"
       >
         <Modal.Header closeButton>
-          <Modal.Title id="stock-analysis-modal">Analysis for {stock.ticker}</Modal.Title>
+          <Modal.Title id="stock-analysis-modal">
+            Analysis for {stock.ticker}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {error && <p className="text-danger">{error}</p>}
@@ -218,17 +232,31 @@ const StockRow: React.FC<StockRowProps> = ({
                   <h5>Volume Info</h5>
                   <ul>
                     <li>Name: {analysis.volume_info.name}</li>
-                    <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
-                    <li>Price Change: {analysis.volume_info.price_change.toFixed(2)}</li>
-                    <li>Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}</li>
-                    <li>Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}</li>
-                    <li>Current Volume: {analysis.volume_info.current_volume.toLocaleString()}</li>
-                    <li>Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}</li>
+                    <li>
+                      Current Price: {analysis.volume_info.current_price.toFixed(2)}
+                    </li>
+                    <li>
+                      Price Change: {analysis.volume_info.price_change.toFixed(2)}
+                    </li>
+                    <li>
+                      Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}
+                    </li>
+                    <li>
+                      Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}
+                    </li>
+                    <li>
+                      Current Volume: {analysis.volume_info.current_volume.toLocaleString()}
+                    </li>
+                    <li>
+                      Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}
+                    </li>
                     <li>
                       Detected At:{" "}
-                      {formatDistance(new Date(analysis.volume_info.detected_at), new Date(), {
-                        addSuffix: true,
-                      })}
+                      {formatDistance(
+                        new Date(analysis.volume_info.detected_at),
+                        new Date(),
+                        { addSuffix: true }
+                      )}
                     </li>
                   </ul>
                 </Col>
@@ -237,9 +265,13 @@ const StockRow: React.FC<StockRowProps> = ({
                   <h5>Analysis Signals</h5>
                   {analysis.analysis_signal ? (
                     <ul>
-                      <li>Candle Pattern: {analysis.analysis_signal.candle_pattern ?? "None"}</li>
                       <li>
-                        Breakout: {analysis.analysis_signal.breakout_detected ? "Yes" : "No"}, Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"}, Close: {analysis.analysis_signal.close_today ?? "N/A"}
+                        Candle Pattern: {analysis.analysis_signal.candle_pattern ?? "None"}
+                      </li>
+                      <li>
+                        Breakout: {analysis.analysis_signal.breakout_detected ? "Yes" : "No"},
+                        Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},
+                        Close: {analysis.analysis_signal.close_today ?? "N/A"}
                       </li>
                       <li>RSI: {analysis.analysis_signal.rsi ?? "N/A"}</li>
                       <li>

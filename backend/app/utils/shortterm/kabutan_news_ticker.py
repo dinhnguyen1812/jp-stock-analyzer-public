@@ -205,14 +205,14 @@ def analyze_stock_surge_with_news(
         "- Focus on explaining recent price and volume movements based on the above priorities\n"
         "- Use relevant news to support or challenge the technical signals, but do not rely on news alone\n"
         "- Evaluate whether the news sentiment is bullish, bearish, or neutral\n"
-        "- Provide an investment recommendation: **Buy**, **Hold**, or **Sell**\n"
+        "- Provide an investment recommendation: **Buy**, **Hold**, **Sell**, or **Short**\n"
         "- Justify your recommendation in clear and concise bullet points (2–3 max)\n"
         "- Score the stock's short-term promise from 0–100, based on risk/reward and likelihood of sustained move\n"
         "- Estimate a short-term price target based on the analysis\n\n"
         "### Output Format:\n"
         "Headline List:\n1. ...\n2. ...\n\n"
         "Summary:\n<Brief analysis paragraph>\n\n"
-        "- Investment Recommendation: Buy / Hold / Sell\n"
+        "- Investment Recommendation: Buy / Hold / Sell / Short\n"
         "- Promising Score: (0–100)\n"
         "- Expected Price Target (in JPY): <target price>"
     )
@@ -292,9 +292,10 @@ def analyze_stock_surge_with_news(
 def extract_recommendation_and_score(text: str):
     cleaned = re.sub(r"[*#•\-–—●★▶◆]", "", text)
     cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
-    rec_match = re.search(r"investment recommendation\s*[:\-]?\s*(buy|sell|hold)", cleaned, re.I)
+    rec_match = re.search(r"investment recommendation\s*[:\-]?\s*(buy|sell|hold|short)", cleaned, re.I)
     recommendation = rec_match.group(1).capitalize() if rec_match else "Unknown"
     score_match = re.search(r"promising score\s*[:\-]?\s*(\d{1,3})", cleaned)
     promising_score = int(score_match.group(1)) if score_match else -1
     promising_score = max(0, min(promising_score, 100))
     return recommendation, promising_score
+
