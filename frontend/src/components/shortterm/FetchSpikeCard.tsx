@@ -96,7 +96,7 @@ const FetchSpikeCard: React.FC = () => {
         {spikeData.length === 0 ? (
           <p className="text-muted">No spike data loaded.</p>
         ) : (
-          <div style={{ overflowY: "auto" }}>
+          <div style={{ maxHeight: "450px", overflowY: "auto" }}>
             <Table striped bordered hover responsive size="sm">
               <thead style={{ position: "sticky", top: 0, backgroundColor: "#fff", zIndex: 10 }}>
                 <tr>

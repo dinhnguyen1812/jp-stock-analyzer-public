@@ -98,7 +98,7 @@ def trigger_volume_scan(
         to_page=params.to_page,
     )
 
-    # Step 2: For each new ticker, run GPT analysis
+    # Step 2: Run initial GPT-3.5 analysis
     for ticker in tickers:
         news = scrape_kabutan_news(ticker, limit=30)
         if not news:
@@ -115,9 +115,21 @@ def trigger_volume_scan(
                 model="gpt-3.5-turbo",
             )
         except Exception as e:
-            print(f"⚠️ GPT analysis failed for {ticker}: {e}")
+            print(f"⚠️ GPT-3.5 analysis failed for {ticker}: {e}")
 
-    return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed and stored."}
+    # Step 3: Re-analyze with GPT-4o if promising_score >= 65
+    for ticker in tickers:
+        volume_info = get_volume_info(db, ticker=ticker)
+        if not volume_info:
+            continue
+        if volume_info.promising_score is not None and volume_info.promising_score >= 65:
+            try:
+                print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
+                analyze_single_ticker(db=db, ticker=ticker, top_n=5)
+            except Exception as e:
+                print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+
+    return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
 
 # For Use
 def get_latest_analysis_signal_data(db: Session, ticker: str) -> dict:

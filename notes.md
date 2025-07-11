@@ -69,5 +69,10 @@ You can track new listings on the JPX New Listings page, which includes market s
 <!-- - Modify display in fetch spike -->
 <!-- - Auto scan each 10 min with sound alert
 - Include current price, current price / lowest and / highest -->
-- Reset some table after 2 days
-- 
+- Change auto scan from frontend to backend
+- Reset some tables after 2 days
+- Include industry in fetch VS and fetch Spike
+- Enable analyze when there is not volume yet
+<!-- - Auto gpt-4o analyze for ones with >60 score -->
+- Add advice for Short Sell
+- Starred list in a csv file

@@ -238,7 +238,7 @@ def scan_and_save_volume_surges(
     surge_threshold: float = 1.5,
     price_threshold: float = 300.0,
     from_page: int = 1,
-    to_page: int = 1
+    to_page: int = 5
 ) -> List[str]:
     quater_hour_ago = datetime.now(JP_TZ) - timedelta(hours=0.25)
 
