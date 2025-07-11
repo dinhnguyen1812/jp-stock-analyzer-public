@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import longterm_apis, shortterm_apis
+from app.api import longterm_apis, shortterm_apis, premarket_apis
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -14,3 +14,4 @@ app.add_middleware(
 
 app.include_router(longterm_apis.router, prefix="/longterm", tags=["longterm"])
 app.include_router(shortterm_apis.router, prefix="/shortterm", tags=["shortterm"])
+app.include_router(premarket_apis.router, prefix="/premarket", tags=["premarket"])

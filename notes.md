@@ -74,5 +74,5 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Include industry in fetch VS and fetch Spike
 - Enable analyze when there is not volume yet
 <!-- - Auto gpt-4o analyze for ones with >60 score -->
-- Add advice for Short Sell
+<!-- - Add advice for Short Sell -->
 - Starred list in a csv file

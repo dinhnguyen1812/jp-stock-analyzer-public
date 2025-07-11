@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, Text, Boolean, JSON
+from sqlalchemy import Column, Integer, String, TIMESTAMP, Date, Float, PrimaryKeyConstraint, UniqueConstraint, Text, Boolean, JSON, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 import datetime
 
@@ -46,10 +46,14 @@ class VolumeSnapshot(Base):
     volume_rate = Column(Float)
     money_flow_rate = Column(Float, nullable=True)
     detected_at = Column(TIMESTAMP, default=datetime.datetime.utcnow)
+
+    # GPT-related fields
     reasoning = Column(Text, nullable=True)
-    recommendation = Column(String, nullable=True)  # "Buy", "Hold", "Sell"
+    recommendation = Column(String, nullable=True)  # "Buy", "Hold", "Sell", "Short"
     promising_score = Column(Integer, nullable=True)  # 0-100
     top_news = Column(Text, nullable=True)
+
+    # scan_type = Column(String, nullable=True)  # "intraday", "premarket", "gpt_forecast", etc.
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),
@@ -186,3 +190,13 @@ class SpikeScan(Base):
     news_checked_at = Column(TIMESTAMP, nullable=True)
 
     updated_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+class StockNewsImpact(Base):
+    __tablename__ = "stock_news_impact"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    headline = Column(Text, nullable=False)
+    verdict = Column(String, nullable=True)  # e.g., "Neutral", "Good", "Great", "Decisive"
+    reason = Column(String, nullable=True)   # Max 1-line reason
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
