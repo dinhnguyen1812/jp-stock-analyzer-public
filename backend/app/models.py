@@ -52,8 +52,7 @@ class VolumeSnapshot(Base):
     recommendation = Column(String, nullable=True)  # "Buy", "Hold", "Sell", "Short"
     promising_score = Column(Integer, nullable=True)  # 0-100
     top_news = Column(Text, nullable=True)
-
-    # scan_type = Column(String, nullable=True)  # "intraday", "premarket", "gpt_forecast", etc.
+    watchlist_recommendation = Column(String, nullable=True)  # "Yes" / "No" / None
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),

@@ -144,7 +144,8 @@ def premarket_analyze_with_gpt(
         "- Provide a clear recommendation: **Buy**, **Hold**, **Sell**, or **Short**.\n"
         "- Justify your recommendation with 2-3 concise bullet points.\n"
         "- Score the short-term promise from 0 to 100.\n"
-        "- Estimate a likely short-term price target.\n\n"
+        "- Estimate a likely short-term price target.\n"
+        "- Based on all factors above, clearly state if the stock should be **added to a pre-market watchlist**. Answer: Yes or No.\n\n"
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
@@ -155,6 +156,7 @@ def premarket_analyze_with_gpt(
         "- Investment Recommendation: Buy / Hold / Sell / Short\n"
         "- Promising Score: (0–100)\n"
         "- Expected Price Target (in JPY): <target price>\n"
+        "- Watchlist Recommendation: Yes / No\n"
     )
 
     try:
@@ -170,10 +172,18 @@ def premarket_analyze_with_gpt(
         impacts = extract_headline_impacts(reply, top_n=top_n)
         summary = reply.split("Summary:")[-1].split("- Investment")[0].strip()
 
+        # Extract Watchlist Recommendation
+        watchlist_recommendation = None
+        for line in reply.splitlines():
+            if "Watchlist Recommendation" in line:
+                watchlist_recommendation = line.split(":")[-1].strip()
+                break
+
         # Save results to DB
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
+        volume_info.watchlist_recommendation = watchlist_recommendation  # ✅ Add this line
         volume_info.top_news = json.dumps(news_items[:top_n], ensure_ascii=False)
         db.commit()
 

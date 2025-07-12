@@ -228,6 +228,7 @@ def get_all_saved_volume_analyses(db: Session = Depends(get_db)):
                 "recommendation": vs.recommendation,
                 "promising_score": vs.promising_score,
                 "top_news": top_news,
+                "watchlist_recommendation": vs.watchlist_recommendation,
                 "downtrend": downtrend_info,
                 "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
                 "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
