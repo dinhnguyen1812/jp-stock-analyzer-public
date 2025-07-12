@@ -239,3 +239,20 @@ export async function analyzeAllStarredTickers() {
 
   return await res.json();
 }
+
+export async function analyzeSingleTicker(ticker: string) {
+  if (!ticker) throw new Error("Ticker is required");
+  const res = await fetch(`${BASE_URL}/analyze/${ticker}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Analyze failed: ${errorText}`);
+  }
+
+  return await res.json();
+}

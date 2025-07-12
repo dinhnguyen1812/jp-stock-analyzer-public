@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Form, Button, Spinner, Row, Col, InputGroup, Card } from "react-bootstrap";
 
 interface PreMarketScanFormProps {
@@ -22,6 +22,10 @@ interface PreMarketScanFormProps {
   onFetchAnalyzed: () => void;
   onAnalyzeStarred: () => void;
   loadingAnalyzeStarred: boolean;
+
+  // New props for single ticker analyze
+  onAnalyze: (ticker: string) => void;
+  loadingAnalyze: boolean;
 }
 
 const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
@@ -45,7 +49,16 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onFetchAnalyzed,
   onAnalyzeStarred,
   loadingAnalyzeStarred,
+  onAnalyze,
+  loadingAnalyze,
 }) => {
+  // Local state for the ticker input
+  const [tickerInput, setTickerInput] = useState("");
+
+  const handleTickerChange = (val: string) => {
+    setTickerInput(val.toUpperCase());
+  };
+
   return (
     <Card className="mb-3 py-2 px-2 shadow-sm">
       <Card.Body className="py-2 px-1">
@@ -139,7 +152,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                 disabled={loading}
               >
                 {loading && <Spinner animation="border" size="sm" className="me-2" />}
-                Fetch Analyzed
+                Fetch
               </Button>
             </Col>
 
@@ -159,6 +172,39 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                   "Analyze Starred"
                 )}
               </Button>
+            </Col>
+
+            {/* Single ticker analyze input/button */}
+            <Col style={{ flexGrow: 1, minWidth: 200 }}>
+              <InputGroup>
+                <Form.Control
+                  placeholder="Ticker"
+                  value={tickerInput}
+                  onChange={(e) => handleTickerChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onAnalyze(tickerInput);
+                    }
+                  }}
+                  disabled={loadingAnalyze}
+                />
+                <Button
+                  variant="primary"
+                  onClick={() => onAnalyze(tickerInput)}
+                  disabled={loadingAnalyze || tickerInput.trim() === ""}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {loadingAnalyze ? (
+                    <>
+                      <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
+                      {" "}Analyze...
+                    </>
+                  ) : (
+                    "Analyze"
+                  )}
+                </Button>
+              </InputGroup>
             </Col>
           </Row>
         </Form>

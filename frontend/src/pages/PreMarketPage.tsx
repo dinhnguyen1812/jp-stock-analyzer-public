@@ -6,6 +6,7 @@ import {
   scanPreMarketVolumeSurges,
   fetchAllAnalyses,
   analyzeAllStarredTickers,
+  analyzeSingleTicker,
 } from "../api";
 
 const PreMarketPage: React.FC = () => {
@@ -16,9 +17,11 @@ const PreMarketPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
   const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState<boolean>(false);
+  const [loadingAnalyze, setLoadingAnalyze] = useState<boolean>(false);
   const [starredOnly, setStarredOnly] = useState<boolean>(false);
   const [stocks, setStocks] = useState<VolumeSurgeStock[]>([]);
   const [analyzedResults, setAnalyzedResults] = useState<any[]>([]);
+  const [tickerInput, setTickerInput] = useState<string>("");
 
   const normalizeAnalyzedStock = (item: any): VolumeSurgeStock & {
     watchlist_recommendation?: string;
@@ -82,6 +85,21 @@ const PreMarketPage: React.FC = () => {
     }
   };
 
+  const handleAnalyze = async (ticker: string) => {
+    if (!ticker.trim()) return;
+    setLoadingAnalyze(true);
+    try {
+      const result = await analyzeSingleTicker(ticker.trim().toUpperCase());
+      setAnalyzedResults([result, ...analyzedResults]);
+      setStocks([]);
+      setTickerInput(""); // clear input after analyze
+    } catch (err) {
+      console.error("Failed to analyze ticker", err);
+    } finally {
+      setLoadingAnalyze(false);
+    }
+  };
+
   const handleStarToggle = (ticker: string, starred: boolean) => {
     setStocks((prev) =>
       prev.map((s) => (s.ticker === ticker ? { ...s, starred } : s))
@@ -110,6 +128,7 @@ const PreMarketPage: React.FC = () => {
         autoScanEnabled={false}
         starredOnly={starredOnly}
         loadingAnalyzeStarred={loadingAnalyzeStarred}
+        loadingAnalyze={loadingAnalyze}
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
         onFromPageChange={setFromPage}
@@ -120,6 +139,7 @@ const PreMarketPage: React.FC = () => {
         onScanSpike={() => {}}
         onFetchAnalyzed={handleFetchAnalyzed}
         onAnalyzeStarred={handleAnalyzeStarred}
+        onAnalyze={handleAnalyze}    // your handler for single ticker analyze
       />
 
       {loading && <p>Loading scan results...</p>}
