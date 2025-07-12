@@ -1,14 +1,14 @@
 import json
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 import openai
 
-from app.utils.shortterm.kabutan_news_ticker import get_volume_info
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
-from app.models import VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
+from app.utils.shortterm.spike_scanner import compute_price_stats, detect_recent_downtrend
+from app.models import DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -84,11 +84,35 @@ def premarket_analyze_with_gpt(
     if not volume_info:
         return {"ticker": ticker, "volume_info": None, "top_news": news_items[:top_n], "gpt_summary": "No volume snapshot."}
 
+    # Get latest short-term signal
     signal: Optional[ShortTermAnalysisSignal] = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
     if not signal or not signal.updated_at or (datetime.utcnow() - signal.updated_at) > timedelta(hours=1):
         save_shortterm_analysis_signal(db, ticker)
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
+    # Get downtrend info
+    downtrend = detect_recent_downtrend(db, ticker)
+    downtrend_str = (
+        f"📉 Recent Downtrend Detected: {downtrend['drop_pct']}% from {downtrend['from_date']} to {downtrend['to_date']}\n"
+        if downtrend.get("had_downtrend") else "📈 No major downtrend in recent 30 days.\n"
+    )
+
+    # Get price history stats
+    start_date = date.today() - timedelta(days=30)
+    prices = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.ticker == ticker, DailyPrice.date >= start_date)
+        .order_by(DailyPrice.date.asc())
+        .all()
+    )
+    price_stats = compute_price_stats(prices, volume_info.current_price)
+    price_stats_str = (
+        f"📊 Drop from 30-day high: {price_stats['drop_from_high_pct']}%\n"
+        f"📈 Rebound from 30-day low: {price_stats['rebound_from_low_pct']}%\n"
+        if price_stats["drop_from_high_pct"] is not None else ""
+    )
+
+    # Compose GPT prompt
     volume_summary = (
         f"Ticker: {volume_info.ticker}\n"
         f"Name: {volume_info.name}\n"
@@ -96,6 +120,7 @@ def premarket_analyze_with_gpt(
         f"Volume Surge: {volume_info.volume_rate}x\n"
         f"Money Flow: {volume_info.money_flow_rate}\n"
         f"Detected At: {volume_info.detected_at.isoformat()}\n"
+        + downtrend_str + price_stats_str
     )
 
     tech_summary = (
@@ -140,10 +165,12 @@ def premarket_analyze_with_gpt(
         )
         reply = response.choices[0].message.content.strip()
 
+        # Extract fields from GPT reply
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply, top_n=top_n)
         summary = reply.split("Summary:")[-1].split("- Investment")[0].strip()
 
+        # Save results to DB
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
@@ -170,7 +197,12 @@ def premarket_analyze_with_gpt(
             "score": promising_score,
             "headline_impacts": impacts,
             "summary": summary,
-            "gpt_raw_response": reply
+            "gpt_raw_response": reply,
+            "downtrend": downtrend,  # ✅ include this
+            "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
+            "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
+            "highest_price": price_stats.get("highest_price"),
+            "lowest_price": price_stats.get("lowest_price"),
         }
 
     except Exception as e:

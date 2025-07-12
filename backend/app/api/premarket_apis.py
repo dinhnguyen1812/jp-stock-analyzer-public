@@ -8,9 +8,10 @@ from typing import Dict, List, Optional
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
-from app.models import StockNewsImpact, VolumeSnapshot, StarredStock
+from app.models import DailyPrice, StockNewsImpact, VolumeSnapshot, StarredStock
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
+from app.utils.shortterm.spike_scanner import compute_price_stats, detect_recent_downtrend, normalize_downtrend_for_json
 from app.utils.premarket.pre_gpt_analyzer import premarket_analyze_with_gpt
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 
@@ -201,6 +202,17 @@ def get_all_saved_volume_analyses(db: Session = Depends(get_db)):
         # Get latest signal
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
 
+        # Compute downtrend and price stats
+        start_date = datetime.date.today() - datetime.timedelta(days=30)
+        prices = (
+            db.query(DailyPrice)
+            .filter(DailyPrice.ticker == vs.ticker, DailyPrice.date >= start_date)
+            .order_by(DailyPrice.date.asc())
+            .all()
+        )
+        downtrend_info = normalize_downtrend_for_json(detect_recent_downtrend(db, vs.ticker))
+        price_stats = compute_price_stats(prices, vs.current_price)
+
         results.append({
             "volume_info": {
                 "ticker": vs.ticker,
@@ -216,6 +228,11 @@ def get_all_saved_volume_analyses(db: Session = Depends(get_db)):
                 "recommendation": vs.recommendation,
                 "promising_score": vs.promising_score,
                 "top_news": top_news,
+                "downtrend": downtrend_info,
+                "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
+                "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
+                "highest_price": price_stats.get("highest_price"),
+                "lowest_price": price_stats.get("lowest_price"),
             },
             "analysis_signal": analysis_signal_data,
         })

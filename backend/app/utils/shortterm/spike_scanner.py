@@ -1,7 +1,7 @@
 import datetime
 import openai
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models import DailyPrice, SpikeScan, VolumeSnapshot
@@ -11,6 +11,7 @@ from .kabutan_news_ticker import scrape_kabutan_news, get_volume_info
 from app.schemas import ScanParams
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
+JP_TZ = datetime.timezone(datetime.timedelta(hours=9))
 
 
 def normalize_downtrend_for_json(downtrend: dict) -> dict:
@@ -125,10 +126,48 @@ For each, judge how impactful it is for short-term trading, based on relevance, 
         return []
 
 
-def volume_surge_news_downtrend_scan(
-    params: ScanParams,
-    db: Session
-):
+def compute_price_stats(prices: List[DailyPrice], current_price: float) -> Dict[str, Optional[float]]:
+    if not prices:
+        return {
+            "highest_price": None,
+            "lowest_price": None,
+            "drop_from_high_pct": None,
+            "rebound_from_low_pct": None
+        }
+
+    highs = [p.high for p in prices if p.high]
+    lows = [p.low for p in prices if p.low]
+
+    if not highs or not lows:
+        return {
+            "highest_price": None,
+            "lowest_price": None,
+            "drop_from_high_pct": None,
+            "rebound_from_low_pct": None
+        }
+
+    highest = max(highs)
+    lowest = min(lows)
+
+    drop_from_high = (
+        round((highest - current_price) / highest * 100, 2)
+        if highest > 0 else None
+    )
+
+    rebound_from_low = (
+        round((current_price - lowest) / lowest * 100, 2)
+        if lowest > 0 else None
+    )
+
+    return {
+        "highest_price": highest,
+        "lowest_price": lowest,
+        "drop_from_high_pct": drop_from_high,
+        "rebound_from_low_pct": rebound_from_low
+    }
+
+
+def volume_surge_news_downtrend_scan(params: ScanParams, db: Session):
     tickers = scan_and_save_volume_surges(
         db=db,
         surge_threshold=params.surge_threshold,
@@ -243,21 +282,7 @@ def get_all_spike_scans(db: Session) -> List[dict]:
             .all()
         )
 
-        highest, lowest = None, None
-        drop_from_high, rebound_from_low = None, None
-
-        if prices:
-            highs = [p.high for p in prices]
-            lows = [p.low for p in prices]
-
-            highest = max(highs)
-            lowest = min(lows)
-
-            if highest and highest > 0:
-                drop_from_high = round((highest - scan.current_price) / highest * 100, 2)
-
-            if lowest and lowest > 0:
-                rebound_from_low = round((scan.current_price - lowest) / lowest * 100, 2)
+        price_stats = compute_price_stats(prices, scan.current_price)
 
         results.append({
             "ticker": scan.ticker,
@@ -268,11 +293,7 @@ def get_all_spike_scans(db: Session) -> List[dict]:
             "downtrend": scan.downtrend,
             "top_news": scan.top_news,
             "updated_at": scan.updated_at.isoformat() if scan.updated_at else None,
-            "drop_from_high_pct": drop_from_high,
-            "rebound_from_low_pct": rebound_from_low,
-            "highest_price": highest,
-            "lowest_price": lowest,
+            **price_stats
         })
 
     return results
-
