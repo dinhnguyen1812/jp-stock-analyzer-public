@@ -1,14 +1,18 @@
+import datetime
 import json
+from difflib import get_close_matches
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from sqlalchemy import func
+from typing import Dict, List, Optional
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
-from app.models import VolumeSnapshot, StarredStock
+from app.models import StockNewsImpact, VolumeSnapshot, StarredStock
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
 from app.utils.premarket.pre_gpt_analyzer import premarket_analyze_with_gpt
+from app.api.shortterm_apis import get_latest_analysis_signal_data
 
 router = APIRouter()
 
@@ -103,7 +107,7 @@ def trigger_volume_scan(
                 ticker=ticker,
                 news_items=news,
                 volume_info=volume_info,
-                top_n=5,
+                top_n=3,
                 model="gpt-3.5-turbo",
             )
         except Exception as e:
@@ -111,14 +115,147 @@ def trigger_volume_scan(
 
     # Step 3: Re-analyze promising tickers (promising_score >= 65) with GPT-4o
     for ticker in tickers:
+        news = scrape_kabutan_news(ticker, limit=30)
+        if not news:
+            continue
         volume_info = get_volume_info(db, ticker=ticker)
         if not volume_info:
             continue
         if volume_info.promising_score is not None and volume_info.promising_score >= 65:
             try:
                 print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
-                premarket_analyze_with_gpt(db=db, ticker=ticker, news_items=news, volume_info=volume_info, top_n=5)
+                premarket_analyze_with_gpt(db=db, ticker=ticker, news_items=news, volume_info=volume_info, top_n=3, model="gpt-4o")
             except Exception as e:
                 print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
+
+@router.get("/volume_surge/all_analyses", response_model=List[Dict])
+def get_all_saved_volume_analyses(db: Session = Depends(get_db)):
+    # Step 1: Get latest snapshot per ticker with promising_score > 0
+    subq = (
+        db.query(
+            VolumeSnapshot.ticker,
+            func.max(VolumeSnapshot.detected_at).label("latest_detected_at")
+        )
+        .filter(VolumeSnapshot.promising_score > 0)
+        .group_by(VolumeSnapshot.ticker)
+        .subquery()
+    )
+
+    latest_snapshots = (
+        db.query(VolumeSnapshot)
+        .join(
+            subq,
+            (VolumeSnapshot.ticker == subq.c.ticker)
+            & (VolumeSnapshot.detected_at == subq.c.latest_detected_at)
+        )
+        .all()
+    )
+
+    if not latest_snapshots:
+        raise HTTPException(status_code=404, detail="No saved analyses found")
+
+    # Step 2: Fetch all impacts for relevant tickers
+    tickers = [snap.ticker for snap in latest_snapshots]
+    all_impacts = (
+        db.query(StockNewsImpact)
+        .filter(StockNewsImpact.ticker.in_(tickers))
+        .order_by(StockNewsImpact.created_at.desc())
+        .all()
+    )
+
+    # Step 3: Group impacts by ticker
+    impact_by_ticker = {}
+    for impact in all_impacts:
+        impact_by_ticker.setdefault(impact.ticker, []).append(impact)
+
+    # Step 4: Assemble final result
+    results = []
+
+    for vs in latest_snapshots:
+        # Parse top_news
+        top_news = []
+        if vs.top_news:
+            try:
+                top_news = json.loads(vs.top_news)
+            except Exception:
+                top_news = []
+
+        # Match and attach impact verdicts
+        impacts = impact_by_ticker.get(vs.ticker, [])
+        impact_headlines = [imp.headline for imp in impacts]
+
+        for news_item in top_news:
+            headline = news_item.get("headline", "")
+            match = get_close_matches(headline, impact_headlines, n=1, cutoff=0.6)
+            if match:
+                matched_impact = next((imp for imp in impacts if imp.headline == match[0]), None)
+                if matched_impact:
+                    news_item["impact_verdict"] = matched_impact.verdict
+                    news_item["impact_reason"] = matched_impact.reason
+            else:
+                news_item["impact_verdict"] = None
+                news_item["impact_reason"] = None
+
+        # Get latest signal
+        analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
+
+        results.append({
+            "volume_info": {
+                "ticker": vs.ticker,
+                "name": vs.name,
+                "current_price": vs.current_price,
+                "price_change": vs.price_change,
+                "volume_rate": vs.volume_rate,
+                "money_flow_rate": vs.money_flow_rate,
+                "current_volume": vs.current_volume,
+                "avg_volume_5d": vs.avg_volume_5d,
+                "detected_at": vs.detected_at.isoformat(),
+                "reasoning": vs.reasoning,
+                "recommendation": vs.recommendation,
+                "promising_score": vs.promising_score,
+                "top_news": top_news,
+            },
+            "analysis_signal": analysis_signal_data,
+        })
+
+    return results
+
+@router.post("/analyze/{ticker}", response_model=Dict)
+def analyze_single_ticker(
+    ticker: str,
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db)
+):
+    # Step 1: Get news
+    news = scrape_kabutan_news(ticker, limit=30)
+    if not news:
+        raise HTTPException(status_code=404, detail="No news found for this ticker.")
+
+    # Step 2: Generate & save snapshot
+    snapshot = analyze_and_snapshot_ticker(
+        db=db,
+        ticker=ticker,
+        surge_threshold=1.5,
+        price_threshold=300,
+    )
+    if not snapshot:
+        raise HTTPException(status_code=400, detail="Ticker does not meet surge/price criteria.")
+
+    # Step 3: Retrieve VolumeSnapshot from DB
+    volume_info = get_volume_info(db, ticker=ticker)
+    if not volume_info:
+        raise HTTPException(status_code=404, detail="No volume data found for this ticker.")
+
+    # Step 4: Analyze with GPT and return result
+    result = premarket_analyze_with_gpt(
+        db=db,
+        ticker=ticker,
+        news_items=news,
+        volume_info=volume_info,
+        top_n=top_n,
+        model=model
+    )
+    return result

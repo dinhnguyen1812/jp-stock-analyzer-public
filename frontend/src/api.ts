@@ -1,4 +1,4 @@
-import type { KabutanNewsAnalysis } from "./types";
+import type { KabutanNewsAnalysis, PreMarketScanResult } from "./types";
 
 const BASE_URL = "http://localhost:8002";
 
@@ -175,4 +175,27 @@ export async function fetchSpikeScans(): Promise<any[]> {
   const res = await fetch(`${BASE_URL}/shortterm/get_spike`);
   if (!res.ok) throw new Error("Failed to fetch spike scan data.");
   return res.json();
+}
+
+export async function scanPreMarketVolumeSurges(
+  surge_threshold = 2.0,
+  price_threshold = 300,
+  from_page = 1,
+  to_page = 3
+) {
+  const res = await fetch(`${BASE_URL}/premarket/volume_scan`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      surge_threshold,
+      price_threshold,
+      from_page,
+      to_page,
+    }),
+  });
+
+  if (!res.ok) throw new Error("Pre-market scan failed");
+  return await res.json();
 }

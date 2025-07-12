@@ -81,3 +81,17 @@ export interface ScanFormProps {
   onToPageChange: (value: number) => void;
   onScan: () => void;
 }
+
+export interface NewsImpactItem {
+  headline: string;
+  url: string;
+  category: string;
+  published_at: string;
+  verdict: "Neutral" | "Good" | "Great" | "Decisive";
+  reason: string;
+}
+
+export interface PreMarketScanResult {
+  ticker: string;
+  news: NewsImpactItem[];
+}

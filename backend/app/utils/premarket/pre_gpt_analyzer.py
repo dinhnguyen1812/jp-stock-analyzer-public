@@ -1,12 +1,12 @@
 import json
 import os
 import re
-import difflib
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 import openai
-from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news, get_volume_info
+
+from app.utils.shortterm.kabutan_news_ticker import get_volume_info
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
 from app.models import VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
 
@@ -22,26 +22,53 @@ def extract_recommendation_and_score(text: str):
     promising_score = max(0, min(promising_score, 100))
     return recommendation, promising_score
 
-def extract_headline_impacts(text: str, top_n: int = 5):
-    verdicts = ["Decisive", "Great", "Good", "Neutral", "Bad", "Irrelevant"]
-    results = []
 
+def extract_headline_impacts(text: str, top_n: int = 5) -> List[Dict]:
+    results = []
     lines = text.splitlines()
+
+    current_headline = None
+    verdict = None
+    reason_lines = []
+
     for line in lines:
-        if any(v.lower() in line.lower() for v in verdicts):
-            verdict_match = next((v for v in verdicts if v.lower() in line.lower()), None)
-            if not verdict_match:
-                continue
-            reason_match = re.sub(rf"[^:]+[:\-]\s*", "", line).strip()
-            headline_match = re.sub(r"\s*\([^)]+\)$", "", line.strip())  # Remove verdict in parentheses
-            results.append({
-                "headline": headline_match,
-                "verdict": verdict_match,
-                "reason": reason_match,
-            })
-            if len(results) >= top_n:
-                break
-    return results
+        line = line.strip()
+
+        # Match numbered headline like: 1. **[開示] something**
+        headline_match = re.match(r"^\d+\.\s+\*\*(.+?)\*\*$", line)
+        if headline_match:
+            # Save previous
+            if current_headline and verdict:
+                results.append({
+                    "headline": current_headline,
+                    "verdict": verdict,
+                    "reason": " ".join(reason_lines).strip()
+                })
+                if len(results) >= top_n:
+                    break
+
+            current_headline = headline_match.group(1).strip()
+            verdict = None
+            reason_lines = []
+            continue
+
+        # Match verdict like: - **Verdict: Bad**
+        verdict_match = re.match(r"- \*\*Verdict:\s*([^\*]+)\*\*", line)
+        if verdict_match:
+            verdict = verdict_match.group(1).strip()
+            continue
+
+        if verdict:
+            reason_lines.append(line)
+
+    if current_headline and verdict:
+        results.append({
+            "headline": current_headline,
+            "verdict": verdict,
+            "reason": " ".join(reason_lines).strip()
+        })
+
+    return results[:top_n]
 
 def premarket_analyze_with_gpt(
     db: Session,
@@ -79,19 +106,30 @@ def premarket_analyze_with_gpt(
 
     headlines = [f"[{item['category']}] {item['headline']}" for item in news_items[:top_n]]
     prompt = (
-        f"You are a pre-market analyst.\n\n"
-        f"### Volume:\n{volume_summary}\n"
-        f"### Technicals (less important):\n{tech_summary}\n"
-        f"### News:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) + "\n\n"
-        f"### Tasks:\n"
-        f"- Predict if this stock will likely move up/down tomorrow and why.\n"
-        f"- Give:\n"
-        f"  - Investment Recommendation (Buy/Hold/Sell/Short)\n"
-        f"  - Promising Score (0–100)\n"
-        f"  - Price Target\n"
-        f"- Return a **ranked list of {top_n} impactful headlines**. For each:\n"
-        f"  - Verdict (Neutral, Good, Great, Decisive, Bad)\n"
-        f"  - 1-line reason\n"
+        f"You are a financial analyst providing a **pre-market** outlook for Japanese stock {ticker}.\n\n"
+        f"### Volume and Price Activity:\n{volume_summary}\n"
+        f"### Technical Indicators (for reference, less emphasis):\n{tech_summary}\n"
+        f"### Recent News Headlines:\n"
+        + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
+        "\n\n### Analysis Instructions:\n"
+        "- Focus mainly on volume surge, price movements, and news impact to predict **tomorrow's market behavior**.\n"
+        "- Give lesser importance to technical signals.\n"
+        "- Identify if the stock is likely to **break out** or have notable movement tomorrow, and why.\n"
+        "- Evaluate news sentiment and relevance, especially on major themes like AI, Bitcoin, semiconductors, political events.\n"
+        "- Provide a clear recommendation: **Buy**, **Hold**, **Sell**, or **Short**.\n"
+        "- Justify your recommendation with 2-3 concise bullet points.\n"
+        "- Score the short-term promise from 0 to 100.\n"
+        "- Estimate a likely short-term price target.\n\n"
+        "### Output Format:\n"
+        "Headline List:\n"
+        "1. **[Headline text here]**\n"
+        "   - **Verdict: One of [Decisive, Great, Good, Neutral, Bad]**\n"
+        "   - **Reason: 1 concise sentence explaining why**\n"
+        "(Repeat for each headline)\n\n"
+        "Summary:\n<Brief analysis focusing on pre-market outlook>\n\n"
+        "- Investment Recommendation: Buy / Hold / Sell / Short\n"
+        "- Promising Score: (0–100)\n"
+        "- Expected Price Target (in JPY): <target price>\n"
     )
 
     try:
@@ -104,24 +142,23 @@ def premarket_analyze_with_gpt(
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply, top_n=top_n)
-
         summary = reply.split("Summary:")[-1].split("- Investment")[0].strip()
 
-        # Save to VolumeSnapshot
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
         volume_info.top_news = json.dumps(news_items[:top_n], ensure_ascii=False)
         db.commit()
 
-        # Save impacts
         db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
         for item in impacts:
+            if not item.get("headline") or not item.get("verdict"):
+                continue
             impact = StockNewsImpact(
                 ticker=ticker,
                 headline=item["headline"],
                 verdict=item["verdict"],
-                reason=item["reason"],
+                reason=item.get("reason", ""),
                 created_at=datetime.utcnow()
             )
             db.add(impact)

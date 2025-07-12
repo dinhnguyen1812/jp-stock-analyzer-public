@@ -139,6 +139,9 @@ def analyze_and_snapshot_ticker(
             detected_at=datetime.now(JP_TZ),
         )
 
+        db.add(snapshot)
+        db.commit()
+
         return snapshot
     except Exception as e:
         print(f"⚠️ Error analyzing {ticker}: {e}")
@@ -159,9 +162,7 @@ def scan_and_save_pre_market_volume_surges(
             db, ticker, surge_threshold, price_threshold
         )
         if snapshot:
-            db.add(snapshot)
             saved_tickers.append(ticker)
 
-    db.commit()
     print(f"🌅 Pre-market scan saved {len(saved_tickers)} tickers from {len(tickers)} candidates.")
     return saved_tickers
