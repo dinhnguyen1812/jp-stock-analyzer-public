@@ -6,6 +6,7 @@ interface PreMarketScanFormProps {
   priceThreshold: number;
   fromPage: number;
   toPage: number;
+  starredOnly: boolean; // ✅ new prop
   loading: boolean;
   loadingNewsSignals: boolean;
   loadingSpikeScan: boolean;
@@ -14,10 +15,11 @@ interface PreMarketScanFormProps {
   onPriceThresholdChange: (value: number) => void;
   onFromPageChange: (value: number) => void;
   onToPageChange: (value: number) => void;
+  onStarredOnlyChange: (checked: boolean) => void; // ✅ new prop
   onScan: () => void;
   onFetchNewsSignals: () => void;
   onScanSpike: () => void;
-  onFetchAnalyzed: () => void; // New prop for the fetch button
+  onFetchAnalyzed: () => void;
 }
 
 const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
@@ -25,6 +27,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   priceThreshold,
   fromPage,
   toPage,
+  starredOnly,
   loading,
   loadingNewsSignals,
   loadingSpikeScan,
@@ -33,6 +36,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onPriceThresholdChange,
   onFromPageChange,
   onToPageChange,
+  onStarredOnlyChange,
   onScan,
   onFetchNewsSignals,
   onScanSpike,
@@ -101,6 +105,17 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
               </InputGroup>
             </Col>
 
+            {/* ⭐ Starred Only Checkbox */}
+            <Col style={{ flexGrow: 0.1, minWidth: 60 }}>
+              <Form.Check
+                type="checkbox"
+                label="⭐"
+                checked={starredOnly}
+                onChange={(e) => onStarredOnlyChange(e.target.checked)}
+                disabled={loading}
+              />
+            </Col>
+
             <Col style={{ minWidth: 95 }}>
               <Button
                 variant="primary"
@@ -108,11 +123,11 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                 onClick={onScan}
                 disabled={loading}
               >
-                {loading ? <Spinner animation="border" size="sm" /> : "Scan VS"}
+                {loading && <Spinner animation="border" size="sm" className="me-2" />}
+                Scan VS
               </Button>
             </Col>
 
-            {/* New Fetch Analyzed Button */}
             <Col style={{ minWidth: 135 }}>
               <Button
                 variant="success"
@@ -120,7 +135,8 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                 onClick={onFetchAnalyzed}
                 disabled={loading}
               >
-                {loading ? <Spinner animation="border" size="sm" /> : "Fetch Analyzed"}
+                {loading && <Spinner animation="border" size="sm" className="me-2" />}
+                Fetch Analyzed
               </Button>
             </Col>
           </Row>

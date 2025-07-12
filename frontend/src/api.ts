@@ -202,12 +202,17 @@ export async function scanPreMarketVolumeSurges(
 
 export async function fetchAllAnalyses(
   surge_threshold: number = 2.0,
-  price_threshold: number = 300
+  price_threshold: number = 300,
+  starred_only: boolean = false
 ) {
   const queryParams = new URLSearchParams({
     surge_threshold: surge_threshold.toString(),
     price_threshold: price_threshold.toString(),
   });
+
+  if (starred_only) {
+    queryParams.append("starred_only", "true");
+  }
 
   const res = await fetch(`${BASE_URL}/premarket/get_saved_vs?${queryParams.toString()}`, {
     method: "GET",

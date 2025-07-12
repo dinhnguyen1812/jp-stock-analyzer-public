@@ -135,8 +135,10 @@ def trigger_volume_scan(
 def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
     price_threshold: float = Query(0, ge=0),
+    starred_only: bool = False,
     db: Session = Depends(get_db),
 ):
+    # Base query for latest snapshot per ticker
     query = (
         db.query(
             VolumeSnapshot.ticker,
@@ -150,6 +152,13 @@ def get_all_saved_volume_analyses(
 
     if price_threshold > 0:
         query = query.filter(VolumeSnapshot.current_price <= price_threshold)
+
+    if starred_only:
+        # Join with StarredStock to filter only starred tickers
+        query = query.join(
+            StarredStock,
+            VolumeSnapshot.ticker == StarredStock.ticker
+        )
 
     query = query.group_by(VolumeSnapshot.ticker)
     subq = query.subquery()
@@ -167,8 +176,10 @@ def get_all_saved_volume_analyses(
     if not latest_snapshots:
         raise HTTPException(status_code=404, detail="No saved analyses found")
 
-    # Step 2: Fetch all impacts for relevant tickers
+    # Prepare tickers list
     tickers = [snap.ticker for snap in latest_snapshots]
+
+    # Fetch related news impact data
     all_impacts = (
         db.query(StockNewsImpact)
         .filter(StockNewsImpact.ticker.in_(tickers))
@@ -176,16 +187,13 @@ def get_all_saved_volume_analyses(
         .all()
     )
 
-    # Step 3: Group impacts by ticker
     impact_by_ticker = {}
     for impact in all_impacts:
         impact_by_ticker.setdefault(impact.ticker, []).append(impact)
 
-    # Step 4: Assemble final result
     results = []
 
     for vs in latest_snapshots:
-        # Parse top_news
         top_news = []
         if vs.top_news:
             try:
@@ -193,7 +201,7 @@ def get_all_saved_volume_analyses(
             except Exception:
                 top_news = []
 
-        # Match and attach impact verdicts
+        # Match news items with impact verdict
         impacts = impact_by_ticker.get(vs.ticker, [])
         impact_headlines = [imp.headline for imp in impacts]
 
@@ -209,10 +217,7 @@ def get_all_saved_volume_analyses(
                 news_item["impact_verdict"] = None
                 news_item["impact_reason"] = None
 
-        # Get latest signal
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
-
-        # Compute downtrend and price stats
         start_date = datetime.date.today() - datetime.timedelta(days=30)
         prices = (
             db.query(DailyPrice)
@@ -220,6 +225,7 @@ def get_all_saved_volume_analyses(
             .order_by(DailyPrice.date.asc())
             .all()
         )
+
         downtrend_info = normalize_downtrend_for_json(detect_recent_downtrend(db, vs.ticker))
         price_stats = compute_price_stats(prices, vs.current_price)
 
@@ -244,6 +250,7 @@ def get_all_saved_volume_analyses(
                 "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
                 "highest_price": price_stats.get("highest_price"),
                 "lowest_price": price_stats.get("lowest_price"),
+                "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),  # Add `starred` field
             },
             "analysis_signal": analysis_signal_data,
         })

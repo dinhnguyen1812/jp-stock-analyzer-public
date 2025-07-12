@@ -11,6 +11,7 @@ const PreMarketPage: React.FC = () => {
   const [toPage, setToPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
+  const [starredOnly, setStarredOnly] = useState<boolean>(false); // NEW
   const [stocks, setStocks] = useState<VolumeSurgeStock[]>([]);
   const [analyzedResults, setAnalyzedResults] = useState<any[]>([]); // loosely typed for now
 
@@ -35,7 +36,7 @@ const PreMarketPage: React.FC = () => {
   const handleFetchAnalyzed = async () => {
     setLoadingFetchAnalyzed(true);
     try {
-      const result = await fetchAllAnalyses(); // call your /volume_surge/all_analyses API
+      const result = await fetchAllAnalyses(surgeThreshold, priceThreshold, starredOnly); // pass starredOnly here
       setAnalyzedResults(result);
       setStocks([]); // optionally clear the scan results to focus on analyzed results
     } catch (err) {
@@ -71,10 +72,12 @@ const PreMarketPage: React.FC = () => {
         loadingNewsSignals={false}
         loadingSpikeScan={false}
         autoScanEnabled={false}
+        starredOnly={starredOnly} // NEW
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
         onFromPageChange={setFromPage}
         onToPageChange={setToPage}
+        onStarredOnlyChange={setStarredOnly} // NEW
         onScan={handleScan}
         onFetchNewsSignals={() => {}}
         onScanSpike={() => {}}
