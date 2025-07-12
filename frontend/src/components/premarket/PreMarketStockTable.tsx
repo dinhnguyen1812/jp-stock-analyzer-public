@@ -3,13 +3,20 @@ import { Table } from "react-bootstrap";
 import PreMarketStockRow from "./PreMarketStockRow";
 import type { VolumeSurgeStock } from "../../types";
 
+type EnrichedStock = VolumeSurgeStock & {
+  promising_score?: number;
+  recommendation?: string | null;
+  watchlist_recommendation?: string;
+  starred?: boolean;
+};
+
 interface PreMarketStockTableProps {
-  stocks: VolumeSurgeStock[];
+  stocks: EnrichedStock[];
   onStarToggle: (ticker: string, starred: boolean) => void;
 }
 
 type SortKey = keyof Pick<
-  VolumeSurgeStock,
+  EnrichedStock,
   | "current_price"
   | "price_change"
   | "volume_rate"
@@ -24,26 +31,12 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
   const [sortKey, setSortKey] = useState<SortKey>("volume_rate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  // Helper to normalize nullable fields for typing compatibility
-  const normalizeStock = (stock: VolumeSurgeStock): VolumeSurgeStock & {
-    watchlist_recommendation?: string;
-    promising_score?: number;
-    recommendation?: string | null;
-    starred?: boolean;
-    detected_at: string;
-  } => {
+  const normalizeStock = (stock: EnrichedStock): EnrichedStock => {
     return {
       ...stock,
-      // Only add GPT-enriched fields if they exist
-      ...(typeof (stock as any).promising_score === "number" && {
-        promising_score: (stock as any).promising_score,
-      }),
-      ...(typeof (stock as any).watchlist_recommendation === "string" && {
-        watchlist_recommendation: (stock as any).watchlist_recommendation,
-      }),
-      ...(typeof (stock as any).recommendation === "string" && {
-        recommendation: (stock as any).recommendation,
-      }),
+      promising_score: (stock as any).promising_score,
+      watchlist_recommendation: (stock as any).watchlist_recommendation,
+      recommendation: (stock as any).recommendation,
       starred: (stock as any).starred ?? false,
       detected_at: stock.detected_at || new Date().toISOString(),
     };
@@ -59,8 +52,8 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
   };
 
   const sortedStocks = [...stocks].sort((a, b) => {
-    const aVal = a[sortKey];
-    const bVal = b[sortKey];
+    const aVal = a[sortKey] as number | string | undefined;
+    const bVal = b[sortKey] as number | string | undefined;
 
     if (sortKey === "detected_at") {
       return sortOrder === "asc"
@@ -138,14 +131,14 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               Avg Volume (5d) {renderSortIndicator("avg_volume_5d")}
             </th>
             <th
-              style={{ minWidth: "140px" }}
+              style={{ minWidth: "100px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("detected_at")}
             >
               Detected At {renderSortIndicator("detected_at")}
             </th>
             <th
-              style={{ minWidth: "400px" }}
+              style={{ minWidth: "420px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("promising_score")}
             >

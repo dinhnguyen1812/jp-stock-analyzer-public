@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import PreMarketScanForm from "../components/premarket/PreMarketScanForm";
 import PreMarketStockTable from "../components/premarket/PreMarketStockTable";
+import PreMarketHoldingButton from "../components/premarket/PreMarketHoldingsButton";
 import type { VolumeSurgeStock } from "../types";
 import {
   scanPreMarketVolumeSurges,
@@ -115,7 +116,13 @@ const PreMarketPage: React.FC = () => {
 
   return (
     <div className="container mt-3">
-      <h4 className="mb-3">📈 Pre-Market Volume Surge Scanner</h4>
+      <div className="d-flex justify-content-between align-items-baseline mb-3">
+        <h4 className="mb-0">📈 Pre-Market Volume Surge Scanner</h4>
+        <div style={{ width: "280px", minWidth: "280px" }}>
+          <PreMarketHoldingButton />
+        </div>
+      </div>
+
 
       <PreMarketScanForm
         surgeThreshold={surgeThreshold}

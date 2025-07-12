@@ -8,17 +8,17 @@ export interface VolumeSurgeStock {
   current_volume: number;
   avg_volume_5d: number;
   detected_at: string;
-  starred?: boolean; // optional, from DB
-  reasoning?: string | null;
-  recommendation?: "Buy" | "Hold" | "Sell" | null;
-  promising_score?: number | null;
-  top_news?: Array<{
+  starred?: boolean;
+
+  top_news?: {
     published_at: string;
     category: string;
     headline: string;
     url: string;
     score: number;
-  }>;
+    impact_verdict?: string; // ✅ Add this
+    impact_reason?: string;  // ✅ And this
+  }[];
 }
 
 export interface AnalysisSignal {

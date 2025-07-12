@@ -62,7 +62,7 @@ const keywordMap = [
 
 const highlightKeywords = (text: string): JSX.Element => {
   if (!text) return <span>(No text)</span>;
-  const cleanText = text.replace(/\*\*/g, ""); // remove markdown bold
+  const cleanText = text.replace(/\*\*/g, "");
   const keywordRegex = new RegExp(`(${keywordMap.map((k) => k.word).join("|")})`, "gi");
   const parts = cleanText.split(keywordRegex);
 
@@ -101,7 +101,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
       const allData: SavedAnalysis[] = await fetchAllAnalyses();
       const found = allData.find((item) => item.volume_info.ticker === stock.ticker);
       if (!found) throw new Error(`No analysis found for ticker ${stock.ticker}`);
-
       setAnalysis(found);
       setShowModal(true);
     } catch (err: any) {
@@ -137,6 +136,14 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
       default:
         return "secondary";
     }
+  };
+
+  const verdictRank: Record<string, number> = {
+    decisive: 5,
+    great: 4,
+    good: 3,
+    neutral: 2,
+    bad: 1,
   };
 
   const ONE_HOUR_MS = 1000 * 60 * 60;
@@ -201,6 +208,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             })}
           </span>
         </td>
+
         <td className="align-middle text-center">
           <div className="d-flex align-items-center justify-content-center flex-wrap gap-2">
             {stock.recommendation && (
@@ -214,6 +222,54 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 Score: {stock.promising_score}
               </Badge>
             )}
+
+            {Array.isArray(stock.top_news) && stock.top_news.length > 0 && (() => {
+              const verdictRank: Record<string, number> = {
+                decisive: 5,
+                great: 4,
+                good: 3,
+                neutral: 2,
+                bad: 1,
+              };
+
+              const newsWithVerdict = stock.top_news.filter(
+                (n) => typeof n.impact_verdict === "string"
+              );
+
+              if (newsWithVerdict.length === 0) return null;
+
+              const bestNews = newsWithVerdict.sort((a, b) => {
+                const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
+                const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
+                return bRank - aRank;
+              })[0];
+
+              const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
+
+              const badgeColor =
+                verdict === "decisive"
+                  ? "danger"
+                  : verdict === "great"
+                  ? "success"
+                  : verdict === "good"
+                  ? "warning"
+                  : verdict === "neutral"
+                  ? "secondary"
+                  : "light";
+
+              const textColor = verdict === "bad" ? "dark" : "light";
+
+              return (
+                <Badge
+                  bg={badgeColor}
+                  text={textColor}
+                  className="border"
+                  style={{ fontSize: "0.75rem" }}
+                >
+                  📰 {bestNews.impact_verdict}
+                </Badge>
+              );
+            })()}
 
             {stock.watchlist_recommendation && (
               <div className="d-flex align-items-center gap-1">
@@ -232,7 +288,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 </Badge>
               </div>
             )}
-
 
             <Button
               style={{

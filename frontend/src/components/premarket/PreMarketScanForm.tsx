@@ -122,16 +122,6 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            <Col style={{ flexGrow: 0.1, minWidth: 60 }}>
-              <Form.Check
-                type="checkbox"
-                label="⭐"
-                checked={starredOnly}
-                onChange={(e) => onStarredOnlyChange(e.target.checked)}
-                disabled={loading}
-              />
-            </Col>
-
             <Col style={{ minWidth: 95 }}>
               <Button
                 variant="primary"
@@ -142,6 +132,16 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                 {loading && <Spinner animation="border" size="sm" className="me-2" />}
                 Scan VS
               </Button>
+            </Col>
+
+            <Col style={{ flexGrow: 0.1, minWidth: 60 }}>
+              <Form.Check
+                type="checkbox"
+                label="⭐"
+                checked={starredOnly}
+                onChange={(e) => onStarredOnlyChange(e.target.checked)}
+                disabled={loading}
+              />
             </Col>
 
             <Col style={{ minWidth: 135 }}>

@@ -83,3 +83,6 @@ You can track new listings on the JPX New Listings page, which includes market s
   <!-- - Show starred status if starred -->
   - Starred list in a csv file
   - Accurate news
+  - Add column: Is there good news
+  - Scan news even with stocks that have not surged in volume
+  - Bring Holdings List here
