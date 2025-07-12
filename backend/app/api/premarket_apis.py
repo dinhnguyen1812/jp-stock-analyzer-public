@@ -131,25 +131,35 @@ def trigger_volume_scan(
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
 
-@router.get("/volume_surge/all_analyses", response_model=List[Dict])
-def get_all_saved_volume_analyses(db: Session = Depends(get_db)):
-    # Step 1: Get latest snapshot per ticker with promising_score > 0
-    subq = (
+@router.get("/get_saved_vs", response_model=List[Dict])
+def get_all_saved_volume_analyses(
+    surge_threshold: float = Query(0, ge=0),
+    price_threshold: float = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    query = (
         db.query(
             VolumeSnapshot.ticker,
-            func.max(VolumeSnapshot.detected_at).label("latest_detected_at")
+            func.max(VolumeSnapshot.detected_at).label("latest_detected_at"),
         )
         .filter(VolumeSnapshot.promising_score > 0)
-        .group_by(VolumeSnapshot.ticker)
-        .subquery()
     )
+
+    if surge_threshold > 0:
+        query = query.filter(VolumeSnapshot.volume_rate >= surge_threshold)
+
+    if price_threshold > 0:
+        query = query.filter(VolumeSnapshot.current_price <= price_threshold)
+
+    query = query.group_by(VolumeSnapshot.ticker)
+    subq = query.subquery()
 
     latest_snapshots = (
         db.query(VolumeSnapshot)
         .join(
             subq,
             (VolumeSnapshot.ticker == subq.c.ticker)
-            & (VolumeSnapshot.detected_at == subq.c.latest_detected_at)
+            & (VolumeSnapshot.detected_at == subq.c.latest_detected_at),
         )
         .all()
     )

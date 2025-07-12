@@ -75,6 +75,9 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Enable analyze when there is not volume yet
 <!-- - Auto gpt-4o analyze for ones with >60 score -->
 <!-- - Add advice for Short Sell -->
-- Starred list in a csv file
 - Pre-market:
-  - 
+  - Add analyze one ticker
+  - Add analyze starred ticker
+  - Fetch starred ticker
+  - Show starred status if starred
+  - Starred list in a csv file

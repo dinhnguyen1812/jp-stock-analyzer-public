@@ -17,6 +17,7 @@ interface PreMarketScanFormProps {
   onScan: () => void;
   onFetchNewsSignals: () => void;
   onScanSpike: () => void;
+  onFetchAnalyzed: () => void; // New prop for the fetch button
 }
 
 const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
@@ -35,6 +36,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onScan,
   onFetchNewsSignals,
   onScanSpike,
+  onFetchAnalyzed,
 }) => {
   return (
     <Card className="mb-3 py-2 px-2 shadow-sm">
@@ -106,7 +108,19 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                 onClick={onScan}
                 disabled={loading}
               >
-                {loading ? <Spinner animation="border" /> : "Scan VS"}
+                {loading ? <Spinner animation="border" size="sm" /> : "Scan VS"}
+              </Button>
+            </Col>
+
+            {/* New Fetch Analyzed Button */}
+            <Col style={{ minWidth: 135 }}>
+              <Button
+                variant="success"
+                className="w-100"
+                onClick={onFetchAnalyzed}
+                disabled={loading}
+              >
+                {loading ? <Spinner animation="border" size="sm" /> : "Fetch Analyzed"}
               </Button>
             </Col>
           </Row>

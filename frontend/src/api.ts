@@ -199,3 +199,23 @@ export async function scanPreMarketVolumeSurges(
   if (!res.ok) throw new Error("Pre-market scan failed");
   return await res.json();
 }
+
+export async function fetchAllAnalyses(
+  surge_threshold: number = 2.0,
+  price_threshold: number = 300
+) {
+  const queryParams = new URLSearchParams({
+    surge_threshold: surge_threshold.toString(),
+    price_threshold: price_threshold.toString(),
+  });
+
+  const res = await fetch(`${BASE_URL}/premarket/get_saved_vs?${queryParams.toString()}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) throw new Error("Failed to fetch analyzed volume surges");
+  return await res.json();
+}

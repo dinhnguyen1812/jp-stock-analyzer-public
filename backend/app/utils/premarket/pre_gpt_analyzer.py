@@ -23,49 +23,52 @@ def extract_recommendation_and_score(text: str):
     return recommendation, promising_score
 
 
-def extract_headline_impacts(text: str, top_n: int = 5) -> List[Dict]:
+def extract_headline_impacts(text: str, top_n: int = 5) -> list[dict]:
     results = []
     lines = text.splitlines()
 
     current_headline = None
     verdict = None
-    reason_lines = []
+    reason = None
 
     for line in lines:
         line = line.strip()
 
-        # Match numbered headline like: 1. **[開示] something**
+        # Headline line: number + bold text
         headline_match = re.match(r"^\d+\.\s+\*\*(.+?)\*\*$", line)
         if headline_match:
-            # Save previous
-            if current_headline and verdict:
+            # Save previous result if any
+            if current_headline and verdict and reason:
                 results.append({
                     "headline": current_headline,
                     "verdict": verdict,
-                    "reason": " ".join(reason_lines).strip()
+                    "reason": reason,
                 })
                 if len(results) >= top_n:
                     break
-
             current_headline = headline_match.group(1).strip()
             verdict = None
-            reason_lines = []
+            reason = None
             continue
 
-        # Match verdict like: - **Verdict: Bad**
-        verdict_match = re.match(r"- \*\*Verdict:\s*([^\*]+)\*\*", line)
+        # Verdict line: - **Verdict: ...**
+        verdict_match = re.match(r"- \*\*Verdict:\s*(.+?)\*\*", line)
         if verdict_match:
             verdict = verdict_match.group(1).strip()
             continue
 
-        if verdict:
-            reason_lines.append(line)
+        # Reason line: - **Reason: ...**
+        reason_match = re.match(r"- \*\*Reason:\s*(.+?)\*\*", line)
+        if reason_match:
+            reason = reason_match.group(1).strip()
+            continue
 
-    if current_headline and verdict:
+    # Append the last parsed item if complete
+    if current_headline and verdict and reason:
         results.append({
             "headline": current_headline,
             "verdict": verdict,
-            "reason": " ".join(reason_lines).strip()
+            "reason": reason,
         })
 
     return results[:top_n]
@@ -137,10 +140,11 @@ def premarket_analyze_with_gpt(
         f"### Recent News Headlines:\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
         "\n\n### Analysis Instructions:\n"
-        "- Focus mainly on volume surge, price movements, and news impact to predict **tomorrow's market behavior**.\n"
-        "- Give lesser importance to technical signals.\n"
+        "- Focus primarily on volume surge, price movements, and news impact to predict **tomorrow's market behavior**.\n"
+        "- Use technical signals as supplementary confirmation.\n"
         "- Identify if the stock is likely to **break out** or have notable movement tomorrow, and why.\n"
         "- Evaluate news sentiment and relevance, especially on major themes like AI, Bitcoin, semiconductors, political events.\n"
+        "- Evaluate whether the news sentiment is bullish, bearish, or neutral\n"
         "- Provide a clear recommendation: **Buy**, **Hold**, **Sell**, or **Short**.\n"
         "- Justify your recommendation with 2-3 concise bullet points.\n"
         "- Score the short-term promise from 0 to 100.\n"
@@ -170,7 +174,8 @@ def premarket_analyze_with_gpt(
         # Extract fields from GPT reply
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply, top_n=top_n)
-        summary = reply.split("Summary:")[-1].split("- Investment")[0].strip()
+        summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
+        summary = summary_match.group(1).strip() if summary_match else ""
 
         # Extract Watchlist Recommendation
         watchlist_recommendation = None
