@@ -114,7 +114,7 @@ def trigger_volume_scan(
         except Exception as e:
             print(f"⚠️ GPT-3.5 analysis failed for {ticker}: {e}")
 
-    # Step 3: Re-analyze promising tickers (promising_score >= 65) with GPT-4o
+    # Step 3: Re-analyze promising tickers (promising_score >= 60) with GPT-4o
     for ticker in tickers:
         news = scrape_kabutan_news(ticker, limit=30)
         if not news:
@@ -122,7 +122,7 @@ def trigger_volume_scan(
         volume_info = get_volume_info(db, ticker=ticker)
         if not volume_info:
             continue
-        if volume_info.promising_score is not None and volume_info.promising_score >= 65:
+        if volume_info.promising_score is not None and volume_info.promising_score >= 60:
             try:
                 print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
                 premarket_analyze_with_gpt(db=db, ticker=ticker, news_items=news, volume_info=volume_info, top_n=3, model="gpt-4o")
@@ -257,17 +257,11 @@ def get_all_saved_volume_analyses(
 
     return results
 
-@router.post("/analyze/{ticker}", response_model=Dict)
-def analyze_single_ticker(
-    ticker: str,
-    top_n: int = 3,
-    model: str = "gpt-4o",
-    db: Session = Depends(get_db)
-):
+def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o") -> Dict:
     # Step 1: Get news
     news = scrape_kabutan_news(ticker, limit=30)
     if not news:
-        raise HTTPException(status_code=404, detail="No news found for this ticker.")
+        raise ValueError(f"No news found for ticker {ticker}")
 
     # Step 2: Generate & save snapshot
     snapshot = analyze_and_snapshot_ticker(
@@ -277,20 +271,53 @@ def analyze_single_ticker(
         price_threshold=300,
     )
     if not snapshot:
-        raise HTTPException(status_code=400, detail="Ticker does not meet surge/price criteria.")
+        raise ValueError(f"{ticker} does not meet surge/price criteria.")
 
     # Step 3: Retrieve VolumeSnapshot from DB
     volume_info = get_volume_info(db, ticker=ticker)
     if not volume_info:
-        raise HTTPException(status_code=404, detail="No volume data found for this ticker.")
+        raise ValueError(f"No volume data found for {ticker}")
 
-    # Step 4: Analyze with GPT and return result
-    result = premarket_analyze_with_gpt(
+    # Step 4: Analyze with GPT
+    return premarket_analyze_with_gpt(
         db=db,
         ticker=ticker,
         news_items=news,
         volume_info=volume_info,
         top_n=top_n,
-        model=model
+        model=model,
     )
-    return result
+
+@router.post("/analyze/{ticker}", response_model=Dict)
+def analyze_single_ticker(
+    ticker: str,
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db)
+):
+    try:
+        result = analyze_ticker_by_steps(db, ticker, top_n, model)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/analyze_starred", response_model=List[Dict])
+def analyze_starred_tickers(
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db)
+):
+    starred_tickers = db.query(StarredStock.ticker).all()
+    ticker_list = [t[0] for t in starred_tickers]  # convert list of tuples to list of strings
+    results = []
+
+    for ticker in ticker_list:
+        try:
+            result = analyze_ticker_by_steps(db, ticker, top_n, model)
+            results.append(result)
+        except ValueError as e:
+            print(f"Skipping {ticker}: {e}")
+            continue
+
+    return results
+

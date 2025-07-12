@@ -224,3 +224,18 @@ export async function fetchAllAnalyses(
   if (!res.ok) throw new Error("Failed to fetch analyzed volume surges");
   return await res.json();
 }
+
+export async function analyzeAllStarredTickers() {
+  const res = await fetch(`${BASE_URL}/premarket/analyze_starred`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error("Analyzing starred tickers failed");
+  }
+
+  return await res.json();
+}

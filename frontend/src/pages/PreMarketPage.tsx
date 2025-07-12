@@ -2,7 +2,11 @@ import React, { useState } from "react";
 import PreMarketScanForm from "../components/premarket/PreMarketScanForm";
 import PreMarketStockTable from "../components/premarket/PreMarketStockTable";
 import type { VolumeSurgeStock } from "../types";
-import { scanPreMarketVolumeSurges, fetchAllAnalyses } from "../api";
+import {
+  scanPreMarketVolumeSurges,
+  fetchAllAnalyses,
+  analyzeAllStarredTickers,
+} from "../api";
 
 const PreMarketPage: React.FC = () => {
   const [surgeThreshold, setSurgeThreshold] = useState<number>(2.0);
@@ -11,13 +15,32 @@ const PreMarketPage: React.FC = () => {
   const [toPage, setToPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
-  const [starredOnly, setStarredOnly] = useState<boolean>(false); // NEW
+  const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState<boolean>(false);
+  const [starredOnly, setStarredOnly] = useState<boolean>(false);
   const [stocks, setStocks] = useState<VolumeSurgeStock[]>([]);
-  const [analyzedResults, setAnalyzedResults] = useState<any[]>([]); // loosely typed for now
+  const [analyzedResults, setAnalyzedResults] = useState<any[]>([]);
+
+  const normalizeAnalyzedStock = (item: any): VolumeSurgeStock & {
+    watchlist_recommendation?: string;
+    promising_score?: number;
+    recommendation?: string | null;
+    starred?: boolean;
+    detected_at: string;
+  } => {
+    const vol = item.volume_info;
+    return {
+      ...vol,
+      watchlist_recommendation: vol.watchlist_recommendation ?? undefined,
+      promising_score: vol.promising_score === null ? undefined : vol.promising_score,
+      recommendation: vol.recommendation ?? undefined,
+      starred: vol.starred ?? false,
+      detected_at: vol.detected_at || new Date().toISOString(),
+    };
+  };
 
   const handleScan = async () => {
     setLoading(true);
-    setAnalyzedResults([]); // clear previous analyzed results on new scan
+    setAnalyzedResults([]);
     try {
       const result = await scanPreMarketVolumeSurges(
         surgeThreshold,
@@ -36,13 +59,26 @@ const PreMarketPage: React.FC = () => {
   const handleFetchAnalyzed = async () => {
     setLoadingFetchAnalyzed(true);
     try {
-      const result = await fetchAllAnalyses(surgeThreshold, priceThreshold, starredOnly); // pass starredOnly here
+      const result = await fetchAllAnalyses(surgeThreshold, priceThreshold, starredOnly);
       setAnalyzedResults(result);
-      setStocks([]); // optionally clear the scan results to focus on analyzed results
+      setStocks([]);
     } catch (err) {
       console.error("Failed to fetch analyzed volume surges", err);
     } finally {
       setLoadingFetchAnalyzed(false);
+    }
+  };
+
+  const handleAnalyzeStarred = async () => {
+    setLoadingAnalyzeStarred(true);
+    try {
+      const result = await analyzeAllStarredTickers();
+      setAnalyzedResults(result);
+      setStocks([]);
+    } catch (err) {
+      console.error("Failed to analyze starred tickers", err);
+    } finally {
+      setLoadingAnalyzeStarred(false);
     }
   };
 
@@ -72,19 +108,20 @@ const PreMarketPage: React.FC = () => {
         loadingNewsSignals={false}
         loadingSpikeScan={false}
         autoScanEnabled={false}
-        starredOnly={starredOnly} // NEW
+        starredOnly={starredOnly}
+        loadingAnalyzeStarred={loadingAnalyzeStarred}
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
         onFromPageChange={setFromPage}
         onToPageChange={setToPage}
-        onStarredOnlyChange={setStarredOnly} // NEW
+        onStarredOnlyChange={setStarredOnly}
         onScan={handleScan}
         onFetchNewsSignals={() => {}}
         onScanSpike={() => {}}
         onFetchAnalyzed={handleFetchAnalyzed}
+        onAnalyzeStarred={handleAnalyzeStarred}
       />
 
-      {/* Display scan results */}
       {loading && <p>Loading scan results...</p>}
       {stocks.length > 0 && (
         <>
@@ -93,16 +130,12 @@ const PreMarketPage: React.FC = () => {
         </>
       )}
 
-      {/* Display analyzed results */}
       {loadingFetchAnalyzed && <p>Loading analyzed results...</p>}
       {analyzedResults.length > 0 && (
         <>
           <h5 className="mt-4">Analyzed Volume Surge Stocks ({analyzedResults.length})</h5>
           <PreMarketStockTable
-            stocks={analyzedResults.map((item) => ({
-              ...item.volume_info,
-              // Map any needed fields from analysis result for PreMarketStockRow
-            }))}
+            stocks={analyzedResults.map(normalizeAnalyzedStock)}
             onStarToggle={handleStarToggle}
           />
         </>

@@ -78,6 +78,7 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Pre-market:
   - Add analyze one ticker
   - Add analyze starred ticker
-  - Fetch starred ticker
-  - Show starred status if starred
+  <!-- - Show watchlist recommendation to Action / GPT -->
+  <!-- - Fetch starred ticker -->
+  <!-- - Show starred status if starred -->
   - Starred list in a csv file

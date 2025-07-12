@@ -24,6 +24,31 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
   const [sortKey, setSortKey] = useState<SortKey>("volume_rate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
+  // Helper to normalize nullable fields for typing compatibility
+  const normalizeStock = (stock: VolumeSurgeStock): VolumeSurgeStock & {
+    watchlist_recommendation?: string;
+    promising_score?: number;
+    recommendation?: string | null;
+    starred?: boolean;
+    detected_at: string;
+  } => {
+    return {
+      ...stock,
+      // Only add GPT-enriched fields if they exist
+      ...(typeof (stock as any).promising_score === "number" && {
+        promising_score: (stock as any).promising_score,
+      }),
+      ...(typeof (stock as any).watchlist_recommendation === "string" && {
+        watchlist_recommendation: (stock as any).watchlist_recommendation,
+      }),
+      ...(typeof (stock as any).recommendation === "string" && {
+        recommendation: (stock as any).recommendation,
+      }),
+      starred: (stock as any).starred ?? false,
+      detected_at: stock.detected_at || new Date().toISOString(),
+    };
+  };
+
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -60,26 +85,14 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
 
   return (
     <div className="small">
-      <Table
-        striped
-        bordered
-        hover
-        responsive
-        className="table-sm align-top"
-      >
+      <Table striped bordered hover responsive className="table-sm align-top">
         <thead className="table-light sticky-top">
           <tr>
             <th style={{ width: "40px" }}> </th>
-            <th
-              style={{ width: "80px" }}
-              className="align-top text-center"
-            >
+            <th style={{ width: "80px" }} className="align-top text-center">
               Ticker
             </th>
-            <th
-              style={{ minWidth: "140px" }}
-              className="align-top text-center"
-            >
+            <th style={{ minWidth: "140px" }} className="align-top text-center">
               Name
             </th>
             <th
@@ -89,36 +102,36 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
             >
               Current Price (円){renderSortIndicator("current_price")}
             </th>
-            <th
+            {/* <th
               style={{ width: "180px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("price_change")}
             >
               Price Change (%) {renderSortIndicator("price_change")}
-            </th>
+            </th> */}
             <th
-              style={{ width: "160px" }}
+              style={{ width: "80px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("volume_rate")}
             >
               Volume Rate {renderSortIndicator("volume_rate")}
             </th>
             <th
-              style={{ width: "140px" }}
+              style={{ width: "100px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("money_flow_rate")}
             >
               Money Flow Rate {renderSortIndicator("money_flow_rate")}
             </th>
             <th
-              style={{ minWidth: "160px" }}
+              style={{ minWidth: "120px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("current_volume")}
             >
               Current Volume (株) {renderSortIndicator("current_volume")}
             </th>
             <th
-              style={{ minWidth: "160px" }}
+              style={{ minWidth: "120px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("avg_volume_5d")}
             >
@@ -132,7 +145,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               Detected At {renderSortIndicator("detected_at")}
             </th>
             <th
-              style={{ minWidth: "180px" }}
+              style={{ minWidth: "400px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("promising_score")}
             >
@@ -144,7 +157,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
           {sortedStocks.map((stock) => (
             <PreMarketStockRow
               key={stock.ticker}
-              stock={stock}
+              stock={normalizeStock(stock)}
               latestDetectedAt={latestDetectedAt}
               onStarToggle={onStarToggle}
             />

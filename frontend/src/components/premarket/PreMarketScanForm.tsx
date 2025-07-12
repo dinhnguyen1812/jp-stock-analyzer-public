@@ -6,7 +6,7 @@ interface PreMarketScanFormProps {
   priceThreshold: number;
   fromPage: number;
   toPage: number;
-  starredOnly: boolean; // ✅ new prop
+  starredOnly: boolean;
   loading: boolean;
   loadingNewsSignals: boolean;
   loadingSpikeScan: boolean;
@@ -15,11 +15,13 @@ interface PreMarketScanFormProps {
   onPriceThresholdChange: (value: number) => void;
   onFromPageChange: (value: number) => void;
   onToPageChange: (value: number) => void;
-  onStarredOnlyChange: (checked: boolean) => void; // ✅ new prop
+  onStarredOnlyChange: (checked: boolean) => void;
   onScan: () => void;
   onFetchNewsSignals: () => void;
   onScanSpike: () => void;
   onFetchAnalyzed: () => void;
+  onAnalyzeStarred: () => void;
+  loadingAnalyzeStarred: boolean;
 }
 
 const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
@@ -41,6 +43,8 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onFetchNewsSignals,
   onScanSpike,
   onFetchAnalyzed,
+  onAnalyzeStarred,
+  loadingAnalyzeStarred,
 }) => {
   return (
     <Card className="mb-3 py-2 px-2 shadow-sm">
@@ -105,7 +109,6 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
               </InputGroup>
             </Col>
 
-            {/* ⭐ Starred Only Checkbox */}
             <Col style={{ flexGrow: 0.1, minWidth: 60 }}>
               <Form.Check
                 type="checkbox"
@@ -137,6 +140,24 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
               >
                 {loading && <Spinner animation="border" size="sm" className="me-2" />}
                 Fetch Analyzed
+              </Button>
+            </Col>
+
+            <Col style={{ minWidth: 150 }}>
+              <Button
+                variant="warning"
+                className="w-100"
+                onClick={onAnalyzeStarred}
+                disabled={loadingAnalyzeStarred}
+                title="Analyze all starred stocks"
+              >
+                {loadingAnalyzeStarred ? (
+                  <>
+                    <Spinner animation="border" size="sm" /> Analyzing Starred...
+                  </>
+                ) : (
+                  "Analyze Starred"
+                )}
               </Button>
             </Col>
           </Row>

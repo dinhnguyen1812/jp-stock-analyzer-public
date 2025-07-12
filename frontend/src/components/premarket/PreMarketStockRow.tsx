@@ -5,7 +5,7 @@ import { fetchAllAnalyses, starStock, unstarStock } from "../../api";
 import { formatDistance } from "date-fns";
 
 interface PreMarketStockRowProps {
-  stock: VolumeSurgeStock;
+  stock: VolumeSurgeStock & { watchlist_recommendation?: string; promising_score?: number; recommendation?: string | null; starred?: boolean; detected_at: string };
   latestDetectedAt: string;
   onStarToggle: (ticker: string, starred: boolean) => void;
 }
@@ -183,7 +183,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         <td className="align-middle text-center">{stock.ticker}</td>
         <td className="align-middle">{stock.name}</td>
         <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td>
+        {/* <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td> */}
         <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
@@ -202,23 +202,46 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           </span>
         </td>
         <td className="align-middle text-center">
-          <div className="d-flex flex-column align-items-center justify-content-center gap-2">
+          <div className="d-flex align-items-center justify-content-center flex-wrap gap-2">
             {stock.recommendation && (
-              <div>
-                <Badge pill bg={recommendationVariant(stock.recommendation)} className="me-2">
-                  {stock.recommendation}
-                </Badge>
-                <Badge bg="light" text="dark" className="border">
-                  {stock.promising_score ?? "?"}
+              <Badge pill bg={recommendationVariant(stock.recommendation)}>
+                {stock.recommendation}
+              </Badge>
+            )}
+
+            {stock.promising_score !== undefined && (
+              <Badge bg="light" text="dark" className="border">
+                Score: {stock.promising_score}
+              </Badge>
+            )}
+
+            {stock.watchlist_recommendation && (
+              <div className="d-flex align-items-center gap-1">
+                <Badge
+                  bg="light"
+                  text={
+                    stock.watchlist_recommendation.replace(/\*/g, "").trim().toLowerCase() === "yes"
+                      ? "success"
+                      : "danger"
+                  }
+                  className="border"
+                  style={{ fontSize: "0.75rem" }}
+                >
+                  <span style={{ fontSize: "0.75rem", color: "gray" }}> Watch: </span>
+                  {stock.watchlist_recommendation.replace(/\*/g, "").trim()}
                 </Badge>
               </div>
             )}
+
+
             <Button
               style={{
                 backgroundColor: "rgb(102, 178, 255)",
                 color: "black",
                 border: "none",
                 minWidth: 100,
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.8rem",
               }}
               size="sm"
               onClick={handleAnalyzeClick}
