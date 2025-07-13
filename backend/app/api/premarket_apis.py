@@ -2,9 +2,11 @@ import datetime
 import json
 from difflib import get_close_matches
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+from threading import Event
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
@@ -13,6 +15,7 @@ from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ti
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
 from app.utils.shortterm.spike_scanner import compute_price_stats, detect_recent_downtrend, normalize_downtrend_for_json
 from app.utils.premarket.pre_gpt_analyzer import premarket_analyze_with_gpt
+from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 
 router = APIRouter()
@@ -267,8 +270,8 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
     snapshot = analyze_and_snapshot_ticker(
         db=db,
         ticker=ticker,
-        surge_threshold=1.5,
-        price_threshold=300,
+        surge_threshold=0.0,
+        price_threshold=1000,
     )
     if not snapshot:
         raise ValueError(f"{ticker} does not meet surge/price criteria.")
@@ -321,3 +324,95 @@ def analyze_starred_tickers(
 
     return results
 
+@router.post("/scan_news/{ticker}", response_model=Dict)
+def scan_news_for_ticker(
+    ticker: str,
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db),
+):
+    """
+    Analyze news for a specific ticker using GPT. 
+    Caches headline hash to avoid duplicate GPT calls.
+    """
+
+    result = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, model=model)
+    return {
+        "ticker": ticker,
+        "status": "updated" if result else "skipped (cached)",
+        "top_n": top_n,
+        "verdicts": result or [],
+    }
+
+def scan_and_analyze_low_cap_tickers(
+    db: Session,
+    from_page: int,
+    to_page: int,
+    price_threshold: float,
+    top_n: int,
+    model: str
+) -> Tuple[List[str], List[str]]:
+    tickers = fetch_low_cap_tickers(from_page, to_page, price_threshold)
+    alert_tickers = []
+
+    for ticker in tickers:
+        try:
+            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, model=model)
+            if impacts and any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
+                alert_tickers.append(ticker)
+        except Exception as e:
+            print(f"⚠️ Error scanning {ticker}: {e}")
+            continue
+
+    return tickers, alert_tickers
+
+@router.post("/scan_news_bulk", response_model=Dict)
+def scan_news_for_low_cap_bulk(
+    from_page: int = 1,
+    to_page: int = 5,
+    price_threshold: float = 300,
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db),
+):
+    tickers, alert_tickers = scan_and_analyze_low_cap_tickers(db, from_page, to_page, price_threshold, top_n, model)
+    return {
+        "scanned_tickers": tickers,
+        "alert_tickers": alert_tickers,
+        "from_page": from_page,
+        "to_page": to_page,
+        "price_threshold": price_threshold,
+    }
+
+auto_scan_stop_event = Event()
+
+@router.post("/auto_scan_news", response_model=Dict)
+def auto_scan_news(
+    interval_minutes: int = 60,
+    from_page: int = 1,
+    to_page: int = 5,
+    price_threshold: float = 300,
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db),
+):
+    auto_scan_stop_event.clear()
+    # This endpoint can trigger the same scanning logic, and you can extend it with scheduling or state management later
+    tickers, alert_tickers = scan_and_analyze_low_cap_tickers(db, from_page, to_page, price_threshold, top_n, model)
+    
+    # Optionally: store or log scan time, results, etc.
+    
+    return {
+        "message": f"Auto scan complete. Interval: {interval_minutes} minutes",
+        "scanned_tickers": tickers,
+        "alert_tickers": alert_tickers,
+    }
+
+@router.post("/stop_auto_scan")
+def stop_auto_scan():
+    auto_scan_stop_event.set()
+    return {"message": "Auto scan stopped"}
+
+@router.get("/positive_news", response_model=List[Dict])
+def get_positive_news_api(db: Session = Depends(get_db)):
+    return get_positive_news(db)

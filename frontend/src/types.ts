@@ -1,4 +1,6 @@
 export interface VolumeSurgeStock {
+  promising_score?: number;
+  recommendation?: any;
   ticker: string;
   name: string;
   current_price: number;

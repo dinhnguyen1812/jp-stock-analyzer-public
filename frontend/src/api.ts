@@ -242,7 +242,7 @@ export async function analyzeAllStarredTickers() {
 
 export async function analyzeSingleTicker(ticker: string) {
   if (!ticker) throw new Error("Ticker is required");
-  const res = await fetch(`${BASE_URL}/analyze/${ticker}`, {
+  const res = await fetch(`${BASE_URL}/premarket/analyze/${ticker}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -256,3 +256,100 @@ export async function analyzeSingleTicker(ticker: string) {
 
   return await res.json();
 }
+
+export async function scanNewsForTicker(ticker: string) {
+  if (!ticker) throw new Error("Ticker is required");
+  const res = await fetch(`${BASE_URL}/scan_news/${ticker}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Scan news failed: ${errorText}`);
+  }
+
+  return await res.json();
+}
+
+export async function scanNewsBulk() {
+  const res = await fetch(`${BASE_URL}/premarket/scan_news_bulk`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Bulk scan news failed: ${errorText}`);
+  }
+
+  return await res.json();
+}
+
+export async function autoScanNews(params?: {
+  interval_minutes?: number;
+  from_page?: number;
+  to_page?: number;
+  price_threshold?: number;
+  top_n?: number;
+  model?: string;
+}) {
+  const query = new URLSearchParams();
+
+  if (params) {
+    if (params.interval_minutes !== undefined) query.append("interval_minutes", String(params.interval_minutes));
+    if (params.from_page !== undefined) query.append("from_page", String(params.from_page));
+    if (params.to_page !== undefined) query.append("to_page", String(params.to_page));
+    if (params.price_threshold !== undefined) query.append("price_threshold", String(params.price_threshold));
+    if (params.top_n !== undefined) query.append("top_n", String(params.top_n));
+    if (params.model !== undefined) query.append("model", params.model);
+  }
+
+  const res = await fetch(`${BASE_URL}/premarket/auto_scan_news?${query.toString()}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Auto scan failed: ${errorText}`);
+  }
+
+  return await res.json();
+}
+
+export async function stopAutoScan() {
+  const res = await fetch(`${BASE_URL}/premarket/stop_auto_scan`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Stop auto scan failed: ${errorText}`);
+  }
+
+  return await res.json();
+}
+
+export async function getPositiveNewsTickers() {
+  const res = await fetch(`${BASE_URL}/premarket/positive_news`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Get positive news tickers failed: ${errorText}`);
+  }
+
+  return await res.json() as string[];
+}
+

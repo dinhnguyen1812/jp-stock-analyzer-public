@@ -63,6 +63,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
     <Card className="mb-3 py-2 px-2 shadow-sm">
       <Card.Body className="py-2 px-1">
         <Form>
+          <h5 className="mb-3">📈 Pre-Market Volume Surge Scanner</h5>
           <Row
             className="align-items-center g-2 flex-nowrap"
             style={{ overflowX: "auto", fontSize: "0.85rem" }}
