@@ -25,23 +25,24 @@ const PreMarketPage: React.FC = () => {
   const [analyzedResults, setAnalyzedResults] = useState<any[]>([]);
   const [tickerInput, setTickerInput] = useState<string>("");
 
-  const normalizeAnalyzedStock = (item: any): VolumeSurgeStock & {
-    watchlist_recommendation?: string;
-    promising_score?: number;
-    recommendation?: string | null;
-    starred?: boolean;
-    detected_at: string;
-  } => {
-    const vol = item.volume_info;
+  const normalizeAnalyzedStock = (item: any) => {
+    const vol = item?.volume_info;
+    if (!vol || typeof vol !== "object" || !vol.ticker) {
+      console.warn("Skipping invalid analyzed item:", item);
+      return null;
+    }
+
     return {
       ...vol,
       watchlist_recommendation: vol.watchlist_recommendation ?? undefined,
-      promising_score: vol.promising_score === null ? undefined : vol.promising_score,
+      promising_score:
+        typeof vol.promising_score === "number" ? vol.promising_score : undefined,
       recommendation: vol.recommendation ?? undefined,
-      starred: vol.starred ?? false,
+      starred: !!vol.starred,
       detected_at: vol.detected_at || new Date().toISOString(),
     };
   };
+
 
   const handleScan = async () => {
     setLoading(true);
@@ -166,7 +167,7 @@ const PreMarketPage: React.FC = () => {
             Analyzed Volume Surge Stocks ({analyzedResults.length})
           </h5>
           <PreMarketStockTable
-            stocks={analyzedResults.map(normalizeAnalyzedStock)}
+            stocks={analyzedResults.map(normalizeAnalyzedStock).filter(Boolean)}
             onStarToggle={handleStarToggle}
           />
         </>

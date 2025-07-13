@@ -39,30 +39,42 @@ def detect_recent_downtrend(db: Session, ticker: str, days: int = 30) -> dict:
             "had_downtrend": False,
             "drop_pct": 0.0,
             "from_date": None,
-            "to_date": None
+            "to_date": None,
         }
 
     close_prices = [p.close for p in prices]
     dates = [p.date for p in prices]
 
-    max_drop = 0.0
-    start_idx, end_idx = -1, -1
-    for i in range(len(close_prices)):
-        high = close_prices[i]
-        for j in range(i + 1, len(close_prices)):
-            low = close_prices[j]
-            drop_pct = (low - high) / high * 100
-            if drop_pct < max_drop:
-                max_drop = drop_pct
-                start_idx = i
-                end_idx = j
+    # 1. Find the highest price in the last `days`
+    max_price = max(close_prices)
+    max_idx = close_prices.index(max_price)
+    max_date = dates[max_idx]
+
+    # 2. Find lowest price after the peak
+    post_peak_prices = close_prices[max_idx + 1 :]
+    post_peak_dates = dates[max_idx + 1 :]
+
+    if not post_peak_prices:
+        return {
+            "ticker": ticker,
+            "had_downtrend": False,
+            "drop_pct": 0.0,
+            "from_date": None,
+            "to_date": None,
+        }
+
+    min_price = min(post_peak_prices)
+    min_idx = post_peak_prices.index(min_price)
+    min_date = post_peak_dates[min_idx]
+
+    drop_pct = (min_price - max_price) / max_price * 100
 
     return {
         "ticker": ticker,
-        "had_downtrend": max_drop <= -10,
-        "drop_pct": round(max_drop, 2),
-        "from_date": dates[start_idx] if start_idx >= 0 else None,
-        "to_date": dates[end_idx] if end_idx >= 0 else None
+        "had_downtrend": drop_pct <= -20,  # e.g. 20% drop after recent peak
+        "drop_pct": round(drop_pct, 2),
+        "from_date": max_date,
+        "to_date": min_date,
     }
 
 

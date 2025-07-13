@@ -86,6 +86,16 @@ You can track new listings on the JPX New Listings page, which includes market s
   <!-- - Add column: Is there good news -->
   - Scan news even with stocks that have not surged in volume
     - Add each component to the Scan Form
+      - Add scan news for one ticker
     - Fix return for scan_news_for_ticker
   <!-- - Bring Holdings List here -->
-  - 
+  - Fix downtrend: 
+    - 2743: there is no recent downtrend, but system says yes
+    - include from_day and to_day in the model
+    - get info from db
+    - includ from_day and to_day in the prompt
+  - Add verify news, how did market reacted to similar news, if there is
+  - Ask GPT about decisive news
+  - Show starred in fetch news
+  - Add detect_recent_uptrend
+  - Detect similar news with recent good news and analyze how did market react: did the price go up? or down? did the price already reflected the news? Is this good time to buy?

@@ -36,8 +36,8 @@ def get_last_headline_hash(db: Session, ticker: str) -> str:
     headlines = [i.headline for i in impacts]
     return hash_headlines(headlines) if headlines else ""
 
-def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o"):
-    news_items = scrape_kabutan_news(ticker, limit=30)
+def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, days_threshold=10, model: str = "gpt-4o"):
+    news_items = scrape_kabutan_news(ticker, limit=30, days_threshold=days_threshold)
     if not news_items:
         return None
 

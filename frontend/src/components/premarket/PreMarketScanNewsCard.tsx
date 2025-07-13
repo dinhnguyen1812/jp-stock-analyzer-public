@@ -56,7 +56,16 @@ const PreMarketScanNewsCard: React.FC = () => {
     setAlertTickers([]);
     try {
       const result = await scanNewsBulk(fromPage, toPage, priceThreshold);
-      setAlertTickers(result || []);
+
+      if (Array.isArray(result?.alert_tickers)) {
+        setAlertTickers(result.alert_tickers);
+      } else {
+        setAlertTickers([]);
+      }
+
+      // ✅ Also fetch saved positive news (if needed)
+      await handleFetchPositiveNews(); // Optional – only if desired
+
     } catch (err) {
       alert("Scan failed: " + err);
     } finally {
@@ -121,7 +130,7 @@ const PreMarketScanNewsCard: React.FC = () => {
       <Card.Title>📰 Kabutan News Scanner</Card.Title>
 
       <Row className="g-3 align-items-center mb-3">
-        <Col xs={12} md={3}>
+        <Col xs={12} md={2}>
           <InputGroup>
             <InputGroup.Text>From</InputGroup.Text>
             <Form.Control
@@ -133,7 +142,7 @@ const PreMarketScanNewsCard: React.FC = () => {
             />
           </InputGroup>
         </Col>
-        <Col xs={12} md={3}>
+        <Col xs={12} md={2}>
           <InputGroup>
             <InputGroup.Text>To</InputGroup.Text>
             <Form.Control
@@ -145,7 +154,7 @@ const PreMarketScanNewsCard: React.FC = () => {
             />
           </InputGroup>
         </Col>
-        <Col xs={12} md={3}>
+        <Col xs={12} md={4}>
           <InputGroup>
             <InputGroup.Text>Price ≤</InputGroup.Text>
             <Form.Control

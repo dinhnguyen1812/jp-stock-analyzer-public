@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 import openai
 
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
-from app.utils.shortterm.spike_scanner import compute_price_stats, detect_recent_downtrend
+from app.utils.shortterm.spike_scanner import compute_price_stats, detect_recent_downtrend, normalize_downtrend_for_json
 from app.models import DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -94,10 +94,16 @@ def premarket_analyze_with_gpt(
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
     # Get downtrend info
-    downtrend = detect_recent_downtrend(db, ticker)
+    downtrend_info = normalize_downtrend_for_json(detect_recent_downtrend(db, ticker))
+    had_downtrend = downtrend_info.get("had_downtrend", False)
+    drop_pct = downtrend_info.get("drop_pct", 0)
+    from_date = downtrend_info.get("from_date", "?")
+    to_date = downtrend_info.get("to_date", "?")
+
     downtrend_str = (
-        f"📉 Recent Downtrend Detected: {downtrend['drop_pct']}% from {downtrend['from_date']} to {downtrend['to_date']}\n"
-        if downtrend.get("had_downtrend") else "📈 No major downtrend in recent 30 days.\n"
+        f"📉 Recent Downtrend Detected: Dropped {drop_pct:.2f}% from {from_date} to {to_date}.\n"
+        if had_downtrend else
+        f"📈 No major downtrend in the recent 30 days. Latest range: {from_date} to {to_date}.\n"
     )
 
     # Get price history stats
@@ -135,27 +141,32 @@ def premarket_analyze_with_gpt(
     headlines = [f"[{item['category']}] {item['headline']}" for item in news_items[:top_n]]
     prompt = (
         f"You are a financial analyst providing a **pre-market** outlook for Japanese stock {ticker}.\n\n"
+
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"### Technical Indicators (for reference, less emphasis):\n{tech_summary}\n"
         f"### Recent News Headlines:\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
+        
         "\n\n### Analysis Instructions:\n"
-        "- Focus primarily on volume surge, price movements, and news impact to predict **tomorrow's market behavior**.\n"
-        "- Use technical signals as supplementary confirmation.\n"
-        "- Identify if the stock is likely to **break out** or have notable movement tomorrow, and why.\n"
-        "- Evaluate news sentiment and relevance, especially on major themes like AI, Bitcoin, semiconductors, political events.\n"
-        "- Evaluate whether the news sentiment is bullish, bearish, or neutral\n"
+        "- Focus primarily on **volume surge**, **price movements**, and **news impact** to predict **tomorrow's market behavior**.\n"
+        "- If there was a recent **volume surge** or **price spike**, explain **why**. Is it a justified move or based on weak fundamentals/news?\n"
+        "- Use technical indicators (RSI, MACD, MA, etc.) as secondary confirmation, not the main basis.\n"
+        "- Identify whether the stock is likely to **break out**, remain flat, or decline in the short term — and explain why.\n"
+        "- Evaluate the **sentiment and relevance** of the news — especially for themes like AI, Bitcoin, semiconductors, interest rates, or major partnerships.\n"
+        "- For each headline, judge whether its impact is **bullish**, **bearish**, or **neutral**, and briefly explain.\n"
         "- Provide a clear recommendation: **Buy**, **Hold**, **Sell**, or **Short**.\n"
-        "- Justify your recommendation with 2-3 concise bullet points.\n"
-        "- Score the short-term promise from 0 to 100.\n"
-        "- Estimate a likely short-term price target.\n"
-        "- Based on all factors above, clearly state if the stock should be **added to a pre-market watchlist**. Answer: Yes or No.\n\n"
+        "- Justify your recommendation with **2–3 concise bullet points**.\n"
+        "- Give a short-term **Promising Score** from 0 to 100.\n"
+        "- Estimate a **likely short-term price target** in JPY.\n"
+        "- Based on all factors, clearly state if the stock should be **added to a pre-market watchlist**. Answer: Yes or No.\n\n"
+
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
         "   - **Verdict: One of [Decisive, Great, Good, Neutral, Bad]**\n"
         "   - **Reason: 1 concise sentence explaining why**\n"
         "(Repeat for each headline)\n\n"
+
         "Summary:\n<Brief analysis focusing on pre-market outlook>\n\n"
         "- Investment Recommendation: Buy / Hold / Sell / Short\n"
         "- Promising Score: (0–100)\n"
@@ -223,7 +234,7 @@ def premarket_analyze_with_gpt(
             "headline_impacts": impacts,
             "summary": summary,
             "gpt_raw_response": reply,
-            "downtrend": downtrend,
+            "downtrend": downtrend_info,
             "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
             "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
             "highest_price": price_stats.get("highest_price"),

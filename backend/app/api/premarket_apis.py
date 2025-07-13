@@ -260,6 +260,90 @@ def get_all_saved_volume_analyses(
 
     return results
 
+@router.get("/saved_analysis/{ticker}", response_model=Dict)
+def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
+    vs = (
+        db.query(VolumeSnapshot)
+        .filter(VolumeSnapshot.ticker == ticker)
+        .filter(VolumeSnapshot.promising_score > 0)
+        .order_by(VolumeSnapshot.detected_at.desc())
+        .first()
+    )
+
+    if not vs:
+        raise HTTPException(status_code=404, detail=f"No saved premarket analysis found for {ticker}")
+
+    # Parse top news
+    top_news = []
+    if vs.top_news:
+        try:
+            top_news = json.loads(vs.top_news)
+        except Exception:
+            top_news = []
+
+    # Match with impact data
+    impacts = (
+        db.query(StockNewsImpact)
+        .filter(StockNewsImpact.ticker == vs.ticker)
+        .order_by(StockNewsImpact.created_at.desc())
+        .all()
+    )
+    impact_headlines = [imp.headline for imp in impacts]
+
+    for news_item in top_news:
+        headline = news_item.get("headline", "")
+        match = get_close_matches(headline, impact_headlines, n=1, cutoff=0.6)
+        if match:
+            matched_impact = next((imp for imp in impacts if imp.headline == match[0]), None)
+            if matched_impact:
+                news_item["impact_verdict"] = matched_impact.verdict
+                news_item["impact_reason"] = matched_impact.reason
+        else:
+            news_item["impact_verdict"] = None
+            news_item["impact_reason"] = None
+
+    # Downtrend
+    downtrend_info = normalize_downtrend_for_json(detect_recent_downtrend(db, vs.ticker))
+
+    # Price stats
+    start_date = datetime.date.today() - datetime.timedelta(days=30)
+    prices = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.ticker == vs.ticker, DailyPrice.date >= start_date)
+        .order_by(DailyPrice.date.asc())
+        .all()
+    )
+    price_stats = compute_price_stats(prices, vs.current_price)
+
+    # Analysis signal
+    analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
+
+    return {
+        "volume_info": {
+            "ticker": vs.ticker,
+            "name": vs.name,
+            "current_price": vs.current_price,
+            "price_change": vs.price_change,
+            "volume_rate": vs.volume_rate,
+            "money_flow_rate": vs.money_flow_rate,
+            "current_volume": vs.current_volume,
+            "avg_volume_5d": vs.avg_volume_5d,
+            "detected_at": vs.detected_at.isoformat(),
+            "reasoning": vs.reasoning,
+            "recommendation": vs.recommendation,
+            "promising_score": vs.promising_score,
+            "top_news": top_news,
+            "watchlist_recommendation": vs.watchlist_recommendation,
+            "downtrend": downtrend_info,
+            "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
+            "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
+            "highest_price": price_stats.get("highest_price"),
+            "lowest_price": price_stats.get("lowest_price"),
+            "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
+        },
+        "analysis_signal": analysis_signal_data,
+    }
+
 def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o") -> Dict:
     # Step 1: Get news
     news = scrape_kabutan_news(ticker, limit=30)
@@ -271,7 +355,7 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         db=db,
         ticker=ticker,
         surge_threshold=0.0,
-        price_threshold=1000,
+        price_threshold=3000,
     )
     if not snapshot:
         raise ValueError(f"{ticker} does not meet surge/price criteria.")
@@ -282,7 +366,7 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         raise ValueError(f"No volume data found for {ticker}")
 
     # Step 4: Analyze with GPT
-    return premarket_analyze_with_gpt(
+    premarket_analyze_with_gpt(
         db=db,
         ticker=ticker,
         news_items=news,
@@ -290,6 +374,7 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         top_n=top_n,
         model=model,
     )
+    return {"message": f"Analyzing complete. {ticker} analyzed."}
 
 @router.post("/analyze/{ticker}", response_model=Dict)
 def analyze_single_ticker(
@@ -307,17 +392,15 @@ def analyze_single_ticker(
 @router.post("/analyze_starred", response_model=List[Dict])
 def analyze_starred_tickers(
     top_n: int = 3,
-    # model: str = "gpt-4o",
-    model: str = "gpt-3.5-turbo",
+    model: str = "gpt-4o",
+    # model: str = "gpt-3.5-turbo",
     db: Session = Depends(get_db)
 ):
     starred_tickers = db.query(StarredStock.ticker).all()
-    print(f"====starred_tickers={starred_tickers}")
     ticker_list = [t[0] for t in starred_tickers]  # convert list of tuples to list of strings
     results = []
 
     for ticker in ticker_list:
-        print(f"====ticker={ticker}")
         try:
             result = analyze_ticker_by_steps(db, ticker, top_n, model)
             results.append(result)
@@ -339,7 +422,7 @@ def scan_news_for_ticker(
     Caches headline hash to avoid duplicate GPT calls.
     """
 
-    result = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, model=model)
+    result = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=10, model=model)
     return {
         "ticker": ticker,
         "status": "updated" if result else "skipped (cached)",
@@ -360,7 +443,7 @@ def scan_and_analyze_low_cap_tickers(
 
     for ticker in tickers:
         try:
-            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, model=model)
+            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=3, model=model)
             if impacts and any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
                 alert_tickers.append(ticker)
         except Exception as e:

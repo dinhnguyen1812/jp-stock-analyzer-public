@@ -28,7 +28,7 @@ KEYWORDS = [
 def relevance_score(headline: str) -> int:
     return sum(1 for kw in KEYWORDS if kw in headline)
 
-def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
+def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: int = 10) -> List[Dict]:
     url = f"https://kabutan.jp/stock/news?code={ticker}"
     headers = {
         "User-Agent": "Mozilla/5.0",
@@ -64,7 +64,7 @@ def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
             except ValueError:
                 continue
             now = datetime.now(tz=published_dt.tzinfo)
-            if published_dt < now - timedelta(days=10):
+            if published_dt < now - timedelta(days=days_threshold):
                 continue
 
             category_td = time_td.find_next_sibling("td")

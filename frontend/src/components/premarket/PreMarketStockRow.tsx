@@ -1,11 +1,17 @@
 import React, { useState, useCallback, type JSX } from "react";
 import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
-import { fetchAllAnalyses, starStock, unstarStock } from "../../api";
+import { fetchSavedPremarketAnalysis, starStock, unstarStock } from "../../api";
 import { formatDistance } from "date-fns";
 
 interface PreMarketStockRowProps {
-  stock: VolumeSurgeStock & { watchlist_recommendation?: string; promising_score?: number; recommendation?: string | null; starred?: boolean; detected_at: string };
+  stock: VolumeSurgeStock & {
+    watchlist_recommendation?: string;
+    promising_score?: number;
+    recommendation?: string | null;
+    starred?: boolean;
+    detected_at: string;
+  };
   latestDetectedAt: string;
   onStarToggle: (ticker: string, starred: boolean) => void;
 }
@@ -42,7 +48,6 @@ export interface SavedAnalysis {
   analysis_signal: AnalysisSignal;
 }
 
-// Keyword highlighting logic
 const keywordMap = [
   { word: "bullish", variant: "success" },
   { word: "bearish", variant: "danger" },
@@ -94,14 +99,13 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   const [starLoading, setStarLoading] = useState(false);
   const [, setForceUpdate] = useState(0);
 
-  const handleAnalyzeClick = useCallback(async () => {
+  const handleAnalysisClick = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const allData: SavedAnalysis[] = await fetchAllAnalyses();
-      const found = allData.find((item) => item.volume_info.ticker === stock.ticker);
-      if (!found) throw new Error(`No analysis found for ticker ${stock.ticker}`);
-      setAnalysis(found);
+      const result: SavedAnalysis = await fetchSavedPremarketAnalysis(stock.ticker);
+      console.log(result)
+      setAnalysis(result);
       setShowModal(true);
     } catch (err: any) {
       setError(err.message || "Failed to load analysis");
@@ -138,6 +142,11 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     }
   };
 
+  const ONE_HOUR_MS = 1000 * 60 * 60;
+  const isOld =
+    new Date(stock.detected_at).getTime() <
+    new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
+
   const verdictRank: Record<string, number> = {
     decisive: 5,
     great: 4,
@@ -146,13 +155,9 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     bad: 1,
   };
 
-  const ONE_HOUR_MS = 1000 * 60 * 60;
-  const isOld =
-    new Date(stock.detected_at).getTime() <
-    new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
-
   return (
     <>
+      {/* ROW */}
       <tr>
         <td className="text-center align-middle" style={{ width: 40 }}>
           <Button
@@ -190,7 +195,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         <td className="align-middle text-center">{stock.ticker}</td>
         <td className="align-middle">{stock.name}</td>
         <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
-        {/* <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td> */}
         <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
@@ -224,28 +228,16 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             )}
 
             {Array.isArray(stock.top_news) && stock.top_news.length > 0 && (() => {
-              const verdictRank: Record<string, number> = {
-                decisive: 5,
-                great: 4,
-                good: 3,
-                neutral: 2,
-                bad: 1,
-              };
-
               const newsWithVerdict = stock.top_news.filter(
                 (n) => typeof n.impact_verdict === "string"
               );
-
               if (newsWithVerdict.length === 0) return null;
-
               const bestNews = newsWithVerdict.sort((a, b) => {
                 const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
                 const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
                 return bRank - aRank;
               })[0];
-
               const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
-
               const badgeColor =
                 verdict === "decisive"
                   ? "danger"
@@ -256,9 +248,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   : verdict === "neutral"
                   ? "secondary"
                   : "light";
-
               const textColor = verdict === "bad" ? "dark" : "light";
-
               return (
                 <Badge
                   bg={badgeColor}
@@ -272,21 +262,19 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             })()}
 
             {stock.watchlist_recommendation && (
-              <div className="d-flex align-items-center gap-1">
-                <Badge
-                  bg="light"
-                  text={
-                    stock.watchlist_recommendation.replace(/\*/g, "").trim().toLowerCase() === "yes"
-                      ? "success"
-                      : "danger"
-                  }
-                  className="border"
-                  style={{ fontSize: "0.75rem" }}
-                >
-                  <span style={{ fontSize: "0.75rem", color: "gray" }}> Watch: </span>
-                  {stock.watchlist_recommendation.replace(/\*/g, "").trim()}
-                </Badge>
-              </div>
+              <Badge
+                bg="light"
+                text={
+                  stock.watchlist_recommendation.replace(/\*/g, "").trim().toLowerCase() === "yes"
+                    ? "success"
+                    : "danger"
+                }
+                className="border"
+                style={{ fontSize: "0.75rem" }}
+              >
+                <span style={{ fontSize: "0.75rem", color: "gray" }}> Watch: </span>
+                {stock.watchlist_recommendation.replace(/\*/g, "").trim()}
+              </Badge>
             )}
 
             <Button
@@ -299,7 +287,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 fontSize: "0.8rem",
               }}
               size="sm"
-              onClick={handleAnalyzeClick}
+              onClick={handleAnalysisClick}
               disabled={loading}
               aria-label={`View analysis for ${stock.ticker}`}
             >
@@ -405,8 +393,8 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                           : "N/A"}
                       </li>
                       <li>
-                        From: {analysis.volume_info.downtrend.from_date ?? "?"} &nbsp;
-                        To: {analysis.volume_info.downtrend.to_date ?? "?"}
+                        From: {analysis.volume_info.downtrend.from_date ?? "N/A"} &nbsp;
+                        To: {analysis.volume_info.downtrend.to_date ?? "N/A"}
                       </li>
                     </ul>
                   ) : (

@@ -364,4 +364,9 @@ export async function getPositiveNewsTickers() {
   }[];
 }
 
+export async function fetchSavedPremarketAnalysis(ticker: string) {
+  const res = await fetch(`${BASE_URL}/premarket/saved_analysis/${ticker}`);
+  if (!res.ok) throw new Error(`Failed to fetch saved analysis for ${ticker}`);
+  return await res.json();
+}
 
