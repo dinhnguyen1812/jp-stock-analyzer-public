@@ -199,3 +199,5 @@ class StockNewsImpact(Base):
     verdict = Column(String, nullable=True)  # e.g., "Neutral", "Good", "Great", "Decisive"
     reason = Column(String, nullable=True)   # Max 1-line reason
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    published_at = Column(DateTime, nullable=True)  # <--- Add this
+    url = Column(String, nullable=True)              # <--- Add this

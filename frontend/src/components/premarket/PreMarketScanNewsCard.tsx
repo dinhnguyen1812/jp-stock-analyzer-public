@@ -8,6 +8,8 @@ interface PositiveNewsItem {
   verdict: string;
   reason: string;
   created_at: string;
+  published_at?: string | null;
+  url?: string | null;
 }
 
 const PreMarketScanNewsCard: React.FC = () => {
@@ -22,11 +24,9 @@ const PreMarketScanNewsCard: React.FC = () => {
     setLoadingScan(true);
     setAlertTickers([]);
     try {
-      // Assuming your scanNewsBulk accepts parameters now, else adjust accordingly
       const result = await scanNewsBulk(fromPage, toPage, priceThreshold);
-      // The backend returns alert_tickers as array of strings (tickers),
-      // so just map to simple PositiveNewsItem with ticker only for display here or clear alertTickers
-      setAlertTickers(result.alert_tickers.map((ticker: string) => ({ ticker } as PositiveNewsItem)) || []);
+      // ✅ Expect backend to return full news objects
+      setAlertTickers(result || []);
     } catch (err) {
       alert("Scan failed: " + err);
     } finally {
@@ -38,7 +38,7 @@ const PreMarketScanNewsCard: React.FC = () => {
     setLoadingPositive(true);
     try {
       const result = await getPositiveNewsTickers();
-      setAlertTickers(result);
+      setAlertTickers(result || []);
     } catch (err) {
       alert("Failed to fetch positive news tickers: " + err);
     } finally {
@@ -105,11 +105,7 @@ const PreMarketScanNewsCard: React.FC = () => {
                 onClick={handleFetchPositiveNews}
                 disabled={loadingScan || loadingPositive}
               >
-                {loadingPositive ? (
-                  <Spinner animation="border" size="sm" />
-                ) : (
-                  "Fetch Positive"
-                )}
+                {loadingPositive ? <Spinner animation="border" size="sm" /> : "Fetch Positive"}
               </Button>
             </Col>
           </Row>
@@ -122,36 +118,33 @@ const PreMarketScanNewsCard: React.FC = () => {
           <div style={{ fontSize: "0.9rem" }}>
             {alertTickers.map((item) => (
               <div
-                key={`${item.ticker}-${item.created_at || Math.random()}`}
+                key={`${item.ticker}-${item.published_at || item.created_at}`}
                 className="mb-2 p-2 border rounded bg-light"
               >
                 <div>
                   <strong>
                     <a
-                      href={`https://kabutan.jp/stock/news?code=${item.ticker}`}
+                      href={item.url || `https://kabutan.jp/stock/news?code=${item.ticker}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ textDecoration: "none", color: "#0d6efd" }}
                     >
-                      {item.ticker}
+                      {item.headline || item.ticker}
                     </a>
-                  </strong>{" "}
-                  -{" "}
-                  <em>
-                    {item.created_at
+                  </strong>
+                </div>
+                <div>
+                  <small>
+                    {item.published_at
+                      ? new Date(item.published_at).toLocaleString()
+                      : item.created_at
                       ? new Date(item.created_at).toLocaleString()
                       : "Date unknown"}
-                  </em>
+                  </small>
                 </div>
-                {item.headline && (
-                  <div>
-                    <strong>Headline: </strong>
-                    {item.headline}
-                  </div>
-                )}
                 {item.verdict && (
                   <div>
-                    <strong>Verdict: </strong>
+                    <strong>Impact Verdict: </strong>
                     <span
                       className={
                         item.verdict === "Decisive"

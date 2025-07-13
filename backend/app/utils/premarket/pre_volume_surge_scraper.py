@@ -89,9 +89,18 @@ def analyze_and_snapshot_ticker(
     price_threshold: float = 300.0,
 ) -> Optional[VolumeSnapshot]:
     try:
+        fetch_and_save_price_history(db, ticker)
+
+        price = db.query(DailyPrice).filter_by(ticker=ticker, date=last_day).first()
+        if not price:
+            return None
+
+        current_price = price.close
+        if current_price > price_threshold:
+            return None
+
         update_avg_volume_for_ticker(db, ticker)
         update_avg_money_flow_for_ticker(db, ticker)
-        fetch_and_save_price_history(db, ticker)
 
         last_day = get_latest_trading_day(db, ticker)
         if not last_day:
@@ -107,13 +116,6 @@ def analyze_and_snapshot_ticker(
 
         volume_rate = dv.volume / avg_vol.avg_5d_volume
         if volume_rate < surge_threshold:
-            return None
-
-        price = db.query(DailyPrice).filter_by(ticker=ticker, date=last_day).first()
-        if not price:
-            return None
-        current_price = price.close
-        if current_price > price_threshold:
             return None
 
         # Money flow rate

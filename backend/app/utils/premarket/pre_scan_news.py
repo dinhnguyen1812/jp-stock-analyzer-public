@@ -72,21 +72,30 @@ def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, m
         reply = response.choices[0].message.content.strip()
         impacts = extract_headline_impacts(reply, top_n=top_n)
 
+        # Clear old records for this ticker
         db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
+
         for item in impacts:
             if not item.get("headline") or not item.get("verdict"):
                 continue
+
+            # Find the scraped news matching this headline to get published_at and url
+            matched_news = next(
+                (n for n in news_items if n['headline'] in item['headline']), None
+            )
+
             impact = StockNewsImpact(
                 ticker=ticker,
                 headline=item["headline"],
                 verdict=item["verdict"],
                 reason=item.get("reason", ""),
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
+                published_at=matched_news["published_at"] if matched_news else None,
+                url=matched_news["url"] if matched_news else None,
             )
             db.add(impact)
         db.commit()
 
-        # Optional: alert logic can be returned or logged
         if any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
             print(f"🚨 Positive news detected for {ticker}: {', '.join(i['verdict'] for i in impacts)}")
 
@@ -106,7 +115,7 @@ def get_positive_news(db: Session) -> List[dict]:
     results = (
         db.query(StockNewsImpact)
         .filter(StockNewsImpact.verdict.in_(positive_verdicts))
-        .order_by(StockNewsImpact.created_at.desc())
+        .order_by(StockNewsImpact.published_at.desc())  # Sort by published date, not created_at
         .all()
     )
     return [
@@ -116,6 +125,8 @@ def get_positive_news(db: Session) -> List[dict]:
             "verdict": r.verdict,
             "reason": r.reason,
             "created_at": r.created_at.isoformat(),
+            "published_at": r.published_at.isoformat() if r.published_at else None,
+            "url": r.url,
         }
         for r in results
     ]

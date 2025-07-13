@@ -184,24 +184,34 @@ def premarket_analyze_with_gpt(
                 watchlist_recommendation = line.split(":")[-1].strip()
                 break
 
-        # Save results to DB
+        # Save results to DB (including published_at and url if available)
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
-        volume_info.watchlist_recommendation = watchlist_recommendation  # ✅ Add this line
+        volume_info.watchlist_recommendation = watchlist_recommendation
         volume_info.top_news = json.dumps(news_items[:top_n], ensure_ascii=False)
         db.commit()
 
+        # Clear old news impact for this ticker
         db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
-        for item in impacts:
+        for idx, item in enumerate(impacts):
             if not item.get("headline") or not item.get("verdict"):
                 continue
+            # Try to find corresponding scraped news item for url and published_at
+            matched_news = next(
+                (n for n in news_items if n["headline"] == item["headline"] or f"[{n['category']}] {n['headline']}" == item["headline"]),
+                {}
+            )
+            published_at = matched_news.get("published_at")
+            url = matched_news.get("url")
             impact = StockNewsImpact(
                 ticker=ticker,
                 headline=item["headline"],
                 verdict=item["verdict"],
                 reason=item.get("reason", ""),
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
+                published_at=published_at if published_at else datetime.utcnow(),
+                url=url
             )
             db.add(impact)
         db.commit()
@@ -213,7 +223,7 @@ def premarket_analyze_with_gpt(
             "headline_impacts": impacts,
             "summary": summary,
             "gpt_raw_response": reply,
-            "downtrend": downtrend,  # ✅ include this
+            "downtrend": downtrend,
             "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
             "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
             "highest_price": price_stats.get("highest_price"),
@@ -223,3 +233,4 @@ def premarket_analyze_with_gpt(
     except Exception as e:
         print(f"❌ GPT error for {ticker}: {e}")
         return {"ticker": ticker, "error": str(e)}
+
