@@ -1,5 +1,15 @@
 import React, { useState } from "react";
-import { Card, Row, Col, Form, Button, Spinner, InputGroup } from "react-bootstrap";
+import {
+  Card,
+  Row,
+  Col,
+  Form,
+  Button,
+  Spinner,
+  InputGroup,
+  Table,
+  Badge,
+} from "react-bootstrap";
 import { scanNewsBulk, getPositiveNewsTickers } from "../../api";
 
 interface PositiveNewsItem {
@@ -12,6 +22,23 @@ interface PositiveNewsItem {
   url?: string | null;
 }
 
+const getVerdictColor = (verdict: string) => {
+  const lower = verdict?.toLowerCase();
+  if (lower === "decisive") return "danger";
+  if (lower === "great") return "success";
+  if (lower === "good") return "warning";
+  if (lower === "neutral") return "secondary";
+  return "light";
+};
+
+// Sorting priorities
+const verdictPriority: Record<string, number> = {
+  decisive: 4,
+  great: 3,
+  good: 2,
+  neutral: 1,
+};
+
 const PreMarketScanNewsCard: React.FC = () => {
   const [fromPage, setFromPage] = useState(1);
   const [toPage, setToPage] = useState(5);
@@ -19,13 +46,14 @@ const PreMarketScanNewsCard: React.FC = () => {
   const [loadingScan, setLoadingScan] = useState(false);
   const [loadingPositive, setLoadingPositive] = useState(false);
   const [alertTickers, setAlertTickers] = useState<PositiveNewsItem[]>([]);
+  const [sortKey, setSortKey] = useState<"published_at" | "verdict" | null>(null);
+  const [sortAsc, setSortAsc] = useState(false);
 
   const handleScanNews = async () => {
     setLoadingScan(true);
     setAlertTickers([]);
     try {
       const result = await scanNewsBulk(fromPage, toPage, priceThreshold);
-      // ✅ Expect backend to return full news objects
       setAlertTickers(result || []);
     } catch (err) {
       alert("Scan failed: " + err);
@@ -46,10 +74,35 @@ const PreMarketScanNewsCard: React.FC = () => {
     }
   };
 
+  const handleSort = (key: "published_at" | "verdict") => {
+    if (sortKey === key) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortKey(key);
+      setSortAsc(false); // default: descending
+    }
+  };
+
+  const sortedTickers = [...alertTickers].sort((a, b) => {
+    if (sortKey === "published_at") {
+      const dateA = new Date(a.published_at || a.created_at).getTime();
+      const dateB = new Date(b.published_at || b.created_at).getTime();
+      return sortAsc ? dateA - dateB : dateB - dateA;
+    }
+    if (sortKey === "verdict") {
+      const scoreA = verdictPriority[a.verdict?.toLowerCase()] || 0;
+      const scoreB = verdictPriority[b.verdict?.toLowerCase()] || 0;
+      return sortAsc ? scoreA - scoreB : scoreB - scoreA;
+    }
+    return 0;
+  });
+
   return (
-    <Card className="mb-3 px-3 py-3 shadow-sm">
+    <Card className="mb-4 px-3 py-3 shadow-sm">
       <Card.Title>📰 Kabutan News Scanner</Card.Title>
-      <Row className="g-3 align-items-center">
+
+      {/* Controls */}
+      <Row className="g-3 align-items-center mb-3">
         <Col xs={12} md={3}>
           <InputGroup>
             <InputGroup.Text>From</InputGroup.Text>
@@ -105,71 +158,75 @@ const PreMarketScanNewsCard: React.FC = () => {
                 onClick={handleFetchPositiveNews}
                 disabled={loadingScan || loadingPositive}
               >
-                {loadingPositive ? <Spinner animation="border" size="sm" /> : "Fetch Positive"}
+                {loadingPositive ? (
+                  <Spinner animation="border" size="sm" />
+                ) : (
+                  "Fetch Positive"
+                )}
               </Button>
             </Col>
           </Row>
         </Col>
       </Row>
 
+      {/* News Table */}
       {alertTickers.length > 0 && (
         <div className="mt-3">
           <h6>✅ Positive News Detected:</h6>
-          <div style={{ fontSize: "0.9rem" }}>
-            {alertTickers.map((item) => (
-              <div
-                key={`${item.ticker}-${item.published_at || item.created_at}`}
-                className="mb-2 p-2 border rounded bg-light"
-              >
-                <div>
-                  <strong>
-                    <a
-                      href={item.url || `https://kabutan.jp/stock/news?code=${item.ticker}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ textDecoration: "none", color: "#0d6efd" }}
-                    >
-                      {item.headline || item.ticker}
-                    </a>
-                  </strong>
-                </div>
-                <div>
-                  <small>
-                    {item.published_at
-                      ? new Date(item.published_at).toLocaleString()
-                      : item.created_at
-                      ? new Date(item.created_at).toLocaleString()
-                      : "Date unknown"}
-                  </small>
-                </div>
-                {item.verdict && (
-                  <div>
-                    <strong>Impact Verdict: </strong>
-                    <span
-                      className={
-                        item.verdict === "Decisive"
-                          ? "text-danger"
-                          : item.verdict === "Great"
-                          ? "text-success"
-                          : item.verdict === "Good"
-                          ? "text-primary"
-                          : item.verdict === "Neutral"
-                          ? "text-muted"
-                          : "text-secondary"
-                      }
-                    >
-                      {item.verdict}
-                    </span>
-                  </div>
-                )}
-                {item.reason && (
-                  <div>
-                    <strong>Reason: </strong>
-                    {item.reason}
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="table-responsive small" style={{ maxHeight: "400px", overflowY: "auto" }}>
+            <Table striped bordered hover responsive size="sm">
+              <thead className="table-light">
+                <tr>
+                  <th className="text-center">Ticker</th>
+                  <th>Headline</th>
+                  <th
+                    className="text-center clickable"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleSort("published_at")}
+                  >
+                    Published At{" "}
+                    {sortKey === "published_at" && (sortAsc ? "▲" : "▼")}
+                  </th>
+                  <th
+                    className="text-center clickable"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleSort("verdict")}
+                  >
+                    Verdict {sortKey === "verdict" && (sortAsc ? "▲" : "▼")}
+                  </th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedTickers.map((item, idx) => (
+                  <tr key={`${item.ticker}-${item.published_at || item.created_at}-${idx}`}>
+                    <td className="text-center">{item.ticker}</td>
+                    <td>
+                      <a
+                        href={item.url || `https://kabutan.jp/stock/news?code=${item.ticker}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {item.headline || item.ticker}
+                      </a>
+                    </td>
+                    <td className="text-center">
+                      {item.published_at
+                        ? new Date(item.published_at).toLocaleString()
+                        : item.created_at
+                        ? new Date(item.created_at).toLocaleString()
+                        : "N/A"}
+                    </td>
+                    <td className="text-center">
+                      {item.verdict && (
+                        <Badge bg={getVerdictColor(item.verdict)}>{item.verdict}</Badge>
+                      )}
+                    </td>
+                    <td>{item.reason || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import PreMarketScanForm from "../components/premarket/PreMarketScanForm";
-import PreMarketScanNewsCard from "../components/premarket/PreMarketScanNewsCard"; // 👈 Add this
+import PreMarketScanNewsCard from "../components/premarket/PreMarketScanNewsCard";
 import PreMarketStockTable from "../components/premarket/PreMarketStockTable";
 import PreMarketHoldingButton from "../components/premarket/PreMarketHoldingsButton";
 import type { VolumeSurgeStock } from "../types";
@@ -94,7 +94,7 @@ const PreMarketPage: React.FC = () => {
       const result = await analyzeSingleTicker(ticker.trim().toUpperCase());
       setAnalyzedResults([result, ...analyzedResults]);
       setStocks([]);
-      setTickerInput(""); // clear input after analyze
+      setTickerInput(""); // Clear input after analysis
     } catch (err) {
       console.error("Failed to analyze ticker", err);
     } finally {
@@ -117,11 +117,13 @@ const PreMarketPage: React.FC = () => {
 
   return (
     <div className="container mt-3">
+      {/* Holdings Button */}
       <PreMarketHoldingButton />
 
-      {/* ✅ Insert News Scanner UI here */}
+      {/* News Scanner Section */}
       <PreMarketScanNewsCard />
 
+      {/* Scanner Form */}
       <PreMarketScanForm
         surgeThreshold={surgeThreshold}
         priceThreshold={priceThreshold}
@@ -147,6 +149,7 @@ const PreMarketPage: React.FC = () => {
         onAnalyze={handleAnalyze}
       />
 
+      {/* Scan Results */}
       {loading && <p>Loading scan results...</p>}
       {stocks.length > 0 && (
         <>
@@ -155,10 +158,13 @@ const PreMarketPage: React.FC = () => {
         </>
       )}
 
+      {/* Analyzed Results */}
       {loadingFetchAnalyzed && <p>Loading analyzed results...</p>}
       {analyzedResults.length > 0 && (
         <>
-          <h5 className="mt-4">Analyzed Volume Surge Stocks ({analyzedResults.length})</h5>
+          <h5 className="mt-4">
+            Analyzed Volume Surge Stocks ({analyzedResults.length})
+          </h5>
           <PreMarketStockTable
             stocks={analyzedResults.map(normalizeAnalyzedStock)}
             onStarToggle={handleStarToggle}
