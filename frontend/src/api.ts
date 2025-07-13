@@ -274,12 +274,17 @@ export async function scanNewsForTicker(ticker: string) {
   return await res.json();
 }
 
-export async function scanNewsBulk() {
+export async function scanNewsBulk(
+  from_page: number = 1,
+  to_page: number = 5,
+  price_threshold: number = 300
+) {
   const res = await fetch(`${BASE_URL}/premarket/scan_news_bulk`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
+    body: JSON.stringify({ from_page, to_page, price_threshold }),
   });
 
   if (!res.ok) {
@@ -350,6 +355,13 @@ export async function getPositiveNewsTickers() {
     throw new Error(`Get positive news tickers failed: ${errorText}`);
   }
 
-  return await res.json() as string[];
+  return await res.json() as {
+    ticker: string;
+    headline: string;
+    verdict: string;
+    reason: string;
+    created_at: string;
+  }[];
 }
+
 
