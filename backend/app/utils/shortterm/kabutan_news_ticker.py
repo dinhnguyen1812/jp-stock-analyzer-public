@@ -58,6 +58,15 @@ def scrape_kabutan_news(ticker: str, limit: int = 30) -> List[Dict]:
 
             published_at = time_tag["datetime"]
 
+            # ✅ Skip news older than 30 days
+            try:
+                published_dt = datetime.fromisoformat(published_at)
+            except ValueError:
+                continue
+            now = datetime.now(tz=published_dt.tzinfo)
+            if published_dt < now - timedelta(days=10):
+                continue
+
             category_td = time_td.find_next_sibling("td")
             category_div = category_td.find("div", class_="newslist_ctg") if category_td else None
             category = category_div.text.strip() if category_div else None

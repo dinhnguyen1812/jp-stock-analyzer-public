@@ -86,5 +86,6 @@ You can track new listings on the JPX New Listings page, which includes market s
   <!-- - Add column: Is there good news -->
   - Scan news even with stocks that have not surged in volume
     - Add each component to the Scan Form
-  - Bring Holdings List here
+    - Fix return for scan_news_for_ticker
+  <!-- - Bring Holdings List here -->
   - 

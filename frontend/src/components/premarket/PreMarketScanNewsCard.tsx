@@ -10,7 +10,7 @@ import {
   Table,
   Badge,
 } from "react-bootstrap";
-import { scanNewsBulk, getPositiveNewsTickers } from "../../api";
+import { scanNewsBulk, getPositiveNewsTickers, starStock, unstarStock } from "../../api";
 
 interface PositiveNewsItem {
   ticker: string;
@@ -31,7 +31,6 @@ const getVerdictColor = (verdict: string) => {
   return "light";
 };
 
-// Sorting priorities
 const verdictPriority: Record<string, number> = {
   decisive: 4,
   great: 3,
@@ -48,6 +47,9 @@ const PreMarketScanNewsCard: React.FC = () => {
   const [alertTickers, setAlertTickers] = useState<PositiveNewsItem[]>([]);
   const [sortKey, setSortKey] = useState<"published_at" | "verdict" | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
+
+  const [starred, setStarred] = useState<Record<string, boolean>>({});
+  const [starLoading, setStarLoading] = useState<Record<string, boolean>>({});
 
   const handleScanNews = async () => {
     setLoadingScan(true);
@@ -79,7 +81,24 @@ const PreMarketScanNewsCard: React.FC = () => {
       setSortAsc(!sortAsc);
     } else {
       setSortKey(key);
-      setSortAsc(false); // default: descending
+      setSortAsc(false);
+    }
+  };
+
+  const handleToggleStar = async (ticker: string) => {
+    setStarLoading((prev) => ({ ...prev, [ticker]: true }));
+    try {
+      const isStarred = starred[ticker];
+      if (isStarred) {
+        await unstarStock(ticker);
+      } else {
+        await starStock(ticker);
+      }
+      setStarred((prev) => ({ ...prev, [ticker]: !isStarred }));
+    } catch {
+      alert("Failed to update star status.");
+    } finally {
+      setStarLoading((prev) => ({ ...prev, [ticker]: false }));
     }
   };
 
@@ -101,7 +120,6 @@ const PreMarketScanNewsCard: React.FC = () => {
     <Card className="mb-4 px-3 py-3 shadow-sm">
       <Card.Title>📰 Kabutan News Scanner</Card.Title>
 
-      {/* Controls */}
       <Row className="g-3 align-items-center mb-3">
         <Col xs={12} md={3}>
           <InputGroup>
@@ -158,11 +176,7 @@ const PreMarketScanNewsCard: React.FC = () => {
                 onClick={handleFetchPositiveNews}
                 disabled={loadingScan || loadingPositive}
               >
-                {loadingPositive ? (
-                  <Spinner animation="border" size="sm" />
-                ) : (
-                  "Fetch Positive"
-                )}
+                {loadingPositive ? <Spinner animation="border" size="sm" /> : "Fetch Positive"}
               </Button>
             </Col>
           </Row>
@@ -177,6 +191,7 @@ const PreMarketScanNewsCard: React.FC = () => {
             <Table striped bordered hover responsive size="sm">
               <thead className="table-light">
                 <tr>
+                  <th className="text-center" style={{ width: 40 }}>★</th>
                   <th className="text-center">Ticker</th>
                   <th>Headline</th>
                   <th
@@ -184,8 +199,7 @@ const PreMarketScanNewsCard: React.FC = () => {
                     style={{ cursor: "pointer" }}
                     onClick={() => handleSort("published_at")}
                   >
-                    Published At{" "}
-                    {sortKey === "published_at" && (sortAsc ? "▲" : "▼")}
+                    Published At {sortKey === "published_at" && (sortAsc ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-center clickable"
@@ -200,6 +214,34 @@ const PreMarketScanNewsCard: React.FC = () => {
               <tbody>
                 {sortedTickers.map((item, idx) => (
                   <tr key={`${item.ticker}-${item.published_at || item.created_at}-${idx}`}>
+                    <td className="text-center align-middle">
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => handleToggleStar(item.ticker)}
+                        disabled={starLoading[item.ticker]}
+                        className="p-0 d-flex justify-content-center align-items-center"
+                        style={{ width: 28, height: 28 }}
+                      >
+                        {starLoading[item.ticker] ? (
+                          <Spinner animation="border" size="sm" />
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: "1.2rem",
+                              color: starred[item.ticker] ? "#ffc107" : "#6c757d",
+                              textShadow: starred[item.ticker]
+                                ? "0 0 6px #ffc107, 0 0 10px #ffc107"
+                                : "none",
+                              pointerEvents: "none",
+                              userSelect: "none",
+                            }}
+                          >
+                            ★
+                          </span>
+                        )}
+                      </Button>
+                    </td>
                     <td className="text-center">{item.ticker}</td>
                     <td>
                       <a

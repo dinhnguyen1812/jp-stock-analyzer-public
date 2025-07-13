@@ -25,9 +25,9 @@ def parse_volume(text: str) -> int:
 
 def get_latest_trading_day(db: Session, ticker: str) -> Optional[datetime.date]:
     latest = (
-        db.query(DailyVolume.date)
-        .filter(DailyVolume.ticker == ticker)
-        .order_by(DailyVolume.date.desc())
+        db.query(DailyPrice.date)
+        .filter(DailyPrice.ticker == ticker)
+        .order_by(DailyPrice.date.desc())
         .limit(1)
         .first()
     )
@@ -91,6 +91,10 @@ def analyze_and_snapshot_ticker(
     try:
         fetch_and_save_price_history(db, ticker)
 
+        last_day = get_latest_trading_day(db, ticker)
+        if not last_day:
+            return None
+
         price = db.query(DailyPrice).filter_by(ticker=ticker, date=last_day).first()
         if not price:
             return None
@@ -101,10 +105,6 @@ def analyze_and_snapshot_ticker(
 
         update_avg_volume_for_ticker(db, ticker)
         update_avg_money_flow_for_ticker(db, ticker)
-
-        last_day = get_latest_trading_day(db, ticker)
-        if not last_day:
-            return None
 
         dv = db.query(DailyVolume).filter_by(ticker=ticker, date=last_day).first()
         if not dv or dv.volume == 0:

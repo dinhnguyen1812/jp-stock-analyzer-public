@@ -307,14 +307,17 @@ def analyze_single_ticker(
 @router.post("/analyze_starred", response_model=List[Dict])
 def analyze_starred_tickers(
     top_n: int = 3,
-    model: str = "gpt-4o",
+    # model: str = "gpt-4o",
+    model: str = "gpt-3.5-turbo",
     db: Session = Depends(get_db)
 ):
     starred_tickers = db.query(StarredStock.ticker).all()
+    print(f"====starred_tickers={starred_tickers}")
     ticker_list = [t[0] for t in starred_tickers]  # convert list of tuples to list of strings
     results = []
 
     for ticker in ticker_list:
+        print(f"====ticker={ticker}")
         try:
             result = analyze_ticker_by_steps(db, ticker, top_n, model)
             results.append(result)
