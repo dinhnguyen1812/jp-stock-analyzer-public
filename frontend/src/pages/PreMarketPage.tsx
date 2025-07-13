@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import PreMarketScanForm from "../components/premarket/PreMarketScanForm";
+import PreMarketScanNewsCard from "../components/premarket/PreMarketScanNewsCard"; // 👈 Add this
 import PreMarketStockTable from "../components/premarket/PreMarketStockTable";
 import PreMarketHoldingButton from "../components/premarket/PreMarketHoldingsButton";
 import type { VolumeSurgeStock } from "../types";
@@ -116,13 +117,10 @@ const PreMarketPage: React.FC = () => {
 
   return (
     <div className="container mt-3">
-      <div className="d-flex justify-content-between align-items-baseline mb-3">
-        <h4 className="mb-0">📈 Pre-Market Volume Surge Scanner</h4>
-        <div style={{ width: "280px", minWidth: "280px" }}>
-          <PreMarketHoldingButton />
-        </div>
-      </div>
+      <PreMarketHoldingButton />
 
+      {/* ✅ Insert News Scanner UI here */}
+      <PreMarketScanNewsCard />
 
       <PreMarketScanForm
         surgeThreshold={surgeThreshold}
@@ -146,7 +144,7 @@ const PreMarketPage: React.FC = () => {
         onScanSpike={() => {}}
         onFetchAnalyzed={handleFetchAnalyzed}
         onAnalyzeStarred={handleAnalyzeStarred}
-        onAnalyze={handleAnalyze}    // your handler for single ticker analyze
+        onAnalyze={handleAnalyze}
       />
 
       {loading && <p>Loading scan results...</p>}
