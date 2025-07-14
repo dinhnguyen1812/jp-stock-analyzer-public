@@ -131,14 +131,14 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               Avg Volume (5d) {renderSortIndicator("avg_volume_5d")}
             </th>
             <th
-              style={{ minWidth: "100px" }}
+              style={{ minWidth: "120px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("detected_at")}
             >
               Detected At {renderSortIndicator("detected_at")}
             </th>
             <th
-              style={{ minWidth: "420px" }}
+              style={{ minWidth: "520px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("promising_score")}
             >

@@ -134,6 +134,48 @@ def trigger_volume_scan(
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
 
+def calculate_momentum_score(
+    volume_snapshot,
+    signal_data: dict,
+    downtrend_info: dict
+) -> dict:
+    """
+    Calculate momentum score and confidence level from snapshot, signals, and trend data.
+    Returns: {"momentum_score": int, "momentum_confidence": str}
+    """
+    score = 0
+
+    # Scoring rules
+    if volume_snapshot.volume_rate > 3:
+        score += 3
+    if signal_data.get("sma_50") and volume_snapshot.current_price > signal_data["sma_50"]:
+        score += 2
+    if volume_snapshot.money_flow_rate > 3:
+        score += 1
+    if signal_data.get("macd_hist", 0) > 0:
+        score += 1
+    if signal_data.get("rsi", 0) > 70:
+        score += 1
+    if signal_data.get("bb_upper") and volume_snapshot.current_price > signal_data["bb_upper"]:
+        score += 1
+    if not downtrend_info or not downtrend_info.get("had_downtrend"):
+        score += 1
+
+    # Confidence levels
+    if score >= 8:
+        confidence = "🔥 Very strong setup"
+    elif score >= 6:
+        confidence = "✅ Good setup"
+    elif score >= 4:
+        confidence = "⚠️ Medium-risk"
+    else:
+        confidence = "❌ Weak / No trade"
+
+    return {
+        "momentum_score": score,
+        "momentum_confidence": confidence,
+    }
+
 @router.get("/get_saved_vs", response_model=List[Dict])
 def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
@@ -141,7 +183,6 @@ def get_all_saved_volume_analyses(
     starred_only: bool = False,
     db: Session = Depends(get_db),
 ):
-    # Base query for latest snapshot per ticker
     query = (
         db.query(
             VolumeSnapshot.ticker,
@@ -157,30 +198,22 @@ def get_all_saved_volume_analyses(
         query = query.filter(VolumeSnapshot.current_price <= price_threshold)
 
     if starred_only:
-        query = query.join(
-            StarredStock,
-            VolumeSnapshot.ticker == StarredStock.ticker
-        )
+        query = query.join(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker)
 
     query = query.group_by(VolumeSnapshot.ticker)
     subq = query.subquery()
 
     latest_snapshots = (
         db.query(VolumeSnapshot)
-        .join(
-            subq,
-            (VolumeSnapshot.ticker == subq.c.ticker)
-            & (VolumeSnapshot.detected_at == subq.c.latest_detected_at),
-        )
+        .join(subq, (VolumeSnapshot.ticker == subq.c.ticker) & (VolumeSnapshot.detected_at == subq.c.latest_detected_at))
         .all()
     )
 
     if not latest_snapshots:
         raise HTTPException(status_code=404, detail="No saved analyses found")
 
-    tickers = [snap.ticker for snap in latest_snapshots]
+    tickers = [vs.ticker for vs in latest_snapshots]
 
-    # Fetch all impacts in batch
     all_impacts = (
         db.query(StockNewsImpact)
         .filter(StockNewsImpact.ticker.in_(tickers))
@@ -195,7 +228,6 @@ def get_all_saved_volume_analyses(
     results = []
 
     for vs in latest_snapshots:
-        # Parse news from DB JSON
         top_news = []
         if vs.top_news:
             try:
@@ -203,7 +235,6 @@ def get_all_saved_volume_analyses(
             except Exception:
                 top_news = []
 
-        # Match news to impact verdicts
         impacts = impact_by_ticker.get(vs.ticker, [])
         impact_headlines = [imp.headline for imp in impacts]
 
@@ -219,24 +250,23 @@ def get_all_saved_volume_analyses(
                 news_item["impact_verdict"] = None
                 news_item["impact_reason"] = None
 
-        # Get cached analysis signal (RSI, MACD, etc.)
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
 
-        # Get cached downtrend info
         downtrend_model = get_downtrend_analysis(db, vs.ticker)
         downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
-        # Get cached uptrend info
-        uptrend_model = get_uptrend_analysis(db, vs.ticker)  # Assuming similar interface
-        uptrend_info = normalize_uptrend_for_json(uptrend_model)  # Define this similar to normalize_downtrend_for_json
+        uptrend_model = get_uptrend_analysis(db, vs.ticker)
+        uptrend_info = normalize_uptrend_for_json(uptrend_model)
 
-        # Use price stats from cached downtrend info directly
         price_stats = {
             "highest_price": downtrend_info.get("highest_price"),
             "lowest_price": downtrend_info.get("lowest_price"),
             "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
             "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
         }
+
+        # ✅ Calculate momentum score
+        momentum_result = calculate_momentum_score(vs, analysis_signal_data, downtrend_info)
 
         results.append({
             "volume_info": {
@@ -261,6 +291,8 @@ def get_all_saved_volume_analyses(
                 "highest_price": price_stats["highest_price"],
                 "lowest_price": price_stats["lowest_price"],
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
+                "momentum_score": momentum_result["momentum_score"],
+                "momentum_confidence": momentum_result["momentum_confidence"],
             },
             "analysis_signal": analysis_signal_data,
         })
@@ -328,6 +360,8 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
     # Technical signals (RSI, MACD...)
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
+    momentum_result = calculate_momentum_score(vs, analysis_signal_data, downtrend_info)
+
     return {
         "volume_info": {
             "ticker": vs.ticker,
@@ -350,6 +384,8 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
             "highest_price": price_stats["highest_price"],
             "lowest_price": price_stats["lowest_price"],
+            "momentum_score": momentum_result["momentum_score"],
+            "momentum_confidence": momentum_result["momentum_confidence"],
             "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
         },
         "analysis_signal": analysis_signal_data,

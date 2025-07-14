@@ -11,6 +11,7 @@ interface PreMarketStockRowProps {
     recommendation?: string | null;
     starred?: boolean;
     detected_at: string;
+    momentum_score?: number;  // Make sure momentum_score is included here
   };
   latestDetectedAt: string;
   onStarToggle: (ticker: string, starred: boolean) => void;
@@ -48,6 +49,8 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
     from_date: string;
     to_date: string;
   };
+  momentum_score?: number;
+  momentum_confidence?: string;
 }
 
 export interface SavedAnalysis {
@@ -161,6 +164,22 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     bad: 1,
   };
 
+  const highlightSignal = (
+    label: string,
+    value: React.ReactNode,
+    condition: boolean,
+    points: number
+  ) => {
+    return (
+      <li>
+        {label}:{" "}
+        <span style={condition ? { fontWeight: "bold", color: "#0d6efd" } : {}}>
+          {value} {condition && <Badge bg="primary">+{points}</Badge>}
+        </span>
+      </li>
+    );
+  };
+
   return (
     <>
       {/* ROW */}
@@ -230,6 +249,25 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             {stock.promising_score !== undefined && (
               <Badge bg="light" text="dark" className="border">
                 Score: {stock.promising_score}
+              </Badge>
+            )}
+
+            {/* Momentum Score Badge added here */}
+            {stock.momentum_score !== undefined && (
+              <Badge
+                bg={
+                  stock.momentum_score >= 8
+                    ? "success"
+                    : stock.momentum_score >= 6
+                    ? "info"
+                    : stock.momentum_score >= 4
+                    ? "warning"
+                    : "danger"
+                }
+                className="border"
+                style={{ fontSize: "0.75rem" }}
+              >
+                Signal: {stock.momentum_score}
               </Badge>
             )}
 
@@ -303,6 +341,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         </td>
       </tr>
 
+      {/* Modal for detailed analysis */}
       <Modal size="lg" show={showModal} onHide={() => setShowModal(false)} scrollable>
         <Modal.Header closeButton>
           <Modal.Title>Analysis for {stock.ticker}</Modal.Title>
@@ -319,8 +358,21 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     <li>Name: {analysis.volume_info.name}</li>
                     <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
                     <li>Price Change: {analysis.volume_info.price_change.toFixed(2)}</li>
-                    <li>Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}</li>
-                    <li>Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}</li>
+
+                    {highlightSignal(
+                      "Volume Rate",
+                      analysis.volume_info.volume_rate.toFixed(2),
+                      analysis.volume_info.volume_rate > 3,
+                      3
+                    )}
+
+                    {highlightSignal(
+                      "Money Flow Rate",
+                      analysis.volume_info.money_flow_rate.toFixed(2),
+                      analysis.volume_info.money_flow_rate > 3,
+                      1
+                    )}
+
                     <li>Current Volume: {analysis.volume_info.current_volume.toLocaleString()}</li>
                     <li>Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}</li>
                     <li>
@@ -330,12 +382,10 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       })}
                     </li>
                     <li>
-                      Drop From High (%):{" "}
-                      {analysis.volume_info.drop_from_high_pct?.toFixed(2) ?? "N/A"}
+                      Drop From High (%): {analysis.volume_info.drop_from_high_pct?.toFixed(2) ?? "N/A"}
                     </li>
                     <li>
-                      Rebound From Low (%):{" "}
-                      {analysis.volume_info.rebound_from_low_pct?.toFixed(2) ?? "N/A"}
+                      Rebound From Low (%): {analysis.volume_info.rebound_from_low_pct?.toFixed(2) ?? "N/A"}
                     </li>
                     <li>Highest Price: {analysis.volume_info.highest_price ?? "N/A"}</li>
                     <li>Lowest Price: {analysis.volume_info.lowest_price ?? "N/A"}</li>
@@ -351,25 +401,57 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       </li>
                       <li>
                         Breakout:{" "}
-                        {highlightKeywords(analysis.analysis_signal.breakout_detected ? "Yes" : "No")},
-                        Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},
+                        {highlightKeywords(analysis.analysis_signal.breakout_detected ? "Yes" : "No")},{" "}
+                        Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},{" "}
                         Close: {analysis.analysis_signal.close_today ?? "N/A"}
                       </li>
-                      <li>RSI: {analysis.analysis_signal.rsi ?? "N/A"}</li>
+
+                      {highlightSignal(
+                        "RSI",
+                        analysis.analysis_signal.rsi ?? "N/A",
+                        (analysis.analysis_signal.rsi ?? 0) > 70,
+                        1
+                      )}
+
                       <li>
                         MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal=
                         {analysis.analysis_signal.macd_signal ?? "N/A"}, Hist=
-                        {analysis.analysis_signal.macd_hist ?? "N/A"}
+                        <span
+                          style={
+                            (analysis.analysis_signal.macd_hist ?? 0) > 0
+                              ? { fontWeight: "bold", color: "#0d6efd" }
+                              : {}
+                          }
+                        >
+                          {analysis.analysis_signal.macd_hist ?? "N/A"}{" "}
+                          {(analysis.analysis_signal.macd_hist ?? 0) > 0 && <Badge bg="primary">+1</Badge>}
+                        </span>
                       </li>
+
                       <li>
-                        BBands: Upper={analysis.analysis_signal.bb_upper ?? "N/A"}, Middle=
-                        {analysis.analysis_signal.bb_middle ?? "N/A"}, Lower=
-                        {analysis.analysis_signal.bb_lower ?? "N/A"}, Price=
-                        {analysis.analysis_signal.bb_current_price ?? "N/A"}
+                        BBands: Upper={
+                          (analysis.analysis_signal.bb_current_price ?? 0) > (analysis.analysis_signal.bb_upper ?? Infinity) ? (
+                            <span style={{ fontWeight: "bold", color: "#0d6efd" }}>
+                              {analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"}
+                            </span>
+                          ) : (
+                            analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"
+                          )
+                        }, Middle={analysis.analysis_signal.bb_middle?.toFixed(2) ?? "N/A"}, Lower={analysis.analysis_signal.bb_lower?.toFixed(2) ?? "N/A"}, Price={analysis.analysis_signal.bb_current_price?.toFixed(2) ?? "N/A"}{" "}
+                        {(analysis.analysis_signal.bb_current_price ?? 0) > (analysis.analysis_signal.bb_upper ?? Infinity) && (
+                          <Badge bg="primary">+1</Badge>
+                        )}
                       </li>
+
+                      {highlightSignal(
+                        "SMA50",
+                        analysis.analysis_signal.sma_50 ?? "N/A",
+                        analysis.volume_info.current_price > (analysis.analysis_signal.sma_50 ?? 0),
+                        2
+                      )}
+
                       <li>
-                        MA: SMA50={analysis.analysis_signal.sma_50 ?? "N/A"}, SMA200=
-                        {analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20=
+                        SMA200={analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20=
                         {analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover=
                         {analysis.analysis_signal.sma_crossover ?? "N/A"}
                       </li>
@@ -390,7 +472,20 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     <ul>
                       <li>
                         Had Downtrend:{" "}
-                        {highlightKeywords(analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No")}
+                        <span
+                          style={
+                            analysis.volume_info.downtrend.had_downtrend === false
+                              ? { fontWeight: "bold", color: "#0d6efd" }
+                              : {}
+                          }
+                        >
+                          {highlightKeywords(
+                            analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No"
+                          )}{" "}
+                          {!analysis.volume_info.downtrend.had_downtrend && (
+                            <Badge bg="primary">+1</Badge>
+                          )}
+                        </span>
                       </li>
                       <li>
                         Drop %:{" "}
@@ -412,7 +507,18 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     <ul>
                       <li>
                         Had Uptrend:{" "}
-                        {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}
+                        <span
+                          style={
+                            analysis.volume_info.uptrend.had_uptrend === false
+                              ? { fontWeight: "bold", color: "#0d6efd" }
+                              : {}
+                          }
+                        >
+                          {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}{" "}
+                          {!analysis.volume_info.uptrend.had_uptrend && (
+                            <Badge bg="primary">+1</Badge>
+                          )}
+                        </span>
                       </li>
                       <li>
                         Rise %:{" "}
@@ -428,6 +534,18 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   ) : (
                     <p className="text-muted">(No uptrend data)</p>
                   )}
+
+                  <h5 className="mt-4">Momentum Score</h5>
+                  <p>
+                    {analysis.volume_info.momentum_score ?? "N/A"}{" "}
+                    <small>
+                      (
+                      {analysis.volume_info.momentum_confidence
+                        ? analysis.volume_info.momentum_confidence
+                        : "No confidence info"}
+                      )
+                    </small>
+                  </p>
                 </Col>
               </Row>
 
@@ -481,6 +599,11 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             </>
           )}
         </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
       </Modal>
     </>
   );

@@ -54,7 +54,7 @@ def compute_uptrend_analysis(db: Session, ticker: str, days: int = 30) -> StockU
         max_idx = post_trough_prices.index(max_price)
         max_date = post_trough_dates[max_idx]
         rise_pct = (max_price - min_price) / min_price * 100
-        had_uptrend = rise_pct >= 20  # define threshold here
+        had_uptrend = rise_pct >= 10  # define threshold here
     else:
         rise_pct = 0.0
         had_uptrend = False

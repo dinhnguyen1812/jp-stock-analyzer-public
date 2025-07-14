@@ -51,7 +51,7 @@ def compute_downtrend_analysis(db: Session, ticker: str, days: int = 30) -> Stoc
         min_idx = post_peak_prices.index(min_price)
         min_date = post_peak_dates[min_idx]
         drop_pct = (min_price - max_price) / max_price * 100
-        had_downtrend = drop_pct <= -20
+        had_downtrend = drop_pct <= -10
     else:
         drop_pct = 0.0
         had_downtrend = False
