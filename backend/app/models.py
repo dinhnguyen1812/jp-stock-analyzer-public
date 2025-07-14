@@ -201,3 +201,16 @@ class StockNewsImpact(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     published_at = Column(DateTime, nullable=True)  # <--- Add this
     url = Column(String, nullable=True)              # <--- Add this
+
+class StockDownTrendAnalysis(Base):
+    __tablename__ = "stock_trend_analysis"
+    ticker = Column(String, primary_key=True)
+    updated_at = Column(DateTime)
+    drop_pct = Column(Float)
+    had_downtrend = Column(Boolean)
+    from_date = Column(Date)
+    to_date = Column(Date)
+    highest_price = Column(Float)
+    lowest_price = Column(Float)
+    drop_from_high_pct = Column(Float)
+    rebound_from_low_pct = Column(Float)

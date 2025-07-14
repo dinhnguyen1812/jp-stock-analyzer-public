@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 import openai
 
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
-from app.utils.shortterm.spike_scanner import compute_price_stats, detect_recent_downtrend, normalize_downtrend_for_json
-from app.models import DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
+from .downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
+from app.models import VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -93,12 +93,18 @@ def premarket_analyze_with_gpt(
         save_shortterm_analysis_signal(db, ticker)
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
-    # Get downtrend info
-    downtrend_info = normalize_downtrend_for_json(detect_recent_downtrend(db, ticker))
+    # Get downtrend info (cached or recalculated)
+    downtrend_model = get_downtrend_analysis(db, ticker)
+    downtrend_info = normalize_downtrend_for_json(downtrend_model)
+
     had_downtrend = downtrend_info.get("had_downtrend", False)
     drop_pct = downtrend_info.get("drop_pct", 0)
     from_date = downtrend_info.get("from_date", "?")
     to_date = downtrend_info.get("to_date", "?")
+    drop_from_high_pct = downtrend_info.get("drop_from_high_pct")
+    rebound_from_low_pct = downtrend_info.get("rebound_from_low_pct")
+    highest_price = downtrend_info.get("highest_price")
+    lowest_price = downtrend_info.get("lowest_price")
 
     downtrend_str = (
         f"📉 Recent Downtrend Detected: Dropped {drop_pct:.2f}% from {from_date} to {to_date}.\n"
@@ -106,19 +112,10 @@ def premarket_analyze_with_gpt(
         f"📈 No major downtrend in the recent 30 days. Latest range: {from_date} to {to_date}.\n"
     )
 
-    # Get price history stats
-    start_date = date.today() - timedelta(days=30)
-    prices = (
-        db.query(DailyPrice)
-        .filter(DailyPrice.ticker == ticker, DailyPrice.date >= start_date)
-        .order_by(DailyPrice.date.asc())
-        .all()
-    )
-    price_stats = compute_price_stats(prices, volume_info.current_price)
     price_stats_str = (
-        f"📊 Drop from 30-day high: {price_stats['drop_from_high_pct']}%\n"
-        f"📈 Rebound from 30-day low: {price_stats['rebound_from_low_pct']}%\n"
-        if price_stats["drop_from_high_pct"] is not None else ""
+        f"📊 Drop from 30-day high: {drop_from_high_pct}%\n"
+        f"📈 Rebound from 30-day low: {rebound_from_low_pct}%\n"
+        if drop_from_high_pct is not None else ""
     )
 
     # Compose GPT prompt
@@ -146,7 +143,7 @@ def premarket_analyze_with_gpt(
         f"### Technical Indicators (for reference, less emphasis):\n{tech_summary}\n"
         f"### Recent News Headlines:\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
-        
+
         "\n\n### Analysis Instructions:\n"
         "- Focus primarily on **volume surge**, **price movements**, and **news impact** to predict **tomorrow's market behavior**.\n"
         "- If there was a recent **volume surge** or **price spike**, explain **why**. Is it a justified move or based on weak fundamentals/news?\n"
@@ -188,14 +185,13 @@ def premarket_analyze_with_gpt(
         summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
         summary = summary_match.group(1).strip() if summary_match else ""
 
-        # Extract Watchlist Recommendation
         watchlist_recommendation = None
         for line in reply.splitlines():
             if "Watchlist Recommendation" in line:
                 watchlist_recommendation = line.split(":")[-1].strip()
                 break
 
-        # Save results to DB (including published_at and url if available)
+        # Save results to DB
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
@@ -203,12 +199,10 @@ def premarket_analyze_with_gpt(
         volume_info.top_news = json.dumps(news_items[:top_n], ensure_ascii=False)
         db.commit()
 
-        # Clear old news impact for this ticker
         db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
         for idx, item in enumerate(impacts):
             if not item.get("headline") or not item.get("verdict"):
                 continue
-            # Try to find corresponding scraped news item for url and published_at
             matched_news = next(
                 (n for n in news_items if n["headline"] == item["headline"] or f"[{n['category']}] {n['headline']}" == item["headline"]),
                 {}
@@ -235,10 +229,10 @@ def premarket_analyze_with_gpt(
             "summary": summary,
             "gpt_raw_response": reply,
             "downtrend": downtrend_info,
-            "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
-            "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
-            "highest_price": price_stats.get("highest_price"),
-            "lowest_price": price_stats.get("lowest_price"),
+            "drop_from_high_pct": drop_from_high_pct,
+            "rebound_from_low_pct": rebound_from_low_pct,
+            "highest_price": highest_price,
+            "lowest_price": lowest_price,
         }
 
     except Exception as e:

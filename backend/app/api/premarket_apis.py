@@ -11,9 +11,9 @@ from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
 from app.models import DailyPrice, StockNewsImpact, VolumeSnapshot, StarredStock
+from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json, compute_price_stats
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
-from app.utils.shortterm.spike_scanner import compute_price_stats, detect_recent_downtrend, normalize_downtrend_for_json
 from app.utils.premarket.pre_gpt_analyzer import premarket_analyze_with_gpt
 from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
 from app.api.shortterm_apis import get_latest_analysis_signal_data
@@ -157,7 +157,6 @@ def get_all_saved_volume_analyses(
         query = query.filter(VolumeSnapshot.current_price <= price_threshold)
 
     if starred_only:
-        # Join with StarredStock to filter only starred tickers
         query = query.join(
             StarredStock,
             VolumeSnapshot.ticker == StarredStock.ticker
@@ -179,10 +178,9 @@ def get_all_saved_volume_analyses(
     if not latest_snapshots:
         raise HTTPException(status_code=404, detail="No saved analyses found")
 
-    # Prepare tickers list
     tickers = [snap.ticker for snap in latest_snapshots]
 
-    # Fetch related news impact data
+    # Fetch all impacts in batch
     all_impacts = (
         db.query(StockNewsImpact)
         .filter(StockNewsImpact.ticker.in_(tickers))
@@ -197,6 +195,7 @@ def get_all_saved_volume_analyses(
     results = []
 
     for vs in latest_snapshots:
+        # Parse news from DB JSON
         top_news = []
         if vs.top_news:
             try:
@@ -204,7 +203,7 @@ def get_all_saved_volume_analyses(
             except Exception:
                 top_news = []
 
-        # Match news items with impact verdict
+        # Match news to impact verdicts
         impacts = impact_by_ticker.get(vs.ticker, [])
         impact_headlines = [imp.headline for imp in impacts]
 
@@ -220,7 +219,14 @@ def get_all_saved_volume_analyses(
                 news_item["impact_verdict"] = None
                 news_item["impact_reason"] = None
 
+        # Get cached analysis signal (RSI, MACD, etc.)
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
+
+        # Get cached downtrend info
+        downtrend_model = get_downtrend_analysis(db, vs.ticker)
+        downtrend_info = normalize_downtrend_for_json(downtrend_model)
+
+        # Get price stats using cached 30-day price history
         start_date = datetime.date.today() - datetime.timedelta(days=30)
         prices = (
             db.query(DailyPrice)
@@ -228,8 +234,6 @@ def get_all_saved_volume_analyses(
             .order_by(DailyPrice.date.asc())
             .all()
         )
-
-        downtrend_info = normalize_downtrend_for_json(detect_recent_downtrend(db, vs.ticker))
         price_stats = compute_price_stats(prices, vs.current_price)
 
         results.append({
@@ -253,7 +257,7 @@ def get_all_saved_volume_analyses(
                 "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
                 "highest_price": price_stats.get("highest_price"),
                 "lowest_price": price_stats.get("lowest_price"),
-                "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),  # Add `starred` field
+                "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
             },
             "analysis_signal": analysis_signal_data,
         })
@@ -281,10 +285,10 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
         except Exception:
             top_news = []
 
-    # Match with impact data
+    # Match headlines with impact data
     impacts = (
         db.query(StockNewsImpact)
-        .filter(StockNewsImpact.ticker == vs.ticker)
+        .filter(StockNewsImpact.ticker == ticker)
         .order_by(StockNewsImpact.created_at.desc())
         .all()
     )
@@ -302,21 +306,22 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             news_item["impact_verdict"] = None
             news_item["impact_reason"] = None
 
-    # Downtrend
-    downtrend_info = normalize_downtrend_for_json(detect_recent_downtrend(db, vs.ticker))
+    # Downtrend info (from cache/db)
+    downtrend_model = get_downtrend_analysis(db, ticker)
+    downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
-    # Price stats
+    # Price stats (based on 30-day price history)
     start_date = datetime.date.today() - datetime.timedelta(days=30)
     prices = (
         db.query(DailyPrice)
-        .filter(DailyPrice.ticker == vs.ticker, DailyPrice.date >= start_date)
+        .filter(DailyPrice.ticker == ticker, DailyPrice.date >= start_date)
         .order_by(DailyPrice.date.asc())
         .all()
     )
     price_stats = compute_price_stats(prices, vs.current_price)
 
-    # Analysis signal
-    analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
+    # Technical signals (RSI, MACD...)
+    analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
     return {
         "volume_info": {
@@ -339,7 +344,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
             "highest_price": price_stats.get("highest_price"),
             "lowest_price": price_stats.get("lowest_price"),
-            "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
+            "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
         },
         "analysis_signal": analysis_signal_data,
     }

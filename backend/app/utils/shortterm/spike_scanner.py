@@ -4,7 +4,7 @@ import os
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 
-from app.models import DailyPrice, SpikeScan, VolumeSnapshot
+from app.models import DailyPrice, SpikeScan, StockDownTrendAnalysis, VolumeSnapshot
 from .price_updater import fetch_and_save_price_history
 from .volume_surge_scraper import scan_and_save_volume_surges
 from .kabutan_news_ticker import scrape_kabutan_news, get_volume_info
