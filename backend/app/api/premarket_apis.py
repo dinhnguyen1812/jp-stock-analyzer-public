@@ -2,16 +2,16 @@ import datetime
 import json
 from difflib import get_close_matches
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from threading import Event
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
-from app.models import DailyPrice, StockNewsImpact, VolumeSnapshot, StarredStock
-from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json, compute_price_stats
+from app.models import StockNewsImpact, VolumeSnapshot, StarredStock
+from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
+from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
 from app.utils.premarket.pre_gpt_analyzer import premarket_analyze_with_gpt
@@ -226,15 +226,17 @@ def get_all_saved_volume_analyses(
         downtrend_model = get_downtrend_analysis(db, vs.ticker)
         downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
-        # Get price stats using cached 30-day price history
-        start_date = datetime.date.today() - datetime.timedelta(days=30)
-        prices = (
-            db.query(DailyPrice)
-            .filter(DailyPrice.ticker == vs.ticker, DailyPrice.date >= start_date)
-            .order_by(DailyPrice.date.asc())
-            .all()
-        )
-        price_stats = compute_price_stats(prices, vs.current_price)
+        # Get cached uptrend info
+        uptrend_model = get_uptrend_analysis(db, vs.ticker)  # Assuming similar interface
+        uptrend_info = normalize_uptrend_for_json(uptrend_model)  # Define this similar to normalize_downtrend_for_json
+
+        # Use price stats from cached downtrend info directly
+        price_stats = {
+            "highest_price": downtrend_info.get("highest_price"),
+            "lowest_price": downtrend_info.get("lowest_price"),
+            "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
+            "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
+        }
 
         results.append({
             "volume_info": {
@@ -253,10 +255,11 @@ def get_all_saved_volume_analyses(
                 "top_news": top_news,
                 "watchlist_recommendation": vs.watchlist_recommendation,
                 "downtrend": downtrend_info,
-                "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
-                "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
-                "highest_price": price_stats.get("highest_price"),
-                "lowest_price": price_stats.get("lowest_price"),
+                "uptrend": uptrend_info,
+                "drop_from_high_pct": price_stats["drop_from_high_pct"],
+                "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
+                "highest_price": price_stats["highest_price"],
+                "lowest_price": price_stats["lowest_price"],
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
             },
             "analysis_signal": analysis_signal_data,
@@ -310,15 +313,17 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
     downtrend_model = get_downtrend_analysis(db, ticker)
     downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
-    # Price stats (based on 30-day price history)
-    start_date = datetime.date.today() - datetime.timedelta(days=30)
-    prices = (
-        db.query(DailyPrice)
-        .filter(DailyPrice.ticker == ticker, DailyPrice.date >= start_date)
-        .order_by(DailyPrice.date.asc())
-        .all()
-    )
-    price_stats = compute_price_stats(prices, vs.current_price)
+    # Uptrend info (from cache/db)
+    uptrend_model = get_uptrend_analysis(db, ticker)  # Implement like downtrend
+    uptrend_info = normalize_uptrend_for_json(uptrend_model)  # Implement similar normalization
+
+    # Use price stats from cached downtrend info directly
+    price_stats = {
+        "highest_price": downtrend_info.get("highest_price"),
+        "lowest_price": downtrend_info.get("lowest_price"),
+        "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
+        "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
+    }
 
     # Technical signals (RSI, MACD...)
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
@@ -340,10 +345,11 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "top_news": top_news,
             "watchlist_recommendation": vs.watchlist_recommendation,
             "downtrend": downtrend_info,
-            "drop_from_high_pct": price_stats.get("drop_from_high_pct"),
-            "rebound_from_low_pct": price_stats.get("rebound_from_low_pct"),
-            "highest_price": price_stats.get("highest_price"),
-            "lowest_price": price_stats.get("lowest_price"),
+            "uptrend": uptrend_info,
+            "drop_from_high_pct": price_stats["drop_from_high_pct"],
+            "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
+            "highest_price": price_stats["highest_price"],
+            "lowest_price": price_stats["lowest_price"],
             "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
         },
         "analysis_signal": analysis_signal_data,

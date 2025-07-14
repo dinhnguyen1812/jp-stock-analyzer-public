@@ -41,6 +41,13 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
     from_date: string;
     to_date: string;
   };
+  uptrend?: {
+    ticker: string;
+    had_uptrend: boolean;
+    rise_pct: number;
+    from_date: string;
+    to_date: string;
+  };
 }
 
 export interface SavedAnalysis {
@@ -104,7 +111,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     setError(null);
     try {
       const result: SavedAnalysis = await fetchSavedPremarketAnalysis(stock.ticker);
-      console.log(result)
       setAnalysis(result);
       setShowModal(true);
     } catch (err: any) {
@@ -399,6 +405,28 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     </ul>
                   ) : (
                     <p className="text-muted">(No downtrend data)</p>
+                  )}
+
+                  <h5 className="mt-4">Recent Uptrend</h5>
+                  {analysis.volume_info.uptrend ? (
+                    <ul>
+                      <li>
+                        Had Uptrend:{" "}
+                        {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}
+                      </li>
+                      <li>
+                        Rise %:{" "}
+                        {analysis.volume_info.uptrend.rise_pct !== undefined
+                          ? analysis.volume_info.uptrend.rise_pct.toFixed(2)
+                          : "N/A"}
+                      </li>
+                      <li>
+                        From: {analysis.volume_info.uptrend.from_date ?? "N/A"} &nbsp;
+                        To: {analysis.volume_info.uptrend.to_date ?? "N/A"}
+                      </li>
+                    </ul>
+                  ) : (
+                    <p className="text-muted">(No uptrend data)</p>
                   )}
                 </Col>
               </Row>

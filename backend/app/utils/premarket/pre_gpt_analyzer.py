@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import openai
 
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
+from .uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from .downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
 from app.models import VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
 
@@ -73,6 +74,7 @@ def extract_headline_impacts(text: str, top_n: int = 5) -> list[dict]:
 
     return results[:top_n]
 
+
 def premarket_analyze_with_gpt(
     db: Session,
     ticker: str,
@@ -87,13 +89,12 @@ def premarket_analyze_with_gpt(
     if not volume_info:
         return {"ticker": ticker, "volume_info": None, "top_news": news_items[:top_n], "gpt_summary": "No volume snapshot."}
 
-    # Get latest short-term signal
     signal: Optional[ShortTermAnalysisSignal] = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
     if not signal or not signal.updated_at or (datetime.utcnow() - signal.updated_at) > timedelta(hours=1):
         save_shortterm_analysis_signal(db, ticker)
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
-    # Get downtrend info (cached or recalculated)
+    # ↓↓↓ DOWNTREND SECTION ↓↓↓
     downtrend_model = get_downtrend_analysis(db, ticker)
     downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
@@ -118,7 +119,23 @@ def premarket_analyze_with_gpt(
         if drop_from_high_pct is not None else ""
     )
 
-    # Compose GPT prompt
+    # ↑↑↑ DOWNTREND SECTION ↑↑↑
+
+    # ↓↓↓ UPTREND SECTION ↓↓↓
+    uptrend_model = get_uptrend_analysis(db, ticker)
+    uptrend_info = normalize_uptrend_for_json(uptrend_model)
+    had_uptrend = uptrend_info.get("had_uptrend", False)
+    rise_pct = uptrend_info.get("rise_pct", 0)
+    up_from = uptrend_info.get("from_date", "?")
+    up_to = uptrend_info.get("to_date", "?")
+
+    uptrend_str = (
+        f"📈 Recent Uptrend Detected: Rose {rise_pct:.2f}% from {up_from} to {up_to}.\n"
+        if had_uptrend else
+        f"📉 No strong uptrend in the recent 30 days. Last low-to-high range: {up_from} to {up_to}.\n"
+    )
+    # ↑↑↑ UPTREND SECTION ↑↑↑
+
     volume_summary = (
         f"Ticker: {volume_info.ticker}\n"
         f"Name: {volume_info.name}\n"
@@ -126,7 +143,7 @@ def premarket_analyze_with_gpt(
         f"Volume Surge: {volume_info.volume_rate}x\n"
         f"Money Flow: {volume_info.money_flow_rate}\n"
         f"Detected At: {volume_info.detected_at.isoformat()}\n"
-        + downtrend_str + price_stats_str
+        + downtrend_str + uptrend_str + price_stats_str
     )
 
     tech_summary = (
@@ -179,7 +196,6 @@ def premarket_analyze_with_gpt(
         )
         reply = response.choices[0].message.content.strip()
 
-        # Extract fields from GPT reply
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply, top_n=top_n)
         summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
@@ -191,7 +207,6 @@ def premarket_analyze_with_gpt(
                 watchlist_recommendation = line.split(":")[-1].strip()
                 break
 
-        # Save results to DB
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
@@ -200,7 +215,7 @@ def premarket_analyze_with_gpt(
         db.commit()
 
         db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
-        for idx, item in enumerate(impacts):
+        for item in impacts:
             if not item.get("headline") or not item.get("verdict"):
                 continue
             matched_news = next(
@@ -229,6 +244,7 @@ def premarket_analyze_with_gpt(
             "summary": summary,
             "gpt_raw_response": reply,
             "downtrend": downtrend_info,
+            "uptrend": uptrend_info,
             "drop_from_high_pct": drop_from_high_pct,
             "rebound_from_low_pct": rebound_from_low_pct,
             "highest_price": highest_price,
