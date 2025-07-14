@@ -20,6 +20,7 @@ interface PositiveNewsItem {
   created_at: string;
   published_at?: string | null;
   url?: string | null;
+  starred?: boolean;
 }
 
 const getVerdictColor = (verdict: string) => {
@@ -51,21 +52,26 @@ const PreMarketScanNewsCard: React.FC = () => {
   const [starred, setStarred] = useState<Record<string, boolean>>({});
   const [starLoading, setStarLoading] = useState<Record<string, boolean>>({});
 
+  const updateStarredFromItems = (items: PositiveNewsItem[]) => {
+    const newStarred: Record<string, boolean> = {};
+    items.forEach((item) => {
+      newStarred[item.ticker] = item.starred ?? false;
+    });
+    setStarred(newStarred);
+  };
+
   const handleScanNews = async () => {
     setLoadingScan(true);
     setAlertTickers([]);
     try {
       const result = await scanNewsBulk(fromPage, toPage, priceThreshold);
-
       if (Array.isArray(result?.alert_tickers)) {
         setAlertTickers(result.alert_tickers);
+        updateStarredFromItems(result.alert_tickers);
       } else {
         setAlertTickers([]);
+        setStarred({});
       }
-
-      // ✅ Also fetch saved positive news (if needed)
-      await handleFetchPositiveNews(); // Optional – only if desired
-
     } catch (err) {
       alert("Scan failed: " + err);
     } finally {
@@ -78,6 +84,7 @@ const PreMarketScanNewsCard: React.FC = () => {
     try {
       const result = await getPositiveNewsTickers();
       setAlertTickers(result || []);
+      updateStarredFromItems(result || []);
     } catch (err) {
       alert("Failed to fetch positive news tickers: " + err);
     } finally {
@@ -192,7 +199,6 @@ const PreMarketScanNewsCard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* News Table */}
       {alertTickers.length > 0 && (
         <div className="mt-3">
           <h6>✅ Positive News Detected:</h6>

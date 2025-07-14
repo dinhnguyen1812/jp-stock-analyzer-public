@@ -247,12 +247,23 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             )}
 
             {stock.promising_score !== undefined && (
-              <Badge bg="light" text="dark" className="border">
+              <Badge
+                bg={
+                  stock.promising_score >= 80
+                    ? "success"
+                    : stock.promising_score >= 60
+                    ? "info"
+                    : stock.promising_score >= 40
+                    ? "warning"
+                    : "danger"
+                }
+                className="border"
+                style={{ fontSize: "0.75rem" }}
+              >
                 Score: {stock.promising_score}
               </Badge>
             )}
 
-            {/* Momentum Score Badge added here */}
             {stock.momentum_score !== undefined && (
               <Badge
                 bg={
@@ -270,6 +281,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 Signal: {stock.momentum_score}
               </Badge>
             )}
+
 
             {Array.isArray(stock.top_news) && stock.top_news.length > 0 && (() => {
               const newsWithVerdict = stock.top_news.filter(

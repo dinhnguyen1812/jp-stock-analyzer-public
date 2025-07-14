@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Table, Card, Badge, Button, Spinner } from "react-bootstrap";
 import { starStock, unstarStock } from "../../api";
 
@@ -10,6 +10,7 @@ interface PositiveNewsItem {
   created_at: string;
   published_at?: string | null;
   url?: string | null;
+  starred?: boolean; // ✅ include starred from backend
 }
 
 interface Props {
@@ -30,6 +31,15 @@ const PreMarketNewsCard: React.FC<Props> = ({ newsItems }) => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [starred, setStarred] = useState<Record<string, boolean>>({});
   const [starLoading, setStarLoading] = useState<Record<string, boolean>>({});
+
+  // ✅ Initialize starred state from newsItems
+  useEffect(() => {
+    const initialStars: Record<string, boolean> = {};
+    newsItems.forEach((item) => {
+      initialStars[item.ticker] = item.starred ?? false;
+    });
+    setStarred(initialStars);
+  }, [newsItems]);
 
   const toggleSort = (key: "published_at" | "verdict") => {
     if (key === sortBy) {

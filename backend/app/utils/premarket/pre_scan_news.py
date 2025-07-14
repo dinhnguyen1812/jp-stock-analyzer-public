@@ -1,3 +1,4 @@
+from difflib import SequenceMatcher
 import os
 import hashlib
 from typing import List
@@ -5,13 +6,26 @@ import openai
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from app.models import StockNewsImpact
+from app.models import StockNewsImpact, StarredStock
 from app.utils.premarket.pre_volume_surge_scraper import fetch_ranked_volume_tickers
 from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices
 from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news
 from app.utils.premarket.pre_gpt_analyzer import extract_headline_impacts
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+def is_similar(headline1: str, headline2: str, threshold: float = 0.85) -> bool:
+    return SequenceMatcher(None, headline1, headline2).ratio() >= threshold
+
+def get_recent_headlines(db: Session, ticker: str, limit: int = 10) -> List[str]:
+    impacts = (
+        db.query(StockNewsImpact)
+        .filter_by(ticker=ticker)
+        .order_by(StockNewsImpact.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [i.headline for i in impacts]
 
 def hash_headlines(headlines: list[str]) -> str:
     text = "|".join(headlines)
@@ -41,12 +55,17 @@ def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, d
     if not news_items:
         return None
 
-    headlines = [f"[{item['category']}] {item['headline']}" for item in news_items[:top_n]]
-    current_hash = hash_headlines(headlines)
-    cached_hash = get_last_headline_hash(db, ticker)
+    raw_headlines = [f"[{item['category']}] {item['headline']}" for item in news_items[:top_n]]
+    recent_headlines = get_recent_headlines(db, ticker)
 
-    if current_hash == cached_hash:
-        print(f"✅ Skipping GPT (cache match) for {ticker}")
+    # Filter out similar headlines (likely already reacted to)
+    filtered_headlines = []
+    for hl in raw_headlines:
+        if not any(is_similar(hl, past_hl) for past_hl in recent_headlines):
+            filtered_headlines.append(hl)
+
+    if not filtered_headlines:
+        print(f"🟡 Skipping GPT (too similar to past headlines) for {ticker}")
         return None
 
     prompt = (
@@ -60,7 +79,7 @@ def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, d
         "   - **Verdict: One of [Decisive, Great, Good, Neutral, Bad]**\n"
         "   - **Reason: 1 concise sentence explaining why**\n"
         "(Repeat for each headline)\n\n"
-        "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)])
+        "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(filtered_headlines)])
     )
 
     try:
@@ -112,12 +131,21 @@ def scan_news_for_low_cap_stocks(db: Session):
 
 def get_positive_news(db: Session) -> List[dict]:
     positive_verdicts = ["Decisive", "Great", "Good"]
+
+    # Fetch impacts with positive verdicts
     results = (
         db.query(StockNewsImpact)
         .filter(StockNewsImpact.verdict.in_(positive_verdicts))
-        .order_by(StockNewsImpact.published_at.desc())  # Sort by published date, not created_at
+        .order_by(StockNewsImpact.published_at.desc())  # or .created_at.desc() if needed
         .all()
     )
+
+    # Fetch starred tickers
+    starred_ticker_set = {
+        s.ticker for s in db.query(StarredStock.ticker).distinct()
+    }
+
+    # Return list of dicts including "starred" field
     return [
         {
             "ticker": r.ticker,
@@ -127,6 +155,7 @@ def get_positive_news(db: Session) -> List[dict]:
             "created_at": r.created_at.isoformat(),
             "published_at": r.published_at.isoformat() if r.published_at else None,
             "url": r.url,
+            "starred": r.ticker in starred_ticker_set  # ✅ include starred status
         }
         for r in results
     ]
