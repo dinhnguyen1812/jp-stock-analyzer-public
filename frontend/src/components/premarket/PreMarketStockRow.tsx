@@ -1,21 +1,8 @@
 import React, { useState, useCallback, type JSX } from "react";
 import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
-import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
-import { fetchSavedPremarketAnalysis, starStock, unstarStock } from "../../api";
 import { formatDistance } from "date-fns";
-
-interface PreMarketStockRowProps {
-  stock: VolumeSurgeStock & {
-    watchlist_recommendation?: string;
-    promising_score?: number;
-    recommendation?: string | null;
-    starred?: boolean;
-    detected_at: string;
-    momentum_score?: number;  // included for summary badge
-  };
-  latestDetectedAt: string;
-  onStarToggle: (ticker: string, starred: boolean) => void;
-}
+import { fetchSavedPremarketAnalysis, starStock, unstarStock } from "../../api";
+import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 
 export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
   reasoning?: string;
@@ -53,7 +40,7 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
   momentum_confidence?: string;
   momentum_signals?: {
     score: number;
-    passed: any;
+    passed: boolean;
     label: string;
     points: number;
     condition: boolean;
@@ -64,6 +51,27 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
 export interface SavedAnalysis {
   volume_info: AnalyzedVolumeInfo;
   analysis_signal: AnalysisSignal;
+}
+
+interface PreMarketStockRowProps {
+  stock: VolumeSurgeStock & {
+    watchlist_recommendation?: string;
+    promising_score?: number;
+    recommendation?: string | null;
+    starred?: boolean;
+    detected_at: string;
+    momentum_score?: number;
+    momentum_signals?: {
+      score: number;
+      passed: boolean;
+      label: string;
+      points: number;
+      condition: boolean;
+      meaning: string;
+    }[];
+  };
+  latestDetectedAt: string;
+  onStarToggle: (ticker: string, starred: boolean) => void;
 }
 
 const keywordMap = [
@@ -146,19 +154,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     }
   }, [stock, onStarToggle]);
 
-  const recommendationVariant = (rec?: string | null) => {
-    switch (rec) {
-      case "Buy":
-        return "success";
-      case "Sell":
-        return "danger";
-      case "Short":
-        return "warning";
-      default:
-        return "secondary";
-    }
-  };
-
   const ONE_HOUR_MS = 1000 * 60 * 60;
   const isOld =
     new Date(stock.detected_at).getTime() <
@@ -172,9 +167,46 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     bad: 1,
   };
 
+  const renderKeySignals = () => {
+    const signals = stock.momentum_signals || [];
+    return (
+      <div className="d-flex flex-wrap gap-2">
+        {signals.map((s, i) => (
+          <span
+            key={i}
+            style={{
+              fontSize: "0.75rem",
+              color: s.passed ? "green" : "red",
+              fontWeight: "bold",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {shortenLabel(s.label)}: {s.passed ? "✅" : "❌"}
+            {s.score > 0 ? `+${s.score}` : s.score}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  // Helper to shorten the signal label
+  const shortenLabel = (label: string): string => {
+    const map: Record<string, string> = {
+      "Volume Rate > 3 / 5 / 10": "VR>3",
+      "Price vs SMA50": "SMA50",
+      "MACD Bullish Crossover": "MACD",
+      "RSI Rising into 70+": "RSI↑70",
+      "Price Broke Upper BB + Big Candle": "BBBreak",
+      "No lower lows in last 5 days": "NoLL",
+      "Price above band with reversal wick": "ReversalWick",
+      "RSI > 70 but falling": "RSI>70↓",
+      "MACD > 0 and rising": "MACD>0↑",
+    };
+    return map[label] || label.slice(0, 10);
+  };
+
   return (
     <>
-      {/* ROW */}
       <tr>
         <td className="text-center align-middle" style={{ width: 40 }}>
           <Button
@@ -196,7 +228,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   lineHeight: 1,
                   userSelect: "none",
                   color: stock.starred ? "#ffc107" : "#6c757d",
-                  pointerEvents: "none",
                   textShadow: stock.starred
                     ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
                     : "none",
@@ -230,121 +261,130 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           </span>
         </td>
 
-        <td className="align-middle text-center">
-          <div className="d-flex align-items-center justify-content-center flex-wrap gap-2">
-            {stock.recommendation && (
-              <Badge pill bg={recommendationVariant(stock.recommendation)}>
-                {stock.recommendation}
-              </Badge>
-            )}
+        {/* 🔑 Key Signals column */}
+        <td className="align-middle text-start">{renderKeySignals()}</td>
+          <td className="align-middle text-center">
+            <div className="d-flex flex-column align-items-center justify-content-center gap-1">
+              {/* Row 1: Main signals (Recommendation, Promising Score, Signal Score, News) */}
+              <div className="d-flex flex-wrap justify-content-center align-items-center gap-2">
+                {stock.recommendation && (
+                  <Badge pill bg={
+                    stock.recommendation === "Buy"
+                      ? "success"
+                      : stock.recommendation === "Sell"
+                      ? "danger"
+                      : "warning"
+                  }>
+                    {stock.recommendation}
+                  </Badge>
+                )}
 
-            {stock.promising_score !== undefined && (
-              <Badge
-                bg={
-                  stock.promising_score >= 80
-                    ? "success"
-                    : stock.promising_score >= 60
-                    ? "info"
-                    : stock.promising_score >= 40
-                    ? "warning"
-                    : "danger"
-                }
-                className="border"
-                style={{ fontSize: "0.75rem" }}
-              >
-                Score: {stock.promising_score}
-              </Badge>
-            )}
+                {stock.promising_score !== undefined && (
+                  <Badge
+                    bg={
+                      stock.promising_score >= 80
+                        ? "success"
+                        : stock.promising_score >= 60
+                        ? "info"
+                        : stock.promising_score >= 40
+                        ? "warning"
+                        : "danger"
+                    }
+                    className="border"
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    Score: {stock.promising_score}
+                  </Badge>
+                )}
 
-            {stock.momentum_score !== undefined && (
-              <Badge
-                bg={
-                  stock.momentum_score >= 8
-                    ? "success"
-                    : stock.momentum_score >= 6
-                    ? "info"
-                    : stock.momentum_score >= 4
-                    ? "warning"
-                    : "danger"
-                }
-                className="border"
-                style={{ fontSize: "0.75rem" }}
-              >
-                Signal: {stock.momentum_score}
-              </Badge>
-            )}
+                {stock.momentum_score !== undefined && (
+                  <Badge
+                    bg={
+                      stock.momentum_score >= 8
+                        ? "success"
+                        : stock.momentum_score >= 6
+                        ? "info"
+                        : stock.momentum_score >= 4
+                        ? "warning"
+                        : "danger"
+                    }
+                    className="border"
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    Signal: {stock.momentum_score}
+                  </Badge>
+                )}
 
-            {Array.isArray(stock.top_news) && stock.top_news.length > 0 && (() => {
-              const newsWithVerdict = stock.top_news.filter(
-                (n) => typeof n.impact_verdict === "string"
-              );
-              if (newsWithVerdict.length === 0) return null;
-              const bestNews = newsWithVerdict.sort((a, b) => {
-                const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
-                const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
-                return bRank - aRank;
-              })[0];
-              const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
-              const badgeColor =
-                verdict === "decisive"
-                  ? "danger"
-                  : verdict === "great"
-                  ? "success"
-                  : verdict === "good"
-                  ? "warning"
-                  : verdict === "neutral"
-                  ? "secondary"
-                  : "light";
-              const textColor = verdict === "bad" ? "dark" : "light";
-              return (
-                <Badge
-                  bg={badgeColor}
-                  text={textColor}
-                  className="border"
-                  style={{ fontSize: "0.75rem" }}
+                {Array.isArray(stock.top_news) && stock.top_news.length > 0 && (() => {
+                  const newsWithVerdict = stock.top_news.filter(
+                    (n) => typeof n.impact_verdict === "string"
+                  );
+                  if (newsWithVerdict.length === 0) return null;
+                  const bestNews = newsWithVerdict.sort((a, b) => {
+                    const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
+                    const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
+                    return bRank - aRank;
+                  })[0];
+                  const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
+                  const badgeColor =
+                    verdict === "decisive"
+                      ? "danger"
+                      : verdict === "great"
+                      ? "success"
+                      : verdict === "good"
+                      ? "warning"
+                      : verdict === "neutral"
+                      ? "secondary"
+                      : "light";
+                  const textColor = verdict === "bad" ? "dark" : "light";
+                  return (
+                    <Badge
+                      bg={badgeColor}
+                      text={textColor}
+                      className="border"
+                      style={{ fontSize: "0.75rem" }}
+                    >
+                      📰 {bestNews.impact_verdict}
+                    </Badge>
+                  );
+                })()}
+                {stock.watchlist_recommendation && (
+                  <Badge
+                    bg="light"
+                    text={
+                      stock.watchlist_recommendation.replace(/\*/g, "").trim().toLowerCase() === "yes"
+                        ? "success"
+                        : "danger"
+                    }
+                    className="border"
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    <span style={{ fontSize: "0.75rem", color: "gray" }}> Watch: </span>
+                    {stock.watchlist_recommendation.replace(/\*/g, "").trim()}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Row 2: Watchlist + Analysis button (less emphasis) */}
+              <div className="d-flex justify-content-end align-items-center mt-1 w-100">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleAnalysisClick}
+                  disabled={loading}
+                  style={{
+                    minWidth: 90,
+                    fontSize: "0.75rem",
+                    padding: "0.25rem 0.5rem",
+                  }}
                 >
-                  📰 {bestNews.impact_verdict}
-                </Badge>
-              );
-            })()}
-
-            {stock.watchlist_recommendation && (
-              <Badge
-                bg="light"
-                text={
-                  stock.watchlist_recommendation.replace(/\*/g, "").trim().toLowerCase() === "yes"
-                    ? "success"
-                    : "danger"
-                }
-                className="border"
-                style={{ fontSize: "0.75rem" }}
-              >
-                <span style={{ fontSize: "0.75rem", color: "gray" }}> Watch: </span>
-                {stock.watchlist_recommendation.replace(/\*/g, "").trim()}
-              </Badge>
-            )}
-
-            <Button
-              style={{
-                backgroundColor: "rgb(102, 178, 255)",
-                color: "black",
-                border: "none",
-                minWidth: 100,
-                padding: "0.25rem 0.5rem",
-                fontSize: "0.8rem",
-              }}
-              size="sm"
-              onClick={handleAnalysisClick}
-              disabled={loading}
-              aria-label={`View analysis for ${stock.ticker}`}
-            >
-              {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
-            </Button>
-          </div>
-        </td>
+                  {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
+                </Button>
+              </div>
+            </div>
+          </td>
       </tr>
 
-      {/* Modal for detailed analysis */}
       <Modal size="xl" show={showModal} onHide={() => setShowModal(false)} scrollable>
         <Modal.Header closeButton>
           <Modal.Title>Analysis for {stock.ticker}</Modal.Title>

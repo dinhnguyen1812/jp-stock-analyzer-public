@@ -95,9 +95,10 @@ You can track new listings on the JPX New Listings page, which includes market s
     - include from_day and to_day in the model
     - get info from db
     - include from_day and to_day in the prompt -->
-  - Ask GPT about decisive news
-  - Show starred in fetch news
+  <!-- - Ask GPT about decisive news -->
+  <!-- - Show starred in fetch news -->
   <!-- - Add detect_recent_uptrend -->
     <!-- - Scan news:
       - Pass those repeat news -->
-    - Pass calculated signals to gpt for analyzing
+    <!-- - Pass calculated signals to gpt for analyzing -->
+    - Scan news: If news has a similar news in the past -> Show both? Show the old one? Add description

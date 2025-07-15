@@ -9,6 +9,14 @@ type EnrichedStock = VolumeSurgeStock & {
   recommendation?: string | null;
   watchlist_recommendation?: string;
   starred?: boolean;
+  momentum_signals?: {
+    score: number;
+    passed: boolean;
+    label: string;
+    points: number;
+    condition: boolean;
+    meaning: string;
+  }[];
 };
 
 interface PreMarketStockTableProps {
@@ -39,6 +47,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
     momentum_score: (stock as any).momentum_score,
     recommendation: (stock as any).recommendation,
     watchlist_recommendation: (stock as any).watchlist_recommendation,
+    momentum_signals: (stock as any).momentum_signals ?? [],
     starred: (stock as any).starred ?? false,
     detected_at: stock.detected_at || new Date().toISOString(),
   });
@@ -97,7 +106,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
             <th style={{ width: "80px" }} className="align-top text-center">
               Ticker
             </th>
-            <th style={{ minWidth: "140px" }} className="align-top text-center">
+            <th style={{ minWidth: "120px" }} className="align-top text-center">
               Name
             </th>
             <th
@@ -122,28 +131,35 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               Money Flow Rate {renderSortIndicator("money_flow_rate")}
             </th>
             <th
-              style={{ minWidth: "120px" }}
+              style={{ minWidth: "75px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("current_volume")}
             >
               Current Volume (株) {renderSortIndicator("current_volume")}
             </th>
             <th
-              style={{ minWidth: "120px" }}
+              style={{ minWidth: "75px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("avg_volume_5d")}
             >
               Avg Volume (5d) {renderSortIndicator("avg_volume_5d")}
             </th>
             <th
-              style={{ minWidth: "120px" }}
+              style={{ minWidth: "90px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("detected_at")}
             >
               Detected At {renderSortIndicator("detected_at")}
             </th>
+
+            {/* 🔑 New Column: Key Signals */}
+            <th style={{ minWidth: "250px" }} className="align-top text-center">
+              🔑 Key Signals
+            </th>
+
+            {/* Action / GPT */}
             <th
-              style={{ minWidth: "520px" }}
+              style={{ minWidth: "400px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("action_column")}
             >
@@ -177,14 +193,23 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
           </tr>
         </thead>
         <tbody>
-          {sortedStocks.map((stock) => (
-            <PreMarketStockRow
-              key={stock.ticker}
-              stock={normalizeStock(stock)}
-              latestDetectedAt={latestDetectedAt}
-              onStarToggle={onStarToggle}
-            />
-          ))}
+          {sortedStocks.map((stock) => {
+            const normalized = normalizeStock(stock);
+
+            // Key Signals to pass to row
+            const keySignals = normalized.momentum_signals?.filter((s) =>
+              ["Volume Rate > 3 / 5 / 10", "Price vs SMA50", "MACD Bullish Crossover"].includes(s.label)
+            ) ?? [];
+
+            return (
+              <PreMarketStockRow
+                key={stock.ticker}
+                stock={{ ...normalized, momentum_signals: keySignals }}
+                latestDetectedAt={latestDetectedAt}
+                onStarToggle={onStarToggle}
+              />
+            );
+          })}
         </tbody>
       </Table>
     </div>

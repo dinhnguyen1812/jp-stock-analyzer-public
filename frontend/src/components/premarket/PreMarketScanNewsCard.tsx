@@ -274,6 +274,7 @@ const PreMarketScanNewsCard: React.FC = () => {
                         ? new Date(item.created_at).toLocaleString()
                         : "N/A"}
                     </td>
+
                     <td className="text-center">
                       {item.verdict && (
                         <Badge bg={getVerdictColor(item.verdict)}>{item.verdict}</Badge>
