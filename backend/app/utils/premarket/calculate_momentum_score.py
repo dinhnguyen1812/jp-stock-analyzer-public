@@ -1,7 +1,6 @@
 def calculate_momentum_score(
     volume_snapshot,
     signal_data: dict,
-    downtrend_info: dict,
     recent_prices: list[dict] = None  # optional for low-lows check
 ) -> dict:
     """

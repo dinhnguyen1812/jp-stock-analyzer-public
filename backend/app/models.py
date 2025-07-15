@@ -54,6 +54,11 @@ class VolumeSnapshot(Base):
     top_news = Column(Text, nullable=True)
     watchlist_recommendation = Column(String, nullable=True)  # "Yes" / "No" / None
 
+    # 🔥 New fields for momentum score
+    momentum_score = Column(Integer, nullable=True)
+    momentum_confidence = Column(String, nullable=True)
+    momentum_signals = Column(JSON, nullable=True)  # List[Dict[str, Any]]
+
     __table_args__ = (
         PrimaryKeyConstraint("id"),
         UniqueConstraint("ticker", "detected_at", name="uq_ticker_detected_at"),

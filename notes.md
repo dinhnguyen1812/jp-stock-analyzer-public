@@ -98,11 +98,6 @@ You can track new listings on the JPX New Listings page, which includes market s
   - Ask GPT about decisive news
   - Show starred in fetch news
   <!-- - Add detect_recent_uptrend -->
-  - Detect similar news with recent good news and analyze how did market react: did the price go up? or down? did the price already reflected the news? Is this good time to buy?
-    - Scan news:
-      - Got a good/great/decisive news -> Get more news -> check if the news is the first, are there previous news that was similar/related
-        -> Shows: first time or not the first time (shorter display)
-    - Analyze tickers:
-      - Got a good/great/decisive news -> Check if the news is the first, are there previous news that was similar/related
-        -> if there is any, check if it related to uptrend or downtrend, get open/high/low/close for the day after
-        -> Shows: first time or not the first time + relevant info
+    <!-- - Scan news:
+      - Pass those repeat news -->
+    - Pass calculated signals to gpt for analyzing

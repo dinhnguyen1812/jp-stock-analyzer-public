@@ -224,30 +224,6 @@ def get_all_saved_volume_analyses(
             "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
         }
 
-        # 🆕 Fetch recent daily prices
-        recent_prices_query = (
-            db.query(DailyPrice)
-            .filter(DailyPrice.ticker == vs.ticker)
-            .order_by(DailyPrice.date.desc())
-            .limit(10)
-            .all()
-        )
-        recent_prices = [
-            {
-                "date": p.date.isoformat(),
-                "open": p.open,
-                "high": p.high,
-                "low": p.low,
-                "close": p.close,
-            }
-            for p in recent_prices_query
-        ]
-
-        # ✅ Enhanced momentum score with recent_prices
-        momentum_result = calculate_momentum_score(
-            vs, analysis_signal_data, downtrend_info, recent_prices=recent_prices
-        )
-
         results.append({
             "volume_info": {
                 "ticker": vs.ticker,
@@ -271,9 +247,9 @@ def get_all_saved_volume_analyses(
                 "highest_price": price_stats["highest_price"],
                 "lowest_price": price_stats["lowest_price"],
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
-                "momentum_score": momentum_result["momentum_score"],
-                "momentum_confidence": momentum_result["momentum_confidence"],
-                "momentum_signals": momentum_result.get("momentum_signals", []),
+                "momentum_score": vs.momentum_score,
+                "momentum_confidence": vs.momentum_confidence,
+                "momentum_signals": vs.momentum_signals,
             },
             "analysis_signal": analysis_signal_data,
         })
@@ -341,30 +317,6 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
     # Technical signals (RSI, MACD, etc.)
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
-    # Fetch recent daily prices for "No Lower Lows (5d)" check
-    recent_prices_query = (
-        db.query(DailyPrice)
-        .filter(DailyPrice.ticker == ticker)
-        .order_by(DailyPrice.date.desc())
-        .limit(10)
-        .all()
-    )
-    recent_prices = [
-        {
-            "date": p.date.isoformat(),
-            "open": p.open,
-            "high": p.high,
-            "low": p.low,
-            "close": p.close,
-        }
-        for p in recent_prices_query
-    ]
-
-    # Calculate full momentum score (with breakdown)
-    momentum_result = calculate_momentum_score(
-        vs, analysis_signal_data, downtrend_info, recent_prices=recent_prices
-    )
-
     return {
         "volume_info": {
             "ticker": vs.ticker,
@@ -387,9 +339,9 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
             "highest_price": price_stats["highest_price"],
             "lowest_price": price_stats["lowest_price"],
-            "momentum_score": momentum_result["momentum_score"],
-            "momentum_confidence": momentum_result["momentum_confidence"],
-            "momentum_signals": momentum_result.get("momentum_signals", []),
+            "momentum_score": vs.momentum_score,
+            "momentum_confidence": vs.momentum_confidence,
+            "momentum_signals": vs.momentum_signals,
             "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
         },
         "analysis_signal": analysis_signal_data,

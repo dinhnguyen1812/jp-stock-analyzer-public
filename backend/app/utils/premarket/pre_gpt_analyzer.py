@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 import openai
 
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
+from .calculate_momentum_score import calculate_momentum_score
 from .uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from .downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
-from app.models import VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
+from app.models import DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal, StockNewsImpact
+from app.api.shortterm_apis import get_latest_analysis_signal_data
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -94,7 +96,7 @@ def premarket_analyze_with_gpt(
         save_shortterm_analysis_signal(db, ticker)
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
-    # ↓↓↓ DOWNTREND SECTION ↓↓↓
+    # ↓↓↓ DOWNTREND ↓↓↓
     downtrend_model = get_downtrend_analysis(db, ticker)
     downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
@@ -119,9 +121,7 @@ def premarket_analyze_with_gpt(
         if drop_from_high_pct is not None else ""
     )
 
-    # ↑↑↑ DOWNTREND SECTION ↑↑↑
-
-    # ↓↓↓ UPTREND SECTION ↓↓↓
+    # ↓↓↓ UPTREND ↓↓↓
     uptrend_model = get_uptrend_analysis(db, ticker)
     uptrend_info = normalize_uptrend_for_json(uptrend_model)
     had_uptrend = uptrend_info.get("had_uptrend", False)
@@ -134,7 +134,6 @@ def premarket_analyze_with_gpt(
         if had_uptrend else
         f"📉 No strong uptrend in the recent 30 days. Last low-to-high range: {up_from} to {up_to}.\n"
     )
-    # ↑↑↑ UPTREND SECTION ↑↑↑
 
     volume_summary = (
         f"Ticker: {volume_info.ticker}\n"
@@ -152,17 +151,55 @@ def premarket_analyze_with_gpt(
         f"Pattern: {signal.candle_pattern or 'N/A'}\n"
     ) if signal else "N/A"
 
+    analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
+
+    # ↓↓↓ Fetch recent prices for momentum analysis ↓↓↓
+    recent_prices_query = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.ticker == ticker)
+        .order_by(DailyPrice.date.desc())
+        .limit(10)
+        .all()
+    )
+    recent_prices = [
+        {
+            "date": p.date.isoformat(),
+            "open": p.open,
+            "high": p.high,
+            "low": p.low,
+            "close": p.close,
+        }
+        for p in recent_prices_query
+    ]
+
+    # ↓↓↓ Momentum Score Calculation ↓↓↓
+    momentum_result = calculate_momentum_score(volume_info, analysis_signal_data, recent_prices=recent_prices)
+    volume_info.momentum_score = momentum_result["momentum_score"]
+    volume_info.momentum_confidence = momentum_result["momentum_confidence"]
+    volume_info.momentum_signals = momentum_result["momentum_signals"]
+
+    # ↓↓↓ GPT Prompt ↓↓↓
     headlines = [f"[{item['category']}] {item['headline']}" for item in news_items[:top_n]]
+
+    momentum_summary = (
+        f"### Momentum Signals Summary:\n"
+        f"Confidence: {momentum_result['momentum_confidence']}\n"
+        f"Score: {momentum_result['momentum_score']}/10\n"
+        f"Signals:\n" +
+        "\n".join([f"- {signal}" for signal in momentum_result['momentum_signals']]) +
+        "\n"
+    )
+
     prompt = (
         f"You are a financial analyst providing a **pre-market** outlook for Japanese stock {ticker}.\n\n"
-
         f"### Volume and Price Activity:\n{volume_summary}\n"
+        f"{momentum_summary}"
         f"### Technical Indicators (for reference, less emphasis):\n{tech_summary}\n"
         f"### Recent News Headlines:\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
-
         "\n\n### Analysis Instructions:\n"
-        "- Focus primarily on **volume surge**, **price movements**, and **news impact** to predict **tomorrow's market behavior**.\n"
+        "- Focus primarily on **volume surge**, **momentum signals**, **price movements**, and **news impact** to predict **tomorrow's market behavior**.\n"
+        "- Use the **Momentum Signals Summary** as a key factor: if confidence is 'Strong' or score is high, explain what that implies.\n"
         "- If there was a recent **volume surge** or **price spike**, explain **why**. Is it a justified move or based on weak fundamentals/news?\n"
         "- Use technical indicators (RSI, MACD, MA, etc.) as secondary confirmation, not the main basis.\n"
         "- Identify whether the stock is likely to **break out**, remain flat, or decline in the short term — and explain why.\n"
@@ -173,14 +210,12 @@ def premarket_analyze_with_gpt(
         "- Give a short-term **Promising Score** from 0 to 100.\n"
         "- Estimate a **likely short-term price target** in JPY.\n"
         "- Based on all factors, clearly state if the stock should be **added to a pre-market watchlist**. Answer: Yes or No.\n\n"
-
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
         "   - **Verdict: One of [Decisive, Great, Good, Neutral, Bad]**\n"
         "   - **Reason: 1 concise sentence explaining why**\n"
         "(Repeat for each headline)\n\n"
-
         "Summary:\n<Brief analysis focusing on pre-market outlook>\n\n"
         "- Investment Recommendation: Buy / Hold / Sell / Short\n"
         "- Promising Score: (0–100)\n"
@@ -249,9 +284,13 @@ def premarket_analyze_with_gpt(
             "rebound_from_low_pct": rebound_from_low_pct,
             "highest_price": highest_price,
             "lowest_price": lowest_price,
+            "momentum_score": momentum_result["momentum_score"],
+            "momentum_confidence": momentum_result["momentum_confidence"],
+            "momentum_signals": momentum_result["momentum_signals"],
         }
 
     except Exception as e:
         print(f"❌ GPT error for {ticker}: {e}")
         return {"ticker": ticker, "error": str(e)}
+
 
