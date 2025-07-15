@@ -11,7 +11,7 @@ interface PreMarketStockRowProps {
     recommendation?: string | null;
     starred?: boolean;
     detected_at: string;
-    momentum_score?: number;  // Make sure momentum_score is included here
+    momentum_score?: number;  // included for summary badge
   };
   latestDetectedAt: string;
   onStarToggle: (ticker: string, starred: boolean) => void;
@@ -51,6 +51,14 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
   };
   momentum_score?: number;
   momentum_confidence?: string;
+  momentum_signals?: {
+    score: number;
+    passed: any;
+    label: string;
+    points: number;
+    condition: boolean;
+    meaning: string;
+  }[];
 }
 
 export interface SavedAnalysis {
@@ -164,22 +172,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     bad: 1,
   };
 
-  const highlightSignal = (
-    label: string,
-    value: React.ReactNode,
-    condition: boolean,
-    points: number
-  ) => {
-    return (
-      <li>
-        {label}:{" "}
-        <span style={condition ? { fontWeight: "bold", color: "#0d6efd" } : {}}>
-          {value} {condition && <Badge bg="primary">+{points}</Badge>}
-        </span>
-      </li>
-    );
-  };
-
   return (
     <>
       {/* ROW */}
@@ -282,7 +274,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
               </Badge>
             )}
 
-
             {Array.isArray(stock.top_news) && stock.top_news.length > 0 && (() => {
               const newsWithVerdict = stock.top_news.filter(
                 (n) => typeof n.impact_verdict === "string"
@@ -354,7 +345,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
       </tr>
 
       {/* Modal for detailed analysis */}
-      <Modal size="lg" show={showModal} onHide={() => setShowModal(false)} scrollable>
+      <Modal size="xl" show={showModal} onHide={() => setShowModal(false)} scrollable>
         <Modal.Header closeButton>
           <Modal.Title>Analysis for {stock.ticker}</Modal.Title>
         </Modal.Header>
@@ -370,21 +361,8 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     <li>Name: {analysis.volume_info.name}</li>
                     <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
                     <li>Price Change: {analysis.volume_info.price_change.toFixed(2)}</li>
-
-                    {highlightSignal(
-                      "Volume Rate",
-                      analysis.volume_info.volume_rate.toFixed(2),
-                      analysis.volume_info.volume_rate > 3,
-                      3
-                    )}
-
-                    {highlightSignal(
-                      "Money Flow Rate",
-                      analysis.volume_info.money_flow_rate.toFixed(2),
-                      analysis.volume_info.money_flow_rate > 3,
-                      1
-                    )}
-
+                    <li>Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}</li>
+                    <li>Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}</li>
                     <li>Current Volume: {analysis.volume_info.current_volume.toLocaleString()}</li>
                     <li>Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}</li>
                     <li>
@@ -408,69 +386,23 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   <h5>Analysis Signals</h5>
                   {analysis.analysis_signal ? (
                     <ul>
+                      <li>Candle Pattern: {highlightKeywords(analysis.analysis_signal.candle_pattern ?? "None")}</li>
                       <li>
-                        Candle Pattern: {highlightKeywords(analysis.analysis_signal.candle_pattern ?? "None")}
-                      </li>
-                      <li>
-                        Breakout:{" "}
-                        {highlightKeywords(analysis.analysis_signal.breakout_detected ? "Yes" : "No")},{" "}
+                        Breakout: {highlightKeywords(analysis.analysis_signal.breakout_detected ? "Yes" : "No")},{" "}
                         Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},{" "}
                         Close: {analysis.analysis_signal.close_today ?? "N/A"}
                       </li>
-
-                      {highlightSignal(
-                        "RSI",
-                        analysis.analysis_signal.rsi ?? "N/A",
-                        (analysis.analysis_signal.rsi ?? 0) > 70,
-                        1
-                      )}
-
+                      <li>RSI: {analysis.analysis_signal.rsi ?? "N/A"}</li>
                       <li>
-                        MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal=
-                        {analysis.analysis_signal.macd_signal ?? "N/A"}, Hist=
-                        <span
-                          style={
-                            (analysis.analysis_signal.macd_hist ?? 0) > 0
-                              ? { fontWeight: "bold", color: "#0d6efd" }
-                              : {}
-                          }
-                        >
-                          {analysis.analysis_signal.macd_hist ?? "N/A"}{" "}
-                          {(analysis.analysis_signal.macd_hist ?? 0) > 0 && <Badge bg="primary">+1</Badge>}
-                        </span>
-                      </li>
-
-                      <li>
-                        BBands: Upper={
-                          (analysis.analysis_signal.bb_current_price ?? 0) > (analysis.analysis_signal.bb_upper ?? Infinity) ? (
-                            <span style={{ fontWeight: "bold", color: "#0d6efd" }}>
-                              {analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"}
-                            </span>
-                          ) : (
-                            analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"
-                          )
-                        }, Middle={analysis.analysis_signal.bb_middle?.toFixed(2) ?? "N/A"}, Lower={analysis.analysis_signal.bb_lower?.toFixed(2) ?? "N/A"}, Price={analysis.analysis_signal.bb_current_price?.toFixed(2) ?? "N/A"}{" "}
-                        {(analysis.analysis_signal.bb_current_price ?? 0) > (analysis.analysis_signal.bb_upper ?? Infinity) && (
-                          <Badge bg="primary">+1</Badge>
-                        )}
-                      </li>
-
-                      {highlightSignal(
-                        "SMA50",
-                        analysis.analysis_signal.sma_50 ?? "N/A",
-                        analysis.volume_info.current_price > (analysis.analysis_signal.sma_50 ?? 0),
-                        2
-                      )}
-
-                      <li>
-                        SMA200={analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20=
-                        {analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover=
-                        {analysis.analysis_signal.sma_crossover ?? "N/A"}
+                        MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal={analysis.analysis_signal.macd_signal ?? "N/A"}, Hist={analysis.analysis_signal.macd_hist ?? "N/A"}
                       </li>
                       <li>
-                        Patterns: W-Shape={highlightKeywords(analysis.analysis_signal.w_shape ? "Yes" : "No")},
-                        Flags/Pennants={highlightKeywords(analysis.analysis_signal.flags_pennants ? "Yes" : "No")},
-                        Triangle={highlightKeywords(analysis.analysis_signal.triangle ? "Yes" : "No")}
+                        BBands: Upper={analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"}, Middle={analysis.analysis_signal.bb_middle?.toFixed(2) ?? "N/A"}, Lower={analysis.analysis_signal.bb_lower?.toFixed(2) ?? "N/A"}, Price={analysis.analysis_signal.bb_current_price?.toFixed(2) ?? "N/A"}
+                      </li>
+                      <li>SMA50: {analysis.analysis_signal.sma_50 ?? "N/A"}</li>
+                      <li>SMA200: {analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20: {analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover: {analysis.analysis_signal.sma_crossover ?? "N/A"}</li>
+                      <li>
+                        Patterns: W-Shape={highlightKeywords(analysis.analysis_signal.w_shape ? "Yes" : "No")}, Flags/Pennants={highlightKeywords(analysis.analysis_signal.flags_pennants ? "Yes" : "No")}, Triangle={highlightKeywords(analysis.analysis_signal.triangle ? "Yes" : "No")}
                       </li>
                     </ul>
                   ) : (
@@ -482,33 +414,9 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   <h5>Recent Downtrend</h5>
                   {analysis.volume_info.downtrend ? (
                     <ul>
-                      <li>
-                        Had Downtrend:{" "}
-                        <span
-                          style={
-                            analysis.volume_info.downtrend.had_downtrend === false
-                              ? { fontWeight: "bold", color: "#0d6efd" }
-                              : {}
-                          }
-                        >
-                          {highlightKeywords(
-                            analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No"
-                          )}{" "}
-                          {!analysis.volume_info.downtrend.had_downtrend && (
-                            <Badge bg="primary">+1</Badge>
-                          )}
-                        </span>
-                      </li>
-                      <li>
-                        Drop %:{" "}
-                        {analysis.volume_info.downtrend.drop_pct !== undefined
-                          ? analysis.volume_info.downtrend.drop_pct.toFixed(2)
-                          : "N/A"}
-                      </li>
-                      <li>
-                        From: {analysis.volume_info.downtrend.from_date ?? "N/A"} &nbsp;
-                        To: {analysis.volume_info.downtrend.to_date ?? "N/A"}
-                      </li>
+                      <li>Had Downtrend: {highlightKeywords(analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No")}</li>
+                      <li>Drop %: {analysis.volume_info.downtrend.drop_pct !== undefined ? analysis.volume_info.downtrend.drop_pct.toFixed(2) : "N/A"}</li>
+                      <li>From: {analysis.volume_info.downtrend.from_date ?? "N/A"} To: {analysis.volume_info.downtrend.to_date ?? "N/A"}</li>
                     </ul>
                   ) : (
                     <p className="text-muted">(No downtrend data)</p>
@@ -517,47 +425,54 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   <h5 className="mt-4">Recent Uptrend</h5>
                   {analysis.volume_info.uptrend ? (
                     <ul>
-                      <li>
-                        Had Uptrend:{" "}
-                        <span
-                          style={
-                            analysis.volume_info.uptrend.had_uptrend === false
-                              ? { fontWeight: "bold", color: "#0d6efd" }
-                              : {}
-                          }
-                        >
-                          {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}{" "}
-                          {!analysis.volume_info.uptrend.had_uptrend && (
-                            <Badge bg="primary">+1</Badge>
-                          )}
-                        </span>
-                      </li>
-                      <li>
-                        Rise %:{" "}
-                        {analysis.volume_info.uptrend.rise_pct !== undefined
-                          ? analysis.volume_info.uptrend.rise_pct.toFixed(2)
-                          : "N/A"}
-                      </li>
-                      <li>
-                        From: {analysis.volume_info.uptrend.from_date ?? "N/A"} &nbsp;
-                        To: {analysis.volume_info.uptrend.to_date ?? "N/A"}
-                      </li>
+                      <li>Had Uptrend: {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}</li>
+                      <li>Rise %: {analysis.volume_info.uptrend.rise_pct !== undefined ? analysis.volume_info.uptrend.rise_pct.toFixed(2) : "N/A"}</li>
+                      <li>From: {analysis.volume_info.uptrend.from_date ?? "N/A"} To: {analysis.volume_info.uptrend.to_date ?? "N/A"}</li>
                     </ul>
                   ) : (
                     <p className="text-muted">(No uptrend data)</p>
                   )}
+                </Col>
+              </Row>
 
-                  <h5 className="mt-4">Momentum Score</h5>
-                  <p>
-                    {analysis.volume_info.momentum_score ?? "N/A"}{" "}
-                    <small>
-                      (
-                      {analysis.volume_info.momentum_confidence
-                        ? analysis.volume_info.momentum_confidence
-                        : "No confidence info"}
-                      )
-                    </small>
-                  </p>
+              {/* NEW MOMENTUM SIGNALS SECTION */}
+              <Row className="mt-4">
+                <Col>
+                  <h5>Momentum Score: {analysis.volume_info.momentum_score ?? "N/A"}</h5>
+                  <p>Confidence: {analysis.volume_info.momentum_confidence ?? "N/A"}</p>
+                  <h5>Momentum Signals (🔑 must be satisfied)</h5>
+                  {analysis.volume_info.momentum_signals && analysis.volume_info.momentum_signals.length > 0 ? (
+                    <ul>
+                      {analysis.volume_info.momentum_signals.map((signal, idx) => {
+                        const isCritical =
+                          signal.label === "Volume Rate > 3 / 5 / 10" ||
+                          signal.label === "Price vs SMA50" ||
+                          signal.label === "MACD Bullish Crossover";
+
+                        const scoreColor =
+                          signal.score < 0
+                            ? { color: "red", fontWeight: "bold" }
+                            : signal.passed
+                            ? { color: "#0d6efd", fontWeight: "bold" }
+                            : {};
+
+                        return (
+                          <li key={idx}>
+                            <strong style={isCritical ? { color: "#8f2825" } : {}}>
+                              {isCritical ? "🔑 " : ""}
+                              {signal.label}
+                            </strong>
+                            :{" "}
+                            <span style={scoreColor}>
+                              {signal.passed ? "✅" : "❌"} {signal.score > 0 ? `+${signal.score}` : signal.score} — {signal.meaning}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-muted">(No momentum signals available)</p>
+                  )}
                 </Col>
               </Row>
 
@@ -568,9 +483,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     Recommendation: {highlightKeywords(analysis.volume_info.recommendation)}
                   </div>
                 )}
-                <div className="mb-1">
-                  Promising Score: {analysis.volume_info.promising_score ?? "?"}
-                </div>
+                <div className="mb-1">Promising Score: {analysis.volume_info.promising_score ?? "?"}</div>
                 <div className="mb-1">
                   Watchlist Recommendation:{" "}
                   {highlightKeywords(analysis.volume_info.watchlist_recommendation || "")}
@@ -582,32 +495,30 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 {highlightKeywords(analysis.volume_info.reasoning || "(No reasoning provided)")}
               </p>
 
-              {Array.isArray(analysis.volume_info.top_news) &&
-                analysis.volume_info.top_news.length > 0 && (
-                  <>
-                    <h5 className="mt-4">Top News</h5>
-                    <ul className="list-unstyled">
-                      {analysis.volume_info.top_news.map((item, idx) => (
-                        <li key={idx} className="mb-3">
-                          <a href={item.url} target="_blank" rel="noopener noreferrer">
-                            {item.headline}
-                          </a>
-                          <br />
-                          <small className="text-muted">
-                            [{item.category}] {new Date(item.published_at).toLocaleString()}
-                          </small>
-                          <br />
-                          <strong>Impact Verdict:</strong>{" "}
-                          {highlightKeywords(item.impact_verdict)}
-                          <br />
-                          <em style={{ display: "block", marginTop: "0.25rem" }}>
-                            {highlightKeywords(item.impact_reason)}
-                          </em>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
+              {Array.isArray(analysis.volume_info.top_news) && analysis.volume_info.top_news.length > 0 && (
+                <>
+                  <h5 className="mt-4">Top News</h5>
+                  <ul className="list-unstyled">
+                    {analysis.volume_info.top_news.map((item, idx) => (
+                      <li key={idx} className="mb-3">
+                        <a href={item.url} target="_blank" rel="noopener noreferrer">
+                          {item.headline}
+                        </a>
+                        <br />
+                        <small className="text-muted">
+                          [{item.category}] {new Date(item.published_at).toLocaleString()}
+                        </small>
+                        <br />
+                        <strong>Impact Verdict:</strong> {highlightKeywords(item.impact_verdict)}
+                        <br />
+                        <em style={{ display: "block", marginTop: "0.25rem" }}>
+                          {highlightKeywords(item.impact_reason)}
+                        </em>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           )}
         </Modal.Body>

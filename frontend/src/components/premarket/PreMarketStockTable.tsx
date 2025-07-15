@@ -5,6 +5,7 @@ import type { VolumeSurgeStock } from "../../types";
 
 type EnrichedStock = VolumeSurgeStock & {
   promising_score?: number;
+  momentum_score?: number;
   recommendation?: string | null;
   watchlist_recommendation?: string;
   starred?: boolean;
@@ -30,30 +31,42 @@ type SortKey = keyof Pick<
 const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onStarToggle }) => {
   const [sortKey, setSortKey] = useState<SortKey>("volume_rate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [actionSortKey, setActionSortKey] = useState<"promising_score" | "momentum_score">("promising_score");
 
-  const normalizeStock = (stock: EnrichedStock): EnrichedStock => {
-    return {
-      ...stock,
-      promising_score: (stock as any).promising_score,
-      watchlist_recommendation: (stock as any).watchlist_recommendation,
-      recommendation: (stock as any).recommendation,
-      starred: (stock as any).starred ?? false,
-      detected_at: stock.detected_at || new Date().toISOString(),
-    };
-  };
+  const normalizeStock = (stock: EnrichedStock): EnrichedStock => ({
+    ...stock,
+    promising_score: (stock as any).promising_score,
+    momentum_score: (stock as any).momentum_score,
+    recommendation: (stock as any).recommendation,
+    watchlist_recommendation: (stock as any).watchlist_recommendation,
+    starred: (stock as any).starred ?? false,
+    detected_at: stock.detected_at || new Date().toISOString(),
+  });
 
-  const handleSort = (key: SortKey) => {
-    if (key === sortKey) {
+  const handleSort = (key: SortKey | "action_column") => {
+    if (key === "action_column") {
+      setSortKey("promising_score");
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
-      setSortKey(key);
-      setSortOrder("desc");
+      if (key === sortKey) {
+        setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+      } else {
+        setSortKey(key);
+        setSortOrder("desc"); // default to descending on new key
+      }
     }
   };
 
   const sortedStocks = [...stocks].sort((a, b) => {
-    const aVal = a[sortKey] as number | string | undefined;
-    const bVal = b[sortKey] as number | string | undefined;
+    const aVal =
+      sortKey === "promising_score" && actionSortKey === "momentum_score"
+        ? (a as any).momentum_score ?? 0
+        : a[sortKey] ?? 0;
+
+    const bVal =
+      sortKey === "promising_score" && actionSortKey === "momentum_score"
+        ? (b as any).momentum_score ?? 0
+        : b[sortKey] ?? 0;
 
     if (sortKey === "detected_at") {
       return sortOrder === "asc"
@@ -72,9 +85,8 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
       ).toISOString()
     : new Date(0).toISOString();
 
-  const renderSortIndicator = (key: SortKey) => {
-    return sortKey === key ? (sortOrder === "asc" ? " ▲" : " ▼") : "";
-  };
+  const renderSortIndicator = (key: SortKey) =>
+    sortKey === key ? (sortOrder === "asc" ? " ▲" : " ▼") : "";
 
   return (
     <div className="small">
@@ -95,13 +107,6 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
             >
               Current Price (円){renderSortIndicator("current_price")}
             </th>
-            {/* <th
-              style={{ width: "180px" }}
-              className="align-top text-center clickable"
-              onClick={() => handleSort("price_change")}
-            >
-              Price Change (%) {renderSortIndicator("price_change")}
-            </th> */}
             <th
               style={{ width: "80px" }}
               className="align-top text-center clickable"
@@ -140,9 +145,34 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
             <th
               style={{ minWidth: "520px" }}
               className="align-top text-center clickable"
-              onClick={() => handleSort("promising_score")}
+              onClick={() => handleSort("action_column")}
             >
               Action / GPT {renderSortIndicator("promising_score")}
+              <div style={{ fontSize: "0.75rem", marginTop: "4px" }}>
+                <span
+                  className={`me-2 ${actionSortKey === "promising_score" ? "fw-bold text-primary" : "text-muted"}`}
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionSortKey("promising_score");
+                    if (sortKey === "promising_score") setSortOrder("desc");
+                  }}
+                >
+                  Score
+                </span>
+                |
+                <span
+                  className={`ms-2 ${actionSortKey === "momentum_score" ? "fw-bold text-primary" : "text-muted"}`}
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionSortKey("momentum_score");
+                    if (sortKey === "promising_score") setSortOrder("desc");
+                  }}
+                >
+                  Signal
+                </span>
+              </div>
             </th>
           </tr>
         </thead>

@@ -9,7 +9,8 @@ from threading import Event
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
-from app.models import StockNewsImpact, VolumeSnapshot, StarredStock
+from app.models import DailyPrice, StockNewsImpact, VolumeSnapshot, StarredStock
+from app.utils.premarket.calculate_momentum_score import calculate_momentum_score
 from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
@@ -134,48 +135,6 @@ def trigger_volume_scan(
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
 
-def calculate_momentum_score(
-    volume_snapshot,
-    signal_data: dict,
-    downtrend_info: dict
-) -> dict:
-    """
-    Calculate momentum score and confidence level from snapshot, signals, and trend data.
-    Returns: {"momentum_score": int, "momentum_confidence": str}
-    """
-    score = 0
-
-    # Scoring rules
-    if volume_snapshot.volume_rate > 3:
-        score += 3
-    if signal_data.get("sma_50") and volume_snapshot.current_price > signal_data["sma_50"]:
-        score += 2
-    if volume_snapshot.money_flow_rate > 3:
-        score += 1
-    if signal_data.get("macd_hist", 0) > 0:
-        score += 1
-    if signal_data.get("rsi", 0) > 70:
-        score += 1
-    if signal_data.get("bb_upper") and volume_snapshot.current_price > signal_data["bb_upper"]:
-        score += 1
-    if not downtrend_info or not downtrend_info.get("had_downtrend"):
-        score += 1
-
-    # Confidence levels
-    if score >= 8:
-        confidence = "🔥 Very strong setup"
-    elif score >= 6:
-        confidence = "✅ Good setup"
-    elif score >= 4:
-        confidence = "⚠️ Medium-risk"
-    else:
-        confidence = "❌ Weak / No trade"
-
-    return {
-        "momentum_score": score,
-        "momentum_confidence": confidence,
-    }
-
 @router.get("/get_saved_vs", response_model=List[Dict])
 def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
@@ -265,8 +224,29 @@ def get_all_saved_volume_analyses(
             "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
         }
 
-        # ✅ Calculate momentum score
-        momentum_result = calculate_momentum_score(vs, analysis_signal_data, downtrend_info)
+        # 🆕 Fetch recent daily prices
+        recent_prices_query = (
+            db.query(DailyPrice)
+            .filter(DailyPrice.ticker == vs.ticker)
+            .order_by(DailyPrice.date.desc())
+            .limit(10)
+            .all()
+        )
+        recent_prices = [
+            {
+                "date": p.date.isoformat(),
+                "open": p.open,
+                "high": p.high,
+                "low": p.low,
+                "close": p.close,
+            }
+            for p in recent_prices_query
+        ]
+
+        # ✅ Enhanced momentum score with recent_prices
+        momentum_result = calculate_momentum_score(
+            vs, analysis_signal_data, downtrend_info, recent_prices=recent_prices
+        )
 
         results.append({
             "volume_info": {
@@ -293,6 +273,7 @@ def get_all_saved_volume_analyses(
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
                 "momentum_score": momentum_result["momentum_score"],
                 "momentum_confidence": momentum_result["momentum_confidence"],
+                "momentum_signals": momentum_result.get("momentum_signals", []),
             },
             "analysis_signal": analysis_signal_data,
         })
@@ -341,13 +322,13 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             news_item["impact_verdict"] = None
             news_item["impact_reason"] = None
 
-    # Downtrend info (from cache/db)
+    # Downtrend info
     downtrend_model = get_downtrend_analysis(db, ticker)
     downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
-    # Uptrend info (from cache/db)
-    uptrend_model = get_uptrend_analysis(db, ticker)  # Implement like downtrend
-    uptrend_info = normalize_uptrend_for_json(uptrend_model)  # Implement similar normalization
+    # Uptrend info
+    uptrend_model = get_uptrend_analysis(db, ticker)
+    uptrend_info = normalize_uptrend_for_json(uptrend_model)
 
     # Use price stats from cached downtrend info directly
     price_stats = {
@@ -357,10 +338,32 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
         "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
     }
 
-    # Technical signals (RSI, MACD...)
+    # Technical signals (RSI, MACD, etc.)
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
-    momentum_result = calculate_momentum_score(vs, analysis_signal_data, downtrend_info)
+    # Fetch recent daily prices for "No Lower Lows (5d)" check
+    recent_prices_query = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.ticker == ticker)
+        .order_by(DailyPrice.date.desc())
+        .limit(10)
+        .all()
+    )
+    recent_prices = [
+        {
+            "date": p.date.isoformat(),
+            "open": p.open,
+            "high": p.high,
+            "low": p.low,
+            "close": p.close,
+        }
+        for p in recent_prices_query
+    ]
+
+    # Calculate full momentum score (with breakdown)
+    momentum_result = calculate_momentum_score(
+        vs, analysis_signal_data, downtrend_info, recent_prices=recent_prices
+    )
 
     return {
         "volume_info": {
@@ -386,6 +389,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "lowest_price": price_stats["lowest_price"],
             "momentum_score": momentum_result["momentum_score"],
             "momentum_confidence": momentum_result["momentum_confidence"],
+            "momentum_signals": momentum_result.get("momentum_signals", []),
             "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
         },
         "analysis_signal": analysis_signal_data,
