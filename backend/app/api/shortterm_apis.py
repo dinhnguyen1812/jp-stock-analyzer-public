@@ -514,15 +514,14 @@ def gpt_advice_for_all_holdings(db: Session = Depends(get_db)):
     if not entries:
         return {"message": "No active holdings found.", "results": []}
 
-    # Group by ticker, keeping only the most recent entry per ticker
+    # Keep only the most recent entry per ticker
     latest_entries_by_ticker = {}
     for entry in entries:
-        ticker = entry.ticker
         if (
-            ticker not in latest_entries_by_ticker
-            or entry.created_at > latest_entries_by_ticker[ticker].created_at
+            entry.ticker not in latest_entries_by_ticker
+            or entry.created_at > latest_entries_by_ticker[entry.ticker].created_at
         ):
-            latest_entries_by_ticker[ticker] = entry
+            latest_entries_by_ticker[entry.ticker] = entry
 
     results = []
     for entry in latest_entries_by_ticker.values():
@@ -534,9 +533,8 @@ def gpt_advice_for_all_holdings(db: Session = Depends(get_db)):
                 "amount": entry.amount,
                 "entry_time": entry.created_at.isoformat(),
                 "gpt_advice": advice_result.get("gpt_advice", "(No advice returned)"),
-                "summary": advice_result.get("summary", ""),
-                "confidence": advice_result.get("confidence", None),
-                "recommendation": advice_result.get("recommendation", "Unknown")
+                "recommendation": advice_result.get("recommendation", "Unknown"),
+                "confidence": advice_result.get("confidence", None)
             })
         except Exception as e:
             results.append({

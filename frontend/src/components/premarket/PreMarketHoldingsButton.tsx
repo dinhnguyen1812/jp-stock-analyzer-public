@@ -15,6 +15,7 @@ import {
   markEntryAsSold,
   getGptAdviceForHoldings,
 } from "../../api";
+import ReactMarkdown from "react-markdown";
 
 const PreMarketHoldingButton: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
@@ -89,7 +90,7 @@ const PreMarketHoldingButton: React.FC = () => {
         💼 Holdings
       </Button>
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" scrollable>
+      <Modal show={showModal} onHide={() => setShowModal(false)} size="xl" scrollable>
         <Modal.Header closeButton>
           <Modal.Title>Current Holdings</Modal.Title>
         </Modal.Header>
@@ -163,6 +164,8 @@ const PreMarketHoldingButton: React.FC = () => {
                     <th>Entry Time</th>
                     <th>P/L (¥)</th>
                     <th>P/L (%)</th>
+                    <th>Current Vol Rate</th>
+                    <th>Current Money Flow Rate</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -182,6 +185,8 @@ const PreMarketHoldingButton: React.FC = () => {
                       <td style={{ color: entry.profit_percent >= 0 ? "green" : "red" }}>
                         {entry.profit_percent}%
                       </td>
+                      <td>{entry.volume_rate?.toFixed(2) ?? "-"}</td>
+                      <td>{entry.money_flow_rate?.toFixed(2) ?? "-"}</td>
                       <td>
                         <Button
                           variant="outline-danger"
@@ -261,71 +266,7 @@ const PreMarketHoldingButton: React.FC = () => {
                             </span>
                           )}
                         </Card.Title>
-                        {(() => {
-                          const lines = res.gpt_advice
-                            .split("\n")
-                            .map((l: string) => l.trim());
-                          const summaryStart = lines.findIndex((l: string) =>
-                            l.toLowerCase().includes("summary of key")
-                          );
-                          const adviceStart = lines.findIndex((l: string) =>
-                            l.toLowerCase().startsWith("advice:")
-                          );
-                          const bulletStart = lines.findIndex(
-                            (l: string, i: number) =>
-                              i > adviceStart && /^[\-\*●•]/.test(l)
-                          );
-                          const confidenceStart = lines.findIndex((l: string) =>
-                            l.toLowerCase().includes("confidence score")
-                          );
-
-                          const summaryLines = lines.slice(
-                            summaryStart + 1,
-                            adviceStart > 0 ? adviceStart : lines.length
-                          );
-                          const bullets = lines.slice(bulletStart, confidenceStart);
-                          const confidenceLine = lines[confidenceStart] || "";
-
-                          return (
-                            <>
-                              {summaryLines.length > 0 && (
-                                <>
-                                  <strong>📌 Summary of Key Changes</strong>
-                                  <ul>
-                                    {summaryLines
-                                      .filter((l: string) => l && !l.startsWith("###"))
-                                      .map((l: string, i: any) => (
-                                        <li key={`s-${i}`}>{l}</li>
-                                      ))}
-                                  </ul>
-                                </>
-                              )}
-
-                              <p>
-                                <strong>{lines[adviceStart] || "Advice: -"}</strong>
-                              </p>
-
-                              {bullets.length > 0 && (
-                                <>
-                                  <strong>🔍 Justification</strong>
-                                  <ul>
-                                    {bullets.map((l: string, i: any) => (
-                                      <li key={`b-${i}`}>
-                                        {l.replace(/^[-*●•] ?/, "")}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </>
-                              )}
-
-                              {confidenceLine && (
-                                <p>
-                                  <strong>🎯 {confidenceLine}</strong>
-                                </p>
-                              )}
-                            </>
-                          );
-                        })()}
+                        <ReactMarkdown>{res.gpt_advice}</ReactMarkdown>
                       </Card.Body>
                     </Card>
                   ))}

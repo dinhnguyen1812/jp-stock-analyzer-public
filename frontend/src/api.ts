@@ -1,4 +1,4 @@
-import type { KabutanNewsAnalysis, PreMarketScanResult } from "./types";
+import type { KabutanNewsAnalysis } from "./types";
 
 const BASE_URL = "http://localhost:8002";
 

@@ -102,3 +102,7 @@ You can track new listings on the JPX New Listings page, which includes market s
       - Pass those repeat news -->
     <!-- - Pass calculated signals to gpt for analyzing -->
     - Scan news: If news has a similar news in the past -> Show both? Show the old one? Add description
+- Analyze holdings list stocks:
+  - Scan news (all kind)
+  - Info when buying and now
+  - Show volume rate, money flow rate to holdings list modal

@@ -165,7 +165,6 @@ class EntriedStock(Base):
     ticker = Column(String, index=True)
 
     detected_at = Column(TIMESTAMP, nullable=False)  # from VolumeSnapshot.detected_at
-    updated_at = Column(TIMESTAMP, nullable=False)   # from ShortTermAnalysisSignal.updated_at
 
     entry_price = Column(Float, nullable=False)
     amount = Column(Integer, nullable=False)  # number of shares
@@ -174,7 +173,7 @@ class EntriedStock(Base):
     created_at = Column(TIMESTAMP, default=datetime.datetime.utcnow, nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("ticker", "detected_at", "updated_at", name="uq_entry_record"),
+        UniqueConstraint("ticker", "detected_at", name="uq_entry_record"),
     )
 
 class SpikeScan(Base):
