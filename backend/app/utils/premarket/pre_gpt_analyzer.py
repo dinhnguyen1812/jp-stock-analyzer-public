@@ -26,7 +26,7 @@ def extract_recommendation_and_score(text: str):
     return recommendation, promising_score
 
 
-def extract_headline_impacts(text: str, top_n: int = 5) -> list[dict]:
+def extract_headline_impacts(text: str) -> list[dict]:
     results = []
     lines = text.splitlines()
 
@@ -47,8 +47,6 @@ def extract_headline_impacts(text: str, top_n: int = 5) -> list[dict]:
                     "verdict": verdict,
                     "reason": reason,
                 })
-                if len(results) >= top_n:
-                    break
             current_headline = headline_match.group(1).strip()
             verdict = None
             reason = None
@@ -74,7 +72,7 @@ def extract_headline_impacts(text: str, top_n: int = 5) -> list[dict]:
             "reason": reason,
         })
 
-    return results[:top_n]
+    return results
 
 
 def premarket_analyze_with_gpt(
@@ -83,7 +81,7 @@ def premarket_analyze_with_gpt(
     news_items: List[Dict],
     volume_info: VolumeSnapshot,
     user_prompt: str = "",
-    top_n: int = 5,
+    top_n: int = 3,
     model: str = "gpt-4o"
 ) -> Dict:
     if not news_items:
@@ -179,7 +177,7 @@ def premarket_analyze_with_gpt(
     volume_info.momentum_signals = momentum_result["momentum_signals"]
 
     # ↓↓↓ GPT Prompt ↓↓↓
-    headlines = [f"[{item['category']}] {item['headline']}" for item in news_items[:top_n]]
+    headlines = [f"[{item['category']}] {item['headline']}" for item in news_items]
 
     momentum_summary = (
         f"### Momentum Signals Summary:\n"
@@ -191,32 +189,38 @@ def premarket_analyze_with_gpt(
     )
 
     prompt = (
-        f"You are a financial analyst providing a **pre-market** outlook for Japanese stock {ticker}.\n\n"
+        f"You are a Japanese market expert AI providing a **pre-market outlook** for stock {ticker}.\n\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"{momentum_summary}"
-        f"### Technical Indicators (for reference, less emphasis):\n{tech_summary}\n"
+        f"### Technical Indicators (for reference only):\n{tech_summary}\n"
         f"### Recent News Headlines:\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
-        "\n\n### Analysis Instructions:\n"
-        "- Focus primarily on **volume surge**, **momentum signals**, **price movements**, and **news impact** to predict **tomorrow's market behavior**.\n"
-        "- Use the **Momentum Signals Summary** as a key factor: if confidence is 'Strong' or score is high, explain what that implies.\n"
-        "- If there was a recent **volume surge** or **price spike**, explain **why**. Is it a justified move or based on weak fundamentals/news?\n"
-        "- Use technical indicators (RSI, MACD, MA, etc.) as secondary confirmation, not the main basis.\n"
-        "- Identify whether the stock is likely to **break out**, remain flat, or decline in the short term — and explain why.\n"
-        "- Evaluate the **sentiment and relevance** of the news — especially for themes like AI, Bitcoin, semiconductors, interest rates, or major partnerships.\n"
-        "- For each headline, judge whether its impact is **bullish**, **bearish**, or **neutral**, and briefly explain.\n"
-        "- Provide a clear recommendation: **Buy**, **Hold**, **Sell**, or **Short**.\n"
-        "- Justify your recommendation with **2–3 concise bullet points**.\n"
-        "- Give a short-term **Promising Score** from 0 to 100.\n"
-        "- Estimate a **likely short-term price target** in JPY.\n"
-        "- Based on all factors, clearly state if the stock should be **added to a pre-market watchlist**. Answer: Yes or No.\n\n"
+        "\n\n### Instructions:\n"
+        "- Focus primarily on **VERY RECENT NEWS**: prioritize today's news, or Friday/weekend if analyzing on Sunday/Monday.\n"
+        "- The user targets **daily profit of 3–5%**, typically selling same-day **unless very strong upside** is likely.\n"
+        "- Judge whether each news item is **strong enough to trigger an intraday move** — this is the main purpose.\n"
+        f"- From the above list, select the **top {top_n} most impactful headlines** for today's trading.\n"
+        "- **PAY CLOSE ATTENTION** to themes like **semiconductors, AI, lithium, stock splits, offering**, etc.\n"
+        "- Ignore outdated or irrelevant news. Focus on items with potential to move the stock **today**.\n"
+        "- Note: Even seemingly procedural headlines in Japanese markets (e.g. **株式発行**, **資本金変更**, **業務提携**, **剰余金の処分**) may cause large price reactions. Do not dismiss them too quickly.\n"
+        "- Use **momentum signal confidence and score** to support or reject the case for a move.\n"
+        "- If volume surged, explain **why** — due to strong news, speculative interest, or other factors?\n"
+        "- Use technical indicators (RSI, MACD, moving averages, candle patterns) for **secondary confirmation only**.\n"
+        "- For each headline, give:\n"
+        "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
+        "   - **Reason**: One sentence explaining the expected impact\n"
+        "- Conclude with a concise summary and trading view for **today**:\n"
+        "   - Investment Recommendation: Buy / Hold / Sell / Short\n"
+        "   - Promising Score: (0–100) based on short-term potential\n"
+        "   - Expected Price Target (in JPY)\n"
+        "   - Watchlist Recommendation: Yes / No\n\n"
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
-        "   - **Verdict: One of [Decisive, Great, Good, Neutral, Bad]**\n"
-        "   - **Reason: 1 concise sentence explaining why**\n"
+        "   - **Verdict: ...**\n"
+        "   - **Reason: ...**\n"
         "(Repeat for each headline)\n\n"
-        "Summary:\n<Brief analysis focusing on pre-market outlook>\n\n"
+        "Summary:\n<Short summary of today's expected performance>\n\n"
         "- Investment Recommendation: Buy / Hold / Sell / Short\n"
         "- Promising Score: (0–100)\n"
         "- Expected Price Target (in JPY): <target price>\n"
@@ -232,7 +236,7 @@ def premarket_analyze_with_gpt(
         reply = response.choices[0].message.content.strip()
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
-        impacts = extract_headline_impacts(reply, top_n=top_n)
+        impacts = extract_headline_impacts(reply)
         summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
         summary = summary_match.group(1).strip() if summary_match else ""
 
@@ -242,34 +246,39 @@ def premarket_analyze_with_gpt(
                 watchlist_recommendation = line.split(":")[-1].strip()
                 break
 
+        # Match GPT-picked top N headlines to original news, and keep only those
+        headline_texts = [imp["headline"] for imp in impacts]
+        print(f"====len(headline_texts)={len(headline_texts)}")
+
+        # Match by either full headline or stripped version
+        top_enriched_news = []
+        for item in news_items:
+            original = item.get("headline", "")
+            full_headline = f"[{item['category']}] {original}"
+            if original in headline_texts or full_headline in headline_texts:
+                matched = next(
+                    (imp for imp in impacts if imp["headline"] == original or imp["headline"] == full_headline),
+                    None
+                )
+                item["impact_verdict"] = matched.get("verdict") if matched else None
+                item["impact_reason"] = matched.get("reason") if matched else None
+                top_enriched_news.append(item)
+
+        # Save everything to VolumeSnapshot
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
         volume_info.watchlist_recommendation = watchlist_recommendation
-        volume_info.top_news = json.dumps(news_items[:top_n], ensure_ascii=False)
+        volume_info.top_news = json.dumps(top_enriched_news, ensure_ascii=False)
+        volume_info.momentum_score = momentum_result["momentum_score"]
+        volume_info.momentum_confidence = momentum_result["momentum_confidence"]
+        volume_info.momentum_signals = momentum_result["momentum_signals"]
+
         db.commit()
 
-        db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
-        for item in impacts:
-            if not item.get("headline") or not item.get("verdict"):
-                continue
-            matched_news = next(
-                (n for n in news_items if n["headline"] == item["headline"] or f"[{n['category']}] {n['headline']}" == item["headline"]),
-                {}
-            )
-            published_at = matched_news.get("published_at")
-            url = matched_news.get("url")
-            impact = StockNewsImpact(
-                ticker=ticker,
-                headline=item["headline"],
-                verdict=item["verdict"],
-                reason=item.get("reason", ""),
-                created_at=datetime.utcnow(),
-                published_at=published_at if published_at else datetime.utcnow(),
-                url=url
-            )
-            db.add(impact)
-        db.commit()
+        print(f"====len(enriched_news_items)={len(top_enriched_news)}")
+        print(f"====top_enriched_news={top_enriched_news}")
+        print(f"====volume_info.top_news={volume_info.top_news}")
 
         return {
             "ticker": ticker,
@@ -292,5 +301,6 @@ def premarket_analyze_with_gpt(
     except Exception as e:
         print(f"❌ GPT error for {ticker}: {e}")
         return {"ticker": ticker, "error": str(e)}
+
 
 

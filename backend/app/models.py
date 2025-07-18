@@ -49,12 +49,12 @@ class VolumeSnapshot(Base):
 
     # GPT-related fields
     reasoning = Column(Text, nullable=True)
-    recommendation = Column(String, nullable=True)  # "Buy", "Hold", "Sell", "Short"
-    promising_score = Column(Integer, nullable=True)  # 0-100
-    top_news = Column(Text, nullable=True)
-    watchlist_recommendation = Column(String, nullable=True)  # "Yes" / "No" / None
+    recommendation = Column(String, nullable=True)  # e.g., "Buy", "Hold", "Sell", "Short"
+    promising_score = Column(Integer, nullable=True)  # 0–100 score
+    top_news = Column(Text, nullable=True)  # JSON-encoded news with GPT verdict
+    watchlist_recommendation = Column(String, nullable=True)  # "Yes", "No", or None
 
-    # 🔥 New fields for momentum score
+    # Technical momentum fields
     momentum_score = Column(Integer, nullable=True)
     momentum_confidence = Column(String, nullable=True)
     momentum_signals = Column(JSON, nullable=True)  # List[Dict[str, Any]]

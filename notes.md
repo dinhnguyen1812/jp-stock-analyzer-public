@@ -107,6 +107,7 @@ You can track new listings on the JPX New Listings page, which includes market s
   - Info when buying and now
   - Show volume rate, money flow rate to holdings list modal
 - News:
+  - アドバンスクリエイト
   - 第三者割当による新株式の発行、業務提携、定款の一部変更、資本金及び資本準備金の額の減少、剰余金の処分、主要株主等の異動のお知らせ
   - 臨時株主総会の開催日時、開催場所及び付議議案に関するお知らせ
   - アドバンスクリエイト---2025年6月度の業績概要

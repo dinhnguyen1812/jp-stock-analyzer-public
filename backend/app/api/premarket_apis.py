@@ -171,19 +171,6 @@ def get_all_saved_volume_analyses(
     if not latest_snapshots:
         raise HTTPException(status_code=404, detail="No saved analyses found")
 
-    tickers = [vs.ticker for vs in latest_snapshots]
-
-    all_impacts = (
-        db.query(StockNewsImpact)
-        .filter(StockNewsImpact.ticker.in_(tickers))
-        .order_by(StockNewsImpact.created_at.desc())
-        .all()
-    )
-
-    impact_by_ticker = {}
-    for impact in all_impacts:
-        impact_by_ticker.setdefault(impact.ticker, []).append(impact)
-
     results = []
 
     for vs in latest_snapshots:
@@ -193,21 +180,6 @@ def get_all_saved_volume_analyses(
                 top_news = json.loads(vs.top_news)
             except Exception:
                 top_news = []
-
-        impacts = impact_by_ticker.get(vs.ticker, [])
-        impact_headlines = [imp.headline for imp in impacts]
-
-        for news_item in top_news:
-            headline = news_item.get("headline", "")
-            match = get_close_matches(headline, impact_headlines, n=1, cutoff=0.6)
-            if match:
-                matched_impact = next((imp for imp in impacts if imp.headline == match[0]), None)
-                if matched_impact:
-                    news_item["impact_verdict"] = matched_impact.verdict
-                    news_item["impact_reason"] = matched_impact.reason
-            else:
-                news_item["impact_verdict"] = None
-                news_item["impact_reason"] = None
 
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
 
@@ -276,27 +248,6 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             top_news = json.loads(vs.top_news)
         except Exception:
             top_news = []
-
-    # Match headlines with impact data
-    impacts = (
-        db.query(StockNewsImpact)
-        .filter(StockNewsImpact.ticker == ticker)
-        .order_by(StockNewsImpact.created_at.desc())
-        .all()
-    )
-    impact_headlines = [imp.headline for imp in impacts]
-
-    for news_item in top_news:
-        headline = news_item.get("headline", "")
-        match = get_close_matches(headline, impact_headlines, n=1, cutoff=0.6)
-        if match:
-            matched_impact = next((imp for imp in impacts if imp.headline == match[0]), None)
-            if matched_impact:
-                news_item["impact_verdict"] = matched_impact.verdict
-                news_item["impact_reason"] = matched_impact.reason
-        else:
-            news_item["impact_verdict"] = None
-            news_item["impact_reason"] = None
 
     # Downtrend info
     downtrend_model = get_downtrend_analysis(db, ticker)
