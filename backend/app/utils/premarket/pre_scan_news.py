@@ -1,12 +1,14 @@
+from bs4 import BeautifulSoup
+import httpx
 from difflib import SequenceMatcher
 import os
 import hashlib
 from typing import List
 import openai
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from app.models import StockNewsImpact, StarredStock
+from app.models import StockNewsImpact, StarredStock, VolumeSnapshot
 from app.utils.premarket.pre_volume_surge_scraper import fetch_ranked_volume_tickers
 from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices
 from app.utils.shortterm.kabutan_news_ticker import scrape_kabutan_news
@@ -50,15 +52,46 @@ def get_last_headline_hash(db: Session, ticker: str) -> str:
     headlines = [i.headline for i in impacts]
     return hash_headlines(headlines) if headlines else ""
 
-def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, days_threshold=10, model: str = "gpt-4o"):
+def scan_and_analyze_news_for_ticker(
+    db: Session,
+    ticker: str,
+    top_n: int = 3,
+    days_threshold=7,
+    model: str = "gpt-4o"
+):
     news_items = scrape_kabutan_news(ticker, limit=30, days_threshold=days_threshold)
     if not news_items:
         return None
 
-    raw_headlines = [f"[{item['category']}] {item['headline']}" for item in news_items[:top_n]]
+    # ↓↓↓ Apply recency penalty and normalize timestamps ↓↓↓
+    now = datetime.now(timezone.utc)
+    scored_news = []
+    for item in news_items:
+        published_at = item.get("published_at")
+        if not published_at:
+            timestamp = now
+        else:
+            timestamp = published_at if isinstance(published_at, datetime) else datetime.fromisoformat(published_at)
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+        days_ago = (now - timestamp).days
+        freshness_penalty = max(0, days_ago) * 5
+        item["recency_penalty"] = freshness_penalty
+        item["timestamp"] = timestamp
+        scored_news.append(item)
+
+    # Sort by freshness (newer = lower penalty)
+    scored_news.sort(key=lambda x: x["recency_penalty"])
+
+    # Headline strings with timestamp
+    raw_headlines = [
+        f"[{item['category']}] {item['headline']} (🕒 {item['timestamp'].isoformat()})"
+        for item in scored_news
+    ]
+
     recent_headlines = get_recent_headlines(db, ticker)
 
-    # Filter out similar headlines (likely already reacted to)
+    # Filter out headlines similar to already-processed ones
     filtered_headlines = []
     for hl in raw_headlines:
         if not any(is_similar(hl, past_hl) for past_hl in recent_headlines):
@@ -67,17 +100,29 @@ def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, d
     if not filtered_headlines:
         print(f"🟡 Skipping GPT (too similar to past headlines) for {ticker}")
         return None
+    
+    name = get_stock_name(db, ticker)
 
+    # Build enhanced prompt (aligned with premarket GPT logic)
     prompt = (
-        f"You're a financial analyst evaluating news headlines for Japanese stock {ticker}.\n"
-        "- Analyze news to predict **tomorrow's market behavior**.\n"
-        "- Evaluate news sentiment and relevance, especially on major themes like AI, Bitcoin, semiconductors, political events.\n"
-        "- Evaluate whether the news sentiment is bullish, bearish, or neutral.\n"
+        f"You are a Japanese market expert AI analyzing stock news for {ticker}, name: {name}.\n\n"
+        "### Objective:\n"
+        "- Focus **primarily on news released today**, or Friday/weekend news if it's Sunday or Monday.\n"
+        "- User targets **daily profit of 3–5%** and usually sells the same day **unless upside is very strong**.\n"
+        "- Identify headlines likely to trigger **intraday price movements**.\n"
+        "- Pay special attention to topics like **semiconductors, AI, lithium, stock splits, offerings**, etc.\n"
+        "- Even procedural headlines like 株式発行, 剰余金の処分, 業務提携 can move markets — do not dismiss them without consideration.\n"
+        "- **Note: Any company name in the headlines refers to the ticker being analyzed, or an entity directly involved with it.**\n\n"
+        "### Instructions:\n"
+        "- Evaluate how impactful the news is for **short-term (today/tomorrow)** trading.\n"
+        "- For each headline, provide:\n"
+        "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
+        "   - **Reason**: 1 concise sentence explaining the impact\n\n"
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
-        "   - **Verdict: One of [Decisive, Great, Good, Neutral, Bad]**\n"
-        "   - **Reason: 1 concise sentence explaining why**\n"
+        "   - **Verdict: ...**\n"
+        "   - **Reason: ...**\n"
         "(Repeat for each headline)\n\n"
         "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(filtered_headlines)])
     )
@@ -89,16 +134,15 @@ def scan_and_analyze_news_for_ticker(db: Session, ticker: str, top_n: int = 3, d
             temperature=0.3,
         )
         reply = response.choices[0].message.content.strip()
-        impacts = extract_headline_impacts(reply, top_n=top_n)
+        impacts = extract_headline_impacts(reply)
 
-        # Clear old records for this ticker
+        # Clear old impacts before saving new ones
         db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
 
         for item in impacts:
             if not item.get("headline") or not item.get("verdict"):
                 continue
 
-            # Find the scraped news matching this headline to get published_at and url
             matched_news = next(
                 (n for n in news_items if n['headline'] in item['headline']), None
             )
@@ -160,3 +204,32 @@ def get_positive_news(db: Session) -> List[dict]:
         for r in results
     ]
 
+def get_stock_name(db: Session, ticker: str) -> str:
+    snapshot = (
+        db.query(VolumeSnapshot)
+        .filter_by(ticker=ticker)
+        .first()
+    )
+    if snapshot and snapshot.name:
+        return snapshot.name
+
+    # Fallback to Yahoo scrape
+    try:
+        url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept-Language": "ja,en;q=0.9",
+        }
+        resp = httpx.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        name_tag = (
+            soup.select_one("h2.PriceBoardMain__name__6uDh")
+            or soup.select_one("h2.PriceBoard__name__166W")
+        )
+        return name_tag.text.strip() if name_tag else ticker
+
+    except Exception as e:
+        print(f"⚠️ Failed to get name for {ticker}: {e}")
+        return ticker

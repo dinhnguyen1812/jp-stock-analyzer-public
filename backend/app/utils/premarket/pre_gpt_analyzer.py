@@ -1,7 +1,8 @@
+from difflib import get_close_matches
 import json
 import os
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 import openai
@@ -84,54 +85,35 @@ def premarket_analyze_with_gpt(
     top_n: int = 3,
     model: str = "gpt-4o"
 ) -> Dict:
+
     if not news_items:
         return {"ticker": ticker, "volume_info": None, "top_news": [], "gpt_summary": "No recent news available."}
     if not volume_info:
         return {"ticker": ticker, "volume_info": None, "top_news": news_items[:top_n], "gpt_summary": "No volume snapshot."}
 
-    signal: Optional[ShortTermAnalysisSignal] = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
+    signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
     if not signal or not signal.updated_at or (datetime.utcnow() - signal.updated_at) > timedelta(hours=1):
         save_shortterm_analysis_signal(db, ticker)
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
-    # ↓↓↓ DOWNTREND ↓↓↓
-    downtrend_model = get_downtrend_analysis(db, ticker)
-    downtrend_info = normalize_downtrend_for_json(downtrend_model)
+    downtrend_info = normalize_downtrend_for_json(get_downtrend_analysis(db, ticker))
+    uptrend_info = normalize_uptrend_for_json(get_uptrend_analysis(db, ticker))
 
-    had_downtrend = downtrend_info.get("had_downtrend", False)
     drop_pct = downtrend_info.get("drop_pct", 0)
+    rise_pct = uptrend_info.get("rise_pct", 0)
     from_date = downtrend_info.get("from_date", "?")
     to_date = downtrend_info.get("to_date", "?")
+    up_from = uptrend_info.get("from_date", "?")
+    up_to = uptrend_info.get("to_date", "?")
+
     drop_from_high_pct = downtrend_info.get("drop_from_high_pct")
     rebound_from_low_pct = downtrend_info.get("rebound_from_low_pct")
     highest_price = downtrend_info.get("highest_price")
     lowest_price = downtrend_info.get("lowest_price")
 
-    downtrend_str = (
-        f"📉 Recent Downtrend Detected: Dropped {drop_pct:.2f}% from {from_date} to {to_date}.\n"
-        if had_downtrend else
-        f"📈 No major downtrend in the recent 30 days. Latest range: {from_date} to {to_date}.\n"
-    )
-
-    price_stats_str = (
-        f"📊 Drop from 30-day high: {drop_from_high_pct}%\n"
-        f"📈 Rebound from 30-day low: {rebound_from_low_pct}%\n"
-        if drop_from_high_pct is not None else ""
-    )
-
-    # ↓↓↓ UPTREND ↓↓↓
-    uptrend_model = get_uptrend_analysis(db, ticker)
-    uptrend_info = normalize_uptrend_for_json(uptrend_model)
-    had_uptrend = uptrend_info.get("had_uptrend", False)
-    rise_pct = uptrend_info.get("rise_pct", 0)
-    up_from = uptrend_info.get("from_date", "?")
-    up_to = uptrend_info.get("to_date", "?")
-
-    uptrend_str = (
-        f"📈 Recent Uptrend Detected: Rose {rise_pct:.2f}% from {up_from} to {up_to}.\n"
-        if had_uptrend else
-        f"📉 No strong uptrend in the recent 30 days. Last low-to-high range: {up_from} to {up_to}.\n"
-    )
+    downtrend_str = f"📉 Recent Downtrend Detected: Dropped {drop_pct:.2f}% from {from_date} to {to_date}.\n" if downtrend_info.get("had_downtrend") else f"📈 No major downtrend in the recent 30 days. Latest range: {from_date} to {to_date}.\n"
+    uptrend_str = f"📈 Recent Uptrend Detected: Rose {rise_pct:.2f}% from {up_from} to {up_to}.\n" if uptrend_info.get("had_uptrend") else f"📉 No strong uptrend in the recent 30 days. Last low-to-high range: {up_from} to {up_to}.\n"
+    price_stats_str = f"📊 Drop from 30-day high: {drop_from_high_pct}%\n📈 Rebound from 30-day low: {rebound_from_low_pct}%\n" if drop_from_high_pct is not None else ""
 
     volume_summary = (
         f"Ticker: {volume_info.ticker}\n"
@@ -151,7 +133,6 @@ def premarket_analyze_with_gpt(
 
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
-    # ↓↓↓ Fetch recent prices for momentum analysis ↓↓↓
     recent_prices_query = (
         db.query(DailyPrice)
         .filter(DailyPrice.ticker == ticker)
@@ -170,14 +151,10 @@ def premarket_analyze_with_gpt(
         for p in recent_prices_query
     ]
 
-    # ↓↓↓ Momentum Score Calculation ↓↓↓
     momentum_result = calculate_momentum_score(volume_info, analysis_signal_data, recent_prices=recent_prices)
     volume_info.momentum_score = momentum_result["momentum_score"]
     volume_info.momentum_confidence = momentum_result["momentum_confidence"]
     volume_info.momentum_signals = momentum_result["momentum_signals"]
-
-    # ↓↓↓ GPT Prompt ↓↓↓
-    headlines = [f"[{item['category']}] {item['headline']}" for item in news_items]
 
     momentum_summary = (
         f"### Momentum Signals Summary:\n"
@@ -188,12 +165,31 @@ def premarket_analyze_with_gpt(
         "\n"
     )
 
+    # ↓↓↓ Apply recency penalty & prepare headline prompt ↓↓↓
+    now = datetime.now(timezone.utc)
+    scored_news = []
+    for item in news_items:
+        published_at = item.get("published_at")
+        timestamp = published_at if isinstance(published_at, datetime) else datetime.fromisoformat(published_at)
+        days_ago = (now - timestamp).days
+        freshness_penalty = max(0, days_ago) * 5  # 5 point penalty per day
+        item["recency_penalty"] = freshness_penalty
+        scored_news.append(item)
+
+    # Sort news by recency (assumed importance)
+    scored_news.sort(key=lambda x: x["recency_penalty"])
+
+    headlines = [
+        f"[{item['category']}] {item['headline']} (🕒 {item['published_at']})"
+        for item in scored_news
+    ]
+
     prompt = (
         f"You are a Japanese market expert AI providing a **pre-market outlook** for stock {ticker}.\n\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"{momentum_summary}"
         f"### Technical Indicators (for reference only):\n{tech_summary}\n"
-        f"### Recent News Headlines:\n"
+        f"### Recent News Headlines (timestamp included):\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
         "\n\n### Instructions:\n"
         "- Focus primarily on **VERY RECENT NEWS**: prioritize today's news, or Friday/weekend if analyzing on Sunday/Monday.\n"
@@ -248,23 +244,25 @@ def premarket_analyze_with_gpt(
 
         # Match GPT-picked top N headlines to original news, and keep only those
         headline_texts = [imp["headline"] for imp in impacts]
-        print(f"====len(headline_texts)={len(headline_texts)}")
 
         # Match by either full headline or stripped version
         top_enriched_news = []
         for item in news_items:
             original = item.get("headline", "")
             full_headline = f"[{item['category']}] {original}"
-            if original in headline_texts or full_headline in headline_texts:
-                matched = next(
-                    (imp for imp in impacts if imp["headline"] == original or imp["headline"] == full_headline),
-                    None
-                )
+
+            # Try fuzzy match
+            match = get_close_matches(full_headline, headline_texts, n=1, cutoff=0.6)
+            if not match:
+                match = get_close_matches(original, headline_texts, n=1, cutoff=0.6)
+
+            if match:
+                matched_headline = match[0]
+                matched = next((imp for imp in impacts if imp["headline"] == matched_headline), None)
                 item["impact_verdict"] = matched.get("verdict") if matched else None
                 item["impact_reason"] = matched.get("reason") if matched else None
                 top_enriched_news.append(item)
 
-        # Save everything to VolumeSnapshot
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
@@ -275,10 +273,6 @@ def premarket_analyze_with_gpt(
         volume_info.momentum_signals = momentum_result["momentum_signals"]
 
         db.commit()
-
-        print(f"====len(enriched_news_items)={len(top_enriched_news)}")
-        print(f"====top_enriched_news={top_enriched_news}")
-        print(f"====volume_info.top_news={volume_info.top_news}")
 
         return {
             "ticker": ticker,
@@ -301,6 +295,7 @@ def premarket_analyze_with_gpt(
     except Exception as e:
         print(f"❌ GPT error for {ticker}: {e}")
         return {"ticker": ticker, "error": str(e)}
+
 
 
 
