@@ -33,7 +33,7 @@ def get_latest_trading_day(db: Session, ticker: str) -> Optional[datetime.date]:
     )
     return latest[0] if latest else None
 
-def fetch_name_from_yahoo(ticker: str) -> str:
+def fetch_name_and_price_change_from_yahoo(ticker: str) -> tuple[str, float]:
     url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
     headers = {
         "User-Agent": "Mozilla/5.0",
@@ -44,14 +44,35 @@ def fetch_name_from_yahoo(ticker: str) -> str:
         resp = httpx.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
+
+        # 1. Extract stock name
         name_tag = (
             soup.select_one("h2.PriceBoardMain__name__6uDh") or
             soup.select_one("h2.PriceBoard__name__166W")
         )
-        return name_tag.text.strip() if name_tag else ticker
+        name = name_tag.text.strip() if name_tag else ticker
+
+        # 2. Extract price change percentage
+        percent_change = 0.0
+        change_container = soup.select_one("dd.PriceChangeLabel__description__a5Lp")
+        if change_container:
+            percent_spans = change_container.select("span.StyledNumber__value__3rXW")
+            if len(percent_spans) >= 2:
+                percent_text = percent_spans[1].text.replace("+", "").replace("%", "").strip()
+                try:
+                    percent_change = float(percent_text)
+                except ValueError:
+                    pass
+            else:
+                print(f"⚠️ Couldn't find percentage span for {ticker}")
+        else:
+            print(f"⚠️ Price change container not found for {ticker}")
+
+        return name, percent_change
+
     except Exception as e:
         print(f"⚠️ Failed to fetch name for {ticker}: {e}")
-        return ticker
+        return ticker, 0.0
 
 def fetch_ranked_volume_tickers(from_page: int = 1, to_page: int = 5) -> List[str]:
     tickers = set()
@@ -127,13 +148,13 @@ def analyze_and_snapshot_ticker(
             money_flow_rate = round(raw_money_flow / avg_money.avg_5d_money_flow, 2)
 
         # Get name
-        name = fetch_name_from_yahoo(ticker)
+        name, price_change = fetch_name_and_price_change_from_yahoo(ticker)
 
         snapshot = VolumeSnapshot(
             ticker=ticker,
             name=name,
             current_price=current_price,
-            price_change=0.0,
+            price_change=price_change,
             current_volume=dv.volume,
             avg_volume_5d=avg_vol.avg_5d_volume,
             volume_rate=round(volume_rate, 2),

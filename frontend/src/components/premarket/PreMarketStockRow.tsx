@@ -243,6 +243,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         <td className="align-middle text-center">{stock.ticker}</td>
         <td className="align-middle">{stock.name}</td>
         <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
+        <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
         <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>

@@ -117,6 +117,13 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               Current Price (円){renderSortIndicator("current_price")}
             </th>
             <th
+              style={{ width: "100px" }}
+              className="align-top text-center clickable"
+              onClick={() => handleSort("price_change")}
+            >
+              Price Change (%) {renderSortIndicator("price_change")}
+            </th>
+            <th
               style={{ width: "80px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("volume_rate")}
