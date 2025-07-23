@@ -56,7 +56,7 @@ def scan_and_analyze_news_for_ticker(
     db: Session,
     ticker: str,
     top_n: int = 3,
-    days_threshold=7,
+    days_threshold=30,
     model: str = "gpt-4o"
 ):
     news_items = scrape_kabutan_news(ticker, limit=30, days_threshold=days_threshold)
@@ -89,17 +89,17 @@ def scan_and_analyze_news_for_ticker(
         for item in scored_news
     ]
 
-    recent_headlines = get_recent_headlines(db, ticker)
+    # recent_headlines = get_recent_headlines(db, ticker)
 
-    # Filter out headlines similar to already-processed ones
-    filtered_headlines = []
-    for hl in raw_headlines:
-        if not any(is_similar(hl, past_hl) for past_hl in recent_headlines):
-            filtered_headlines.append(hl)
+    # # Filter out headlines similar to already-processed ones
+    # filtered_headlines = []
+    # for hl in raw_headlines:
+    #     if not any(is_similar(hl, past_hl) for past_hl in recent_headlines):
+    #         filtered_headlines.append(hl)
 
-    if not filtered_headlines:
-        print(f"🟡 Skipping GPT (too similar to past headlines) for {ticker}")
-        return None
+    # if not filtered_headlines:
+    #     print(f"🟡 Skipping GPT (too similar to past headlines) for {ticker}")
+    #     return None
     
     name = get_stock_name(db, ticker)
 
@@ -124,7 +124,8 @@ def scan_and_analyze_news_for_ticker(
         "   - **Verdict: ...**\n"
         "   - **Reason: ...**\n"
         "(Repeat for each headline)\n\n"
-        "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(filtered_headlines)])
+        # "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(filtered_headlines)])
+        "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(raw_headlines)])
     )
 
     try:

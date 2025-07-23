@@ -82,6 +82,10 @@ def get_ranked_volume_tickers(
     tickers = fetch_ranked_volume_tickers(from_page=from_page, to_page=to_page)
     return {"ranked_tickers": tickers, "count": len(tickers)}
 
+@router.get("/scrape_kabutan_news/{ticker}")
+def scrape_kabutan_news_(ticker: str, days_threshold: int):
+    return scrape_kabutan_news(ticker, days_threshold)
+
 @router.post("/volume_scan")
 def trigger_volume_scan(
     params: ScanParams,
@@ -376,7 +380,7 @@ def scan_news_for_ticker(
     Caches headline hash to avoid duplicate GPT calls.
     """
 
-    result = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=10, model=model)
+    result = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=30, model=model)
     return {
         "ticker": ticker,
         "status": "updated" if result else "skipped (cached)",
@@ -397,7 +401,7 @@ def scan_and_analyze_low_cap_tickers(
 
     for ticker in tickers:
         try:
-            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=3, model=model)
+            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=10, model=model)
             if impacts and any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
                 alert_tickers.append(ticker)
         except Exception as e:
@@ -408,20 +412,25 @@ def scan_and_analyze_low_cap_tickers(
 
 @router.post("/scan_news_bulk", response_model=Dict)
 def scan_news_for_low_cap_bulk(
-    from_page: int = 1,
-    to_page: int = 5,
-    price_threshold: float = 300,
+    params: ScanParams,
+    db: Session = Depends(get_db),
     top_n: int = 3,
     model: str = "gpt-4o",
-    db: Session = Depends(get_db),
 ):
-    tickers, alert_tickers = scan_and_analyze_low_cap_tickers(db, from_page, to_page, price_threshold, top_n, model)
+    tickers, alert_tickers = scan_and_analyze_low_cap_tickers(
+        db,
+        from_page=params.from_page,
+        to_page=params.to_page,
+        price_threshold=params.price_threshold,
+        top_n=top_n,
+        model=model
+    )
     return {
         "scanned_tickers": tickers,
         "alert_tickers": alert_tickers,
-        "from_page": from_page,
-        "to_page": to_page,
-        "price_threshold": price_threshold,
+        "from_page": params.from_page,
+        "to_page": params.to_page,
+        "price_threshold": params.price_threshold,
     }
 
 auto_scan_stop_event = Event()

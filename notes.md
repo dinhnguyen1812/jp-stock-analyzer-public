@@ -114,3 +114,6 @@ You can track new listings on the JPX New Listings page, which includes market s
   - Should focus especially on today/yesterday/or weekend (if today is monday) news instead of all current news
   - ＦＤＫは商い伴い急騰、水素貯蔵タンク用の新材料を開発 => gpt give good, but it rise 22%
 - Check volume spike + news
+- Add today + yesterday high low close for analyzing
+- Check if promising score is based on both technical signals and news (sometimes news alone could be great?)
+- Add detect second spike
