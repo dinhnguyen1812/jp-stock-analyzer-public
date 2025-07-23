@@ -12,8 +12,8 @@ import {
 } from "../api";
 
 const PreMarketPage: React.FC = () => {
-  const [surgeThreshold, setSurgeThreshold] = useState<number>(2.0);
-  const [priceThreshold, setPriceThreshold] = useState<number>(300);
+  const [surgeThreshold, setSurgeThreshold] = useState<number>(0);
+  const [priceThreshold, setPriceThreshold] = useState<number>(0);
   const [fromPage, setFromPage] = useState<number>(1);
   const [toPage, setToPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);

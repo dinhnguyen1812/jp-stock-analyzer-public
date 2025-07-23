@@ -1,5 +1,3 @@
-# app/utils/shortterm/uptrend_detector.py
-
 import datetime
 from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
@@ -8,7 +6,7 @@ from app.models import DailyPrice, StockUpTrendAnalysis
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
 
 
-def compute_uptrend_analysis(db: Session, ticker: str, days: int = 30) -> StockUpTrendAnalysis:
+def compute_uptrend_analysis(db: Session, ticker: str, days: int = 10) -> StockUpTrendAnalysis:
     fetch_and_save_price_history(db, ticker, max_days=150)
 
     today = datetime.date.today()
@@ -41,24 +39,29 @@ def compute_uptrend_analysis(db: Session, ticker: str, days: int = 30) -> StockU
     dates = [p.date for p in prices]
     current_price = close_prices[-1]
 
-    # Uptrend detection
-    min_price = min(close_prices)
-    min_idx = close_prices.index(min_price)
-    min_date = dates[min_idx]
+    # Search for most recent uptrend > 20%
+    found_uptrend = False
+    min_idx, max_idx = None, None
+    rise_pct = 0.0
 
-    post_trough_prices = close_prices[min_idx + 1:]
-    post_trough_dates = dates[min_idx + 1:]
+    for i in range(len(close_prices) - 2):
+        min_price = close_prices[i]
+        for j in range(i + 1, len(close_prices)):
+            max_price = close_prices[j]
+            pct_rise = (max_price - min_price) / min_price * 100
+            if pct_rise >= 20:
+                min_idx = i
+                max_idx = j
+                rise_pct = pct_rise
+                found_uptrend = True
+                # continue searching for later uptrend (closer to today)
+                break
 
-    if post_trough_prices:
-        max_price = max(post_trough_prices)
-        max_idx = post_trough_prices.index(max_price)
-        max_date = post_trough_dates[max_idx]
-        rise_pct = (max_price - min_price) / min_price * 100
-        had_uptrend = rise_pct >= 10  # define threshold here
+    if found_uptrend:
+        min_date = dates[min_idx]
+        max_date = dates[max_idx]
     else:
-        rise_pct = 0.0
-        had_uptrend = False
-        max_price = None
+        min_date = None
         max_date = None
 
     drop_from_high_pct = (max(highs) - current_price) / max(highs) * 100 if highs else None
@@ -68,9 +71,9 @@ def compute_uptrend_analysis(db: Session, ticker: str, days: int = 30) -> StockU
         ticker=ticker,
         updated_at=datetime.datetime.now(),
         rise_pct=round(rise_pct, 2),
-        had_uptrend=had_uptrend,
-        from_date=min_date if had_uptrend else None,
-        to_date=max_date if had_uptrend else None,
+        had_uptrend=found_uptrend,
+        from_date=min_date,
+        to_date=max_date,
         highest_price=max(highs) if highs else None,
         lowest_price=min(lows) if lows else None,
         drop_from_high_pct=round(drop_from_high_pct, 2) if drop_from_high_pct else None,

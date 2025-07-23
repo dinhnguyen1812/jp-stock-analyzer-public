@@ -452,17 +452,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 </Col>
 
                 <Col md={4}>
-                  <h5>Recent Downtrend</h5>
-                  {analysis.volume_info.downtrend ? (
-                    <ul>
-                      <li>Had Downtrend: {highlightKeywords(analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No")}</li>
-                      <li>Drop %: {analysis.volume_info.downtrend.drop_pct !== undefined ? analysis.volume_info.downtrend.drop_pct.toFixed(2) : "N/A"}</li>
-                      <li>From: {analysis.volume_info.downtrend.from_date ?? "N/A"} To: {analysis.volume_info.downtrend.to_date ?? "N/A"}</li>
-                    </ul>
-                  ) : (
-                    <p className="text-muted">(No downtrend data)</p>
-                  )}
-
                   <h5 className="mt-4">Recent Uptrend</h5>
                   {analysis.volume_info.uptrend ? (
                     <ul>
@@ -472,6 +461,17 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     </ul>
                   ) : (
                     <p className="text-muted">(No uptrend data)</p>
+                  )}
+
+                  <h5>Recent Downtrend</h5>
+                  {analysis.volume_info.downtrend ? (
+                    <ul>
+                      <li>Had Downtrend: {highlightKeywords(analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No")}</li>
+                      <li>Drop %: {analysis.volume_info.downtrend.drop_pct !== undefined ? analysis.volume_info.downtrend.drop_pct.toFixed(2) : "N/A"}</li>
+                      <li>From: {analysis.volume_info.downtrend.from_date ?? "N/A"} To: {analysis.volume_info.downtrend.to_date ?? "N/A"}</li>
+                    </ul>
+                  ) : (
+                    <p className="text-muted">(No downtrend data)</p>
                   )}
                 </Col>
               </Row>

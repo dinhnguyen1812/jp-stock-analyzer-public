@@ -111,6 +111,8 @@ def analyze_and_snapshot_ticker(
 ) -> Optional[VolumeSnapshot]:
     try:
         fetch_and_save_price_history(db, ticker)
+        update_avg_volume_for_ticker(db, ticker)
+        update_avg_money_flow_for_ticker(db, ticker)
 
         last_day = get_latest_trading_day(db, ticker)
         if not last_day:
@@ -123,9 +125,6 @@ def analyze_and_snapshot_ticker(
         current_price = price.close
         if current_price > price_threshold:
             return None
-
-        update_avg_volume_for_ticker(db, ticker)
-        update_avg_money_flow_for_ticker(db, ticker)
 
         dv = db.query(DailyVolume).filter_by(ticker=ticker, date=last_day).first()
         if not dv or dv.volume == 0:
