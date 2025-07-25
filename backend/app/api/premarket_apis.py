@@ -415,7 +415,7 @@ def scan_news_for_low_cap_bulk(
     params: ScanParams,
     db: Session = Depends(get_db),
     top_n: int = 3,
-    model: str = "gpt-4o",
+    model: str = "gpt-3.5-turbo",
 ):
     tickers, alert_tickers = scan_and_analyze_low_cap_tickers(
         db,

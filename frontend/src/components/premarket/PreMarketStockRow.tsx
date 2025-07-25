@@ -321,11 +321,13 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     (n) => typeof n.impact_verdict === "string"
                   );
                   if (newsWithVerdict.length === 0) return null;
+
                   const bestNews = newsWithVerdict.sort((a, b) => {
                     const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
                     const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
                     return bRank - aRank;
                   })[0];
+
                   const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
                   const badgeColor =
                     verdict === "decisive"
@@ -338,6 +340,19 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       ? "secondary"
                       : "light";
                   const textColor = verdict === "bad" ? "dark" : "light";
+
+                  // Parse news date and compare with today 15:30 JST
+                  const publishedAt = new Date(bestNews.published_at);
+                  const now = new Date();
+                  // const jstOffset = 9 * 60; // JST is UTC+9
+                  const year = now.getUTCFullYear();
+                  const month = now.getUTCMonth();
+                  const day = now.getUTCDate();
+                  const threshold = new Date(Date.UTC(year, month, day, 6, 30)); // 15:30 JST = 06:30 UTC
+
+                  const isVeryRecent = publishedAt >= threshold;
+                  const verdictLabel = `${bestNews.impact_verdict}${isVeryRecent ? " ⭐️" : ""}`;
+
                   return (
                     <Badge
                       bg={badgeColor}
@@ -345,10 +360,11 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       className="border"
                       style={{ fontSize: "0.75rem" }}
                     >
-                      📰 {bestNews.impact_verdict}
+                      {verdictLabel}
                     </Badge>
                   );
                 })()}
+
                 {stock.watchlist_recommendation && (
                   <Badge
                     bg="light"

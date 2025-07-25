@@ -120,6 +120,7 @@ const PreMarketPage: React.FC = () => {
     <div className="container mt-3">
       {/* Holdings Button */}
       <PreMarketHoldingButton />
+      <h1>Aiming for: High score + Good signal score + Chart: rised and pullback</h1>
 
       {/* News Scanner Section */}
       <PreMarketScanNewsCard />
