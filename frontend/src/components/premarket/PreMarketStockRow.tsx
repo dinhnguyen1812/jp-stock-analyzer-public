@@ -36,6 +36,7 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
     from_date: string;
     to_date: string;
   };
+  kabutan_chart_url?: string;
   momentum_score?: number;
   momentum_confidence?: string;
   momentum_signals?: {
@@ -348,7 +349,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   const year = now.getUTCFullYear();
                   const month = now.getUTCMonth();
                   const day = now.getUTCDate();
-                  const threshold = new Date(Date.UTC(year, month, day, 6, 30)); // 15:30 JST = 06:30 UTC
+                  const threshold = new Date(Date.UTC(year, month, day, 6, 29)); // 15:30 JST = 06:30 UTC
 
                   const isVeryRecent = publishedAt >= threshold;
                   const verdictLabel = `${bestNews.impact_verdict}${isVeryRecent ? " ⭐️" : ""}`;
@@ -489,6 +490,15 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   ) : (
                     <p className="text-muted">(No downtrend data)</p>
                   )}
+                  <h5>📈{" "}
+                    <a
+                      href={analysis.volume_info.kabutan_chart_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View Kabutan Chart
+                    </a>
+                  </h5>
                 </Col>
               </Row>
 

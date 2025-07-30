@@ -4,7 +4,7 @@ from difflib import get_close_matches
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from threading import Event
 from app.schemas import ScanParams
 
@@ -144,6 +144,8 @@ def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
     price_threshold: float = Query(0, ge=0),
     starred_only: bool = False,
+    detected_at_max_age_minutes: int = Query(1440, ge=1),
+    # detected_at_max_age_minutes: int = Query(5000, ge=1),
     db: Session = Depends(get_db),
 ):
     query = (
@@ -153,6 +155,10 @@ def get_all_saved_volume_analyses(
         )
         .filter(VolumeSnapshot.promising_score > 0)
     )
+
+    if detected_at_max_age_minutes:
+        threshold_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=detected_at_max_age_minutes)
+        query = query.filter(VolumeSnapshot.detected_at >= threshold_time)
 
     if surge_threshold > 0:
         query = query.filter(VolumeSnapshot.volume_rate >= surge_threshold)
@@ -274,7 +280,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
 
     return {
         "volume_info": {
-            "ticker": vs.ticker,
+            "ticker": ticker,
             "name": vs.name,
             "current_price": vs.current_price,
             "price_change": vs.price_change,
@@ -298,6 +304,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "momentum_confidence": vs.momentum_confidence,
             "momentum_signals": vs.momentum_signals,
             "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
+            "kabutan_chart_url": f"https://kabutan.jp/stock/chart?code={ticker}",
         },
         "analysis_signal": analysis_signal_data,
     }
@@ -351,7 +358,6 @@ def analyze_single_ticker(
 def analyze_starred_tickers(
     top_n: int = 3,
     model: str = "gpt-4o",
-    # model: str = "gpt-3.5-turbo",
     db: Session = Depends(get_db)
 ):
     starred_tickers = db.query(StarredStock.ticker).all()
@@ -401,7 +407,7 @@ def scan_and_analyze_low_cap_tickers(
 
     for ticker in tickers:
         try:
-            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=10, model=model)
+            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=1, model=model)
             if impacts and any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
                 alert_tickers.append(ticker)
         except Exception as e:
@@ -415,7 +421,8 @@ def scan_news_for_low_cap_bulk(
     params: ScanParams,
     db: Session = Depends(get_db),
     top_n: int = 3,
-    model: str = "gpt-3.5-turbo",
+    # model: str = "gpt-3.5-turbo",
+    model: str = "gpt-4o",
 ):
     tickers, alert_tickers = scan_and_analyze_low_cap_tickers(
         db,
@@ -432,35 +439,6 @@ def scan_news_for_low_cap_bulk(
         "to_page": params.to_page,
         "price_threshold": params.price_threshold,
     }
-
-auto_scan_stop_event = Event()
-
-@router.post("/auto_scan_news", response_model=Dict)
-def auto_scan_news(
-    interval_minutes: int = 60,
-    from_page: int = 1,
-    to_page: int = 5,
-    price_threshold: float = 300,
-    top_n: int = 3,
-    model: str = "gpt-4o",
-    db: Session = Depends(get_db),
-):
-    auto_scan_stop_event.clear()
-    # This endpoint can trigger the same scanning logic, and you can extend it with scheduling or state management later
-    tickers, alert_tickers = scan_and_analyze_low_cap_tickers(db, from_page, to_page, price_threshold, top_n, model)
-    
-    # Optionally: store or log scan time, results, etc.
-    
-    return {
-        "message": f"Auto scan complete. Interval: {interval_minutes} minutes",
-        "scanned_tickers": tickers,
-        "alert_tickers": alert_tickers,
-    }
-
-@router.post("/stop_auto_scan")
-def stop_auto_scan():
-    auto_scan_stop_event.set()
-    return {"message": "Auto scan stopped"}
 
 @router.get("/positive_news", response_model=List[Dict])
 def get_positive_news_api(db: Session = Depends(get_db)):

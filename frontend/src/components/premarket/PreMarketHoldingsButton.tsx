@@ -86,7 +86,7 @@ const PreMarketHoldingButton: React.FC = () => {
 
   return (
     <>
-      <Button variant="dark" size="sm" onClick={handleShow} className="mb-3">
+      <Button variant="dark" size="sm" onClick={handleShow}>
         💼 Holdings
       </Button>
 

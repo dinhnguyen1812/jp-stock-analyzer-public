@@ -3,6 +3,7 @@ import PreMarketScanForm from "../components/premarket/PreMarketScanForm";
 import PreMarketScanNewsCard from "../components/premarket/PreMarketScanNewsCard";
 import PreMarketStockTable from "../components/premarket/PreMarketStockTable";
 import PreMarketHoldingButton from "../components/premarket/PreMarketHoldingsButton";
+import Rules from "../components/premarket/Rules";
 import type { VolumeSurgeStock } from "../types";
 import {
   scanPreMarketVolumeSurges,
@@ -119,8 +120,10 @@ const PreMarketPage: React.FC = () => {
   return (
     <div className="container mt-3">
       {/* Holdings Button */}
-      <PreMarketHoldingButton />
-      <h1>Aiming for: High score + Good signal score + Chart: rised and pullback</h1>
+      <div className="d-flex justify-content-start align-items-center gap-2 mb-3">
+        <PreMarketHoldingButton />
+        <Rules />
+      </div>
 
       {/* News Scanner Section */}
       <PreMarketScanNewsCard />
