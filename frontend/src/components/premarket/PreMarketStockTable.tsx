@@ -2,6 +2,16 @@ import React, { useState } from "react";
 import { Table } from "react-bootstrap";
 import PreMarketStockRow from "./PreMarketStockRow";
 import type { VolumeSurgeStock } from "../../types";
+import { fetchSetNote } from "../../api";
+
+const handleNoteChange = async (ticker: string, newNote: string) => {
+  try {
+    await fetchSetNote(ticker, newNote);
+    console.log(`✅ Note updated for ${ticker}`);
+  } catch (err) {
+    console.error(`❌ Failed to update note for ${ticker}:`, err);
+  }
+};
 
 type EnrichedStock = VolumeSurgeStock & {
   promising_score?: number;
@@ -61,7 +71,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
         setSortOrder(sortOrder === "asc" ? "desc" : "asc");
       } else {
         setSortKey(key);
-        setSortOrder("desc"); // default to descending on new key
+        setSortOrder("desc");
       }
     }
   };
@@ -102,13 +112,10 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
       <Table striped bordered hover responsive className="table-sm align-top">
         <thead className="table-light sticky-top">
           <tr>
+            <th style={{ minWidth: "150px" }} className="align-top text-center">Note</th>
             <th style={{ width: "40px" }}> </th>
-            <th style={{ width: "80px" }} className="align-top text-center">
-              Ticker
-            </th>
-            <th style={{ minWidth: "120px" }} className="align-top text-center">
-              Name
-            </th>
+            <th style={{ width: "80px" }} className="align-top text-center">Ticker</th>
+            <th style={{ minWidth: "120px" }} className="align-top text-center">Name</th>
             <th
               style={{ width: "120px" }}
               className="align-top text-center clickable"
@@ -158,13 +165,9 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
             >
               Detected At {renderSortIndicator("detected_at")}
             </th>
-
-            {/* 🔑 New Column: Key Signals */}
             <th style={{ minWidth: "250px" }} className="align-top text-center">
               🔑 Key Signals
             </th>
-
-            {/* Action / GPT */}
             <th
               style={{ minWidth: "400px" }}
               className="align-top text-center clickable"
@@ -202,8 +205,6 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
         <tbody>
           {sortedStocks.map((stock) => {
             const normalized = normalizeStock(stock);
-
-            // Key Signals to pass to row
             const keySignals = normalized.momentum_signals?.filter((s) =>
               ["Volume Rate > 3 / 5 / 10", "Price vs SMA50", "MACD Bullish Crossover"].includes(s.label)
             ) ?? [];
@@ -214,6 +215,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
                 stock={{ ...normalized, momentum_signals: keySignals }}
                 latestDetectedAt={latestDetectedAt}
                 onStarToggle={onStarToggle}
+                onNoteChange={handleNoteChange}
               />
             );
           })}

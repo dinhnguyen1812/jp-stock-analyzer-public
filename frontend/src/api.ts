@@ -323,3 +323,11 @@ export async function fetchSavedPremarketAnalysis(ticker: string) {
   return await res.json();
 }
 
+export async function fetchSetNote(ticker: string, note: string) {
+  const res = await fetch(`${BASE_URL}/premarket/set_note/${ticker}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) throw new Error(`Failed to set note for ${ticker}`);
+}

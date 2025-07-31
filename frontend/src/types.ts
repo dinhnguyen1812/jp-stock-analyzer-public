@@ -11,6 +11,7 @@ export interface VolumeSurgeStock {
   avg_volume_5d: number;
   detected_at: string;
   starred?: boolean;
+  note?: string;
 
   top_news?: {
     published_at: string;

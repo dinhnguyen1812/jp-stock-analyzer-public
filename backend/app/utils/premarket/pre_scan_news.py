@@ -124,7 +124,6 @@ def scan_and_analyze_news_for_ticker(
         "   - **Verdict: ...**\n"
         "   - **Reason: ...**\n"
         "(Repeat for each headline)\n\n"
-        # "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(filtered_headlines)])
         "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(raw_headlines)])
     )
 

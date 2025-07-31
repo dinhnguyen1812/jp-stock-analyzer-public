@@ -199,11 +199,11 @@ def premarket_analyze_with_gpt(
         volume_info_ = get_intraday_volume_info_for_ticker(db, ticker)
         volume_summary = (
             f"📊 [Intraday]\n"
-            f"Ticker: {volume_info_.ticker}\n"
-            f"Name: {volume_info_.name}\n"
-            f"Current Price: {volume_info_.current_price} JPY\n"
-            f"Volume Surge: {volume_info_.volume_rate:.2f}x\n"
-            f"Money Flow: {volume_info_.money_flow_rate:.2f}x\n"
+            f"Ticker: {volume_info_['ticker']}\n"
+            f"Name: {volume_info_['name']}\n"
+            f"Current Price: {volume_info_['current_price']} JPY\n"
+            f"Volume Surge: {volume_info_['volume_rate']:.2f}x\n"
+            f"Money Flow: {volume_info_['money_flow_rate']:.2f}x\n"
             f"Detected At: {now_jst.isoformat()}\n"
         )
     else:
@@ -471,7 +471,7 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[di
 
         now = datetime.now()
         market_open = datetime.combine(now.date(), time(9, 0))
-        market_close = datetime.combine(now.date(), time(15, 0.5))
+        market_close = datetime.combine(now.date(), time(15, 0))
 
         if now <= market_open or now >= market_close:
             expected_volume_by_now = avg_volume_5d

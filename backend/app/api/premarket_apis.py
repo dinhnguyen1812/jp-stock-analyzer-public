@@ -1,7 +1,8 @@
 import datetime
 import json
 from difflib import get_close_matches
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Dict, List, Optional, Tuple
@@ -232,6 +233,7 @@ def get_all_saved_volume_analyses(
                 "momentum_score": vs.momentum_score,
                 "momentum_confidence": vs.momentum_confidence,
                 "momentum_signals": vs.momentum_signals,
+                "note": vs.note,
             },
             "analysis_signal": analysis_signal_data,
         })
@@ -308,6 +310,29 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
         },
         "analysis_signal": analysis_signal_data,
     }
+
+class NoteRequest(BaseModel):
+    note: str
+
+@router.post("/set_note/{ticker}")
+def set_note(
+    ticker: str,
+    request: NoteRequest,
+    db: Session = Depends(get_db),
+):
+    latest = (
+        db.query(VolumeSnapshot)
+        .filter(VolumeSnapshot.ticker == ticker)
+        .order_by(VolumeSnapshot.detected_at.desc())
+        .first()
+    )
+
+    if not latest:
+        raise HTTPException(status_code=404, detail="VolumeSnapshot not found")
+
+    latest.note = request.note
+    db.commit()
+    return {"status": "ok", "ticker": ticker, "note": request.note}
 
 def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o") -> Dict:
     # Step 1: Get news

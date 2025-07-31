@@ -15,6 +15,7 @@ const TRADING_RULES = `
 - ⭐️ Star the stocks with good or decisive news.
 - 🧠 Analyze starred stocks using GPT-based evaluation.
 - 👀 Manually inspect chart and volume of each starred stock to pick 3 most promising stocks.
+- 👀 Ask ChatGPT for opinion: Is the news fresh? How likely does it impact the certain stocks?
 
 🌊 2. Aim for the Wave 1 (Pre-order if very strong news) else wait for wave 2
 - Look for stocks with:

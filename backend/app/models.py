@@ -59,6 +59,8 @@ class VolumeSnapshot(Base):
     momentum_confidence = Column(String, nullable=True)
     momentum_signals = Column(JSON, nullable=True)  # List[Dict[str, Any]]
 
+    note = Column(Text, nullable=True)
+
     __table_args__ = (
         PrimaryKeyConstraint("id"),
         UniqueConstraint("ticker", "detected_at", name="uq_ticker_detected_at"),

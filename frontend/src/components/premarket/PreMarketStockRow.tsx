@@ -1,7 +1,7 @@
-import React, { useState, useCallback, type JSX } from "react";
+import React, { useState, useCallback, type JSX, useEffect } from "react";
 import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
 import { formatDistance } from "date-fns";
-import { fetchSavedPremarketAnalysis, starStock, unstarStock } from "../../api";
+import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock } from "../../api";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 
 export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
@@ -73,6 +73,7 @@ interface PreMarketStockRowProps {
   };
   latestDetectedAt: string;
   onStarToggle: (ticker: string, starred: boolean) => void;
+  onNoteChange: (ticker: string, newNote: string) => void;
 }
 
 const keywordMap = [
@@ -118,6 +119,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   stock,
   latestDetectedAt,
   onStarToggle,
+  onNoteChange,
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -125,6 +127,17 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [starLoading, setStarLoading] = useState(false);
   const [, setForceUpdate] = useState(0);
+
+  const [noteValue, setNoteValue] = useState(stock.note || "");
+  useEffect(() => {
+    setNoteValue(stock.note || "");
+  }, [stock.note]);
+
+  const handleBlur = () => {
+    if (noteValue !== stock.note) {
+      onNoteChange(stock.ticker, noteValue);
+    }
+  };
 
   const handleAnalysisClick = useCallback(async () => {
     setLoading(true);
@@ -206,9 +219,33 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     return map[label] || label.slice(0, 10);
   };
 
+  const [localNote, setLocalNote] = useState<string>(stock.note ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleNoteSave = async () => {
+    setIsSaving(true);
+    try {
+      await fetchSetNote(stock.ticker, localNote);
+      console.log(`✅ Note updated for ${stock.ticker}`);
+    } catch (err) {
+      console.error(`❌ Failed to update note:`, err);
+      alert("Note update failed");
+    }
+    setIsSaving(false);
+  };
+
   return (
     <>
       <tr>
+        <td className="align-middle small" style={{ maxWidth: "160px", whiteSpace: "pre-wrap" }}>
+          <textarea
+            value={noteValue}
+            onChange={(e) => setNoteValue(e.target.value)}
+            onBlur={handleBlur}
+            rows={2}
+            style={{ width: "100%", fontSize: "0.75rem" }}
+          />
+        </td>
         <td className="text-center align-middle" style={{ width: 40 }}>
           <Button
             variant="outline-secondary"
@@ -588,6 +625,25 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
               )}
             </>
           )}
+          <div className="mt-3">
+            <label htmlFor="stock-note" className="form-label fw-bold">📝 Note</label>
+            <textarea
+              id="stock-note"
+              className="form-control"
+              rows={3}
+              value={localNote}
+              onChange={(e) => setLocalNote(e.target.value)}
+              disabled={isSaving}
+            />
+            <button
+              className="btn btn-primary btn-sm mt-2"
+              onClick={handleNoteSave}
+              disabled={isSaving}
+            >
+              {isSaving ? "Saving..." : "Save Note"}
+            </button>
+          </div>
+
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowModal(false)}>
