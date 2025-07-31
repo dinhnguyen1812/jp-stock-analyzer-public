@@ -1,8 +1,10 @@
+from bs4 import BeautifulSoup
+import httpx
 from difflib import get_close_matches
 import json
 import os
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 import openai
@@ -12,9 +14,11 @@ from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_an
 from .calculate_momentum_score import calculate_momentum_score
 from .uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from .downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
+from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history, parse_volume, save_daily_money_flows
+from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
-from app.models import DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal
+from app.models import AverageMoneyFlow, AverageVolume, DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -91,6 +95,7 @@ def premarket_analyze_with_gpt(
     fetch_and_save_price_history(db, ticker)
     update_avg_volume_for_ticker(db, ticker)
     update_avg_money_flow_for_ticker(db, ticker)
+    now = datetime.now(timezone.utc)
 
     if not news_items:
         return {"ticker": ticker, "volume_info": None, "top_news": [], "gpt_summary": "No recent news available."}
@@ -188,14 +193,28 @@ def premarket_analyze_with_gpt(
     # Combine trend sections
     trend_summary = uptrend_section + downtrend_section + price_stats_str + pattern_str
 
-    volume_summary = (
-        f"Ticker: {volume_info.ticker}\n"
-        f"Name: {volume_info.name}\n"
-        f"Current Price: {volume_info.current_price} JPY\n"
-        f"Volume Surge: {volume_info.volume_rate}x\n"
-        f"Money Flow: {volume_info.money_flow_rate}\n"
-        f"Detected At: {volume_info.detected_at.isoformat()}\n"
-    )
+    jst = timezone(timedelta(hours=9))
+    now_jst = now.astimezone(jst)
+    if is_market_hours(now_jst):
+        volume_info_ = get_intraday_volume_info_for_ticker(db, ticker)
+        volume_summary = (
+            f"📊 [Intraday]\n"
+            f"Ticker: {volume_info_.ticker}\n"
+            f"Name: {volume_info_.name}\n"
+            f"Current Price: {volume_info_.current_price} JPY\n"
+            f"Volume Surge: {volume_info_.volume_rate:.2f}x\n"
+            f"Money Flow: {volume_info_.money_flow_rate:.2f}x\n"
+            f"Detected At: {now_jst.isoformat()}\n"
+        )
+    else:
+        volume_summary = (
+            f"Ticker: {volume_info.ticker}\n"
+            f"Name: {volume_info.name}\n"
+            f"Current Price: {volume_info.current_price} JPY\n"
+            f"Volume Surge: {volume_info.volume_rate}x\n"
+            f"Money Flow: {volume_info.money_flow_rate}\n"
+            f"Detected At: {volume_info.detected_at.isoformat()}\n"
+        )
 
     tech_summary = (
         f"RSI: {signal.rsi or 'N/A'}\n"
@@ -237,7 +256,6 @@ def premarket_analyze_with_gpt(
     )
 
     # ↓↓↓ Apply recency penalty & prepare headline prompt ↓↓↓
-    now = datetime.now(timezone.utc)
     scored_news = []
     for item in news_items:
         published_at = item.get("published_at")
@@ -264,7 +282,7 @@ def premarket_analyze_with_gpt(
 
     prompt = (
         f"You are a Japanese market expert AI providing a **pre-market outlook for stock {ticker}** — to support a trade decision for **tomorrow's trading session**.\n\n"
-        
+        f"Now is in market hour: {is_market_hours(now_jst)}\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
         f"### Trend Summary (Up/Down Movements):\n{trend_summary}\n"
@@ -330,6 +348,7 @@ def premarket_analyze_with_gpt(
         "- 🕒 **First Spike Summary**: [Did it happen? When? On what news? How strong?]\n"
         "- ⏳ **Tomorrow Entry Guidance**: [E.g. 'Wait for second spike', 'Buy dip on rebound', 'Risk of exhaustion — wait']\n"
     )
+    # print(f"prompt={prompt}")
 
     try:
         response = openai.chat.completions.create(
@@ -404,6 +423,116 @@ def premarket_analyze_with_gpt(
         print(f"❌ GPT error for {ticker}: {e}")
         return {"ticker": ticker, "error": str(e)}
 
+def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[dict]:
+    url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "ja,en;q=0.9",
+    }
+
+    try:
+        resp = httpx.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # 1. Extract name
+        name_tag = (
+            soup.select_one("h2.PriceBoardMain__name__6uDh")
+            or soup.select_one("h2.PriceBoard__name__166W")
+        )
+        name = name_tag.text.strip() if name_tag else ticker
+
+        # 2. Extract 出来高 (current volume)
+        current_volume = None
+        labels = soup.select("span.DataListItem__name__3RQJ")
+        for label in labels:
+            if "出来高" in label.text:
+                value_span = label.find_next("span", class_="StyledNumber__value__3rXW")
+                if value_span:
+                    raw_volume = value_span.text.strip()
+                    if raw_volume not in {"---", "-", ""}:
+                        current_volume = parse_volume(raw_volume)
+                break
+
+        if current_volume is None:
+            return None
+
+        # 3. Price info
+        current_price, high, low = fetch_intraday_prices(ticker)
+        if not all([current_price, high, low]):
+            print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
+            return None
+
+        # 4. Calculate volume rate
+        avg_record = db.query(AverageVolume).filter_by(ticker=ticker).first()
+        if not avg_record or not avg_record.avg_5d_volume:
+            return None
+        avg_volume_5d = avg_record.avg_5d_volume
+
+        now = datetime.now()
+        market_open = datetime.combine(now.date(), time(9, 0))
+        market_close = datetime.combine(now.date(), time(15, 0.5))
+
+        if now <= market_open or now >= market_close:
+            expected_volume_by_now = avg_volume_5d
+        else:
+            trading_hours_passed = max(get_trading_hours_passed(now), 0.5)
+            expected_volume_by_now = avg_volume_5d * (trading_hours_passed / 5.5)
+
+        volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
+
+        # 5. Calculate money flow rate
+        typical_price_now = (high + low + current_price) / 3
+        raw_money_flow_now = typical_price_now * current_volume
+
+        moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
+        if not moneyflow_record or moneyflow_record.avg_5d_money_flow == 0:
+            print(f"ℹ️ No avg_5d_money_flow for {ticker}, trying to scrape history and update...")
+            flow_data = fetch_daily_money_flow_history(ticker)
+            if flow_data:
+                save_daily_money_flows(db, ticker, flow_data)
+                update_avg_money_flow_for_ticker(db, ticker)
+                moneyflow_record = db.query(AverageMoneyFlow).filter_by(ticker=ticker).first()
+            else:
+                print(f"❌ Failed to fetch money flow history for {ticker}, skipping money flow.")
+                moneyflow_record = None
+
+        money_flow_rate = (
+            raw_money_flow_now / moneyflow_record.avg_5d_money_flow
+            if moneyflow_record and moneyflow_record.avg_5d_money_flow > 0 else None
+        )
+
+        return {
+            "ticker": ticker,
+            "name": name,
+            "current_price": current_price,
+            "current_volume": current_volume,
+            "volume_rate": round(volume_rate, 2),
+            "money_flow_rate": round(money_flow_rate, 2) if money_flow_rate is not None else None,
+            "timestamp": now.isoformat(),
+        }
+
+    except Exception as e:
+        print(f"⚠️ Error while scraping {ticker}: {e}")
+        return None
 
 
+def get_trading_hours_passed(now: datetime) -> float:
+    open_time = datetime.combine(now.date(), time(9, 0))
+    lunch_start = datetime.combine(now.date(), time(11, 30))
+    lunch_end = datetime.combine(now.date(), time(12, 30))
+    close_time = datetime.combine(now.date(), time(15, 30))
 
+    if now < open_time:
+        return 0.0
+    elif now <= lunch_start:
+        return (now - open_time).total_seconds() / 3600
+    elif now <= lunch_end:
+        return 2.5  # morning session done, lunch time
+    elif now <= close_time:
+        return 2.5 + (now - lunch_end).total_seconds() / 3600
+    else:
+        return 5.5  # full trading day
+
+def is_market_hours(now: datetime) -> bool:
+    return time(9, 0) <= now.time() <= time(15, 30)
