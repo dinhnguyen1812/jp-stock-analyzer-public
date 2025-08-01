@@ -145,8 +145,7 @@ def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
     price_threshold: float = Query(0, ge=0),
     starred_only: bool = False,
-    detected_at_max_age_minutes: int = Query(1440, ge=1),
-    # detected_at_max_age_minutes: int = Query(5000, ge=1),
+    detected_at_max_age_days: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
     query = (
@@ -157,8 +156,8 @@ def get_all_saved_volume_analyses(
         .filter(VolumeSnapshot.promising_score > 0)
     )
 
-    if detected_at_max_age_minutes:
-        threshold_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=detected_at_max_age_minutes)
+    if detected_at_max_age_days:
+        threshold_time = datetime.datetime.utcnow() - datetime.timedelta(days=detected_at_max_age_days)
         query = query.filter(VolumeSnapshot.detected_at >= threshold_time)
 
     if surge_threshold > 0:
@@ -425,14 +424,20 @@ def scan_and_analyze_low_cap_tickers(
     to_page: int,
     price_threshold: float,
     top_n: int,
-    model: str
+    model: str,
+    days_threshold: int,
 ) -> Tuple[List[str], List[str]]:
     tickers = fetch_low_cap_tickers(from_page, to_page, price_threshold)
     alert_tickers = []
 
     for ticker in tickers:
         try:
-            impacts = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=1, model=model)
+            impacts = scan_and_analyze_news_for_ticker(
+                db, ticker,
+                top_n=top_n,
+                days_threshold=days_threshold,
+                model=model
+            )
             if impacts and any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
                 alert_tickers.append(ticker)
         except Exception as e:
@@ -446,7 +451,6 @@ def scan_news_for_low_cap_bulk(
     params: ScanParams,
     db: Session = Depends(get_db),
     top_n: int = 3,
-    # model: str = "gpt-3.5-turbo",
     model: str = "gpt-4o",
 ):
     tickers, alert_tickers = scan_and_analyze_low_cap_tickers(
@@ -455,7 +459,8 @@ def scan_news_for_low_cap_bulk(
         to_page=params.to_page,
         price_threshold=params.price_threshold,
         top_n=top_n,
-        model=model
+        model=model,
+        days_threshold=params.days_threshold,
     )
     return {
         "scanned_tickers": tickers,
@@ -463,7 +468,9 @@ def scan_news_for_low_cap_bulk(
         "from_page": params.from_page,
         "to_page": params.to_page,
         "price_threshold": params.price_threshold,
+        "days_threshold": params.days_threshold,
     }
+
 
 @router.get("/positive_news", response_model=List[Dict])
 def get_positive_news_api(db: Session = Depends(get_db)):

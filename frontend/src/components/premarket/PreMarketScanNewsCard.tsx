@@ -41,8 +41,9 @@ const verdictPriority: Record<string, number> = {
 
 const PreMarketScanNewsCard: React.FC = () => {
   const [fromPage, setFromPage] = useState(1);
-  const [toPage, setToPage] = useState(5);
-  const [priceThreshold, setPriceThreshold] = useState(300);
+  const [toPage, setToPage] = useState(40);
+  const [priceThreshold, setPriceThreshold] = useState(1000);
+  const [daysThreshold, setDaysThreshold] = useState(1);
   const [loadingScan, setLoadingScan] = useState(false);
   const [loadingPositive, setLoadingPositive] = useState(false);
   const [alertTickers, setAlertTickers] = useState<PositiveNewsItem[]>([]);
@@ -64,7 +65,7 @@ const PreMarketScanNewsCard: React.FC = () => {
     setLoadingScan(true);
     setAlertTickers([]);
     try {
-      const result = await scanNewsBulk(fromPage, toPage, priceThreshold);
+      const result = await scanNewsBulk(fromPage, toPage, priceThreshold, daysThreshold);
       if (Array.isArray(result?.alert_tickers)) {
         setAlertTickers(result.alert_tickers);
         updateStarredFromItems(result.alert_tickers);
@@ -137,7 +138,7 @@ const PreMarketScanNewsCard: React.FC = () => {
       <Card.Title>📰 Kabutan News Scanner</Card.Title>
 
       <Row className="g-3 align-items-center mb-3">
-        <Col xs={12} md={2}>
+        <Col xs={5} md={2}>
           <InputGroup>
             <InputGroup.Text>From</InputGroup.Text>
             <Form.Control
@@ -161,7 +162,7 @@ const PreMarketScanNewsCard: React.FC = () => {
             />
           </InputGroup>
         </Col>
-        <Col xs={12} md={4}>
+        <Col xs={12} md={2}>
           <InputGroup>
             <InputGroup.Text>Price ≤</InputGroup.Text>
             <Form.Control
@@ -171,6 +172,17 @@ const PreMarketScanNewsCard: React.FC = () => {
               disabled={loadingScan || loadingPositive}
             />
             <InputGroup.Text>¥</InputGroup.Text>
+          </InputGroup>
+        </Col>
+        <Col xs={12} md={2}>
+          <InputGroup>
+            <InputGroup.Text>Days =</InputGroup.Text>
+            <Form.Control
+              type="number"
+              value={daysThreshold}
+              onChange={(e) => setDaysThreshold(Number(e.target.value))}
+              disabled={loadingScan || loadingPositive}
+            />
           </InputGroup>
         </Col>
         <Col xs={12} md={3}>

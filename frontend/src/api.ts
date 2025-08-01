@@ -203,11 +203,13 @@ export async function scanPreMarketVolumeSurges(
 export async function fetchAllAnalyses(
   surge_threshold: number = 2.0,
   price_threshold: number = 300,
-  starred_only: boolean = false
+  starred_only: boolean = false,
+  detected_at_max_age_days: number = 1.0
 ) {
   const queryParams = new URLSearchParams({
     surge_threshold: surge_threshold.toString(),
     price_threshold: price_threshold.toString(),
+    detected_at_max_age_days: detected_at_max_age_days.toString()
   });
 
   if (starred_only) {
@@ -277,14 +279,15 @@ export async function scanNewsForTicker(ticker: string) {
 export async function scanNewsBulk(
   from_page: number = 1,
   to_page: number = 5,
-  price_threshold: number = 300
+  price_threshold: number = 300,
+  days_threshold: number = 1
 ) {
   const res = await fetch(`${BASE_URL}/premarket/scan_news_bulk`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from_page, to_page, price_threshold }),
+    body: JSON.stringify({ from_page, to_page, price_threshold, days_threshold }),
   });
 
   if (!res.ok) {

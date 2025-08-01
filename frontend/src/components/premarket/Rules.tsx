@@ -21,7 +21,7 @@ const TRADING_RULES = `
 - Look for stocks with:
   - 📰 Decisive news released after 3:30pm
   - 📉 Price hasn't yet reacted to the news
-  - ✅ Promising score (from news + chart + potential rebound)
+  - ✅ Promising score (from news + chart + potential rebound) > 70
 
 🚨 3. Market Open Guidance (09:00)
 - Focus on the 3 selected stocks.
