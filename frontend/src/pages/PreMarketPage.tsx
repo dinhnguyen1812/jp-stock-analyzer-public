@@ -15,6 +15,7 @@ import {
 const PreMarketPage: React.FC = () => {
   const [surgeThreshold, setSurgeThreshold] = useState<number>(0);
   const [priceThreshold, setPriceThreshold] = useState<number>(0);
+  const [detectedAtMaxDay, setDetectedAtMaxDay] = useState<number>(1);
   const [fromPage, setFromPage] = useState<number>(1);
   const [toPage, setToPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
@@ -66,7 +67,7 @@ const PreMarketPage: React.FC = () => {
   const handleFetchAnalyzed = async () => {
     setLoadingFetchAnalyzed(true);
     try {
-      const result = await fetchAllAnalyses(surgeThreshold, priceThreshold, starredOnly);
+      const result = await fetchAllAnalyses(surgeThreshold, priceThreshold, starredOnly, detectedAtMaxDay);
       setAnalyzedResults(result);
       setStocks([]);
     } catch (err) {
@@ -132,6 +133,7 @@ const PreMarketPage: React.FC = () => {
       <PreMarketScanForm
         surgeThreshold={surgeThreshold}
         priceThreshold={priceThreshold}
+        detectedAtMaxDay={detectedAtMaxDay}
         fromPage={fromPage}
         toPage={toPage}
         loading={loading}
@@ -143,6 +145,7 @@ const PreMarketPage: React.FC = () => {
         loadingAnalyze={loadingAnalyze}
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
+        onDetectedAtMaxDayChange={setDetectedAtMaxDay}
         onFromPageChange={setFromPage}
         onToPageChange={setToPage}
         onStarredOnlyChange={setStarredOnly}

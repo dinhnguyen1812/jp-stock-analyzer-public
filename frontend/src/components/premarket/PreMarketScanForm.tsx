@@ -4,6 +4,7 @@ import { Form, Button, Spinner, Row, Col, InputGroup, Card } from "react-bootstr
 interface PreMarketScanFormProps {
   surgeThreshold: number;
   priceThreshold: number;
+  detectedAtMaxDay: number;
   fromPage: number;
   toPage: number;
   starredOnly: boolean;
@@ -13,6 +14,7 @@ interface PreMarketScanFormProps {
   autoScanEnabled: boolean;
   onSurgeThresholdChange: (value: number) => void;
   onPriceThresholdChange: (value: number) => void;
+  onDetectedAtMaxDayChange: (value: number) => void;
   onFromPageChange: (value: number) => void;
   onToPageChange: (value: number) => void;
   onStarredOnlyChange: (checked: boolean) => void;
@@ -31,6 +33,7 @@ interface PreMarketScanFormProps {
 const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   surgeThreshold,
   priceThreshold,
+  detectedAtMaxDay,
   fromPage,
   toPage,
   starredOnly,
@@ -40,6 +43,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   autoScanEnabled,
   onSurgeThresholdChange,
   onPriceThresholdChange,
+  onDetectedAtMaxDayChange,
   onFromPageChange,
   onToPageChange,
   onStarredOnlyChange,
@@ -143,6 +147,19 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                 onChange={(e) => onStarredOnlyChange(e.target.checked)}
                 disabled={loading}
               />
+            </Col>
+
+            <Col style={{ minWidth: 180 }}>
+              <InputGroup>
+                <Form.Control
+                  type="number"
+                  min="0"
+                  value={detectedAtMaxDay}
+                  onChange={(e) => onDetectedAtMaxDayChange(parseFloat(e.target.value))}
+                  disabled={loading}
+                />
+                <InputGroup.Text>days before</InputGroup.Text>
+              </InputGroup>
             </Col>
 
             <Col style={{ minWidth: 135 }}>
