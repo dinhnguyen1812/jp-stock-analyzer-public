@@ -74,6 +74,7 @@ interface PreMarketStockRowProps {
     }[];
   };
   latestDetectedAt: string;
+  latestThresholdDate: Date | null;
   onStarToggle: (ticker: string, starred: boolean) => void;
   onNoteChange: (ticker: string, newNote: string) => void;
 }
@@ -120,6 +121,7 @@ const highlightKeywords = (text: string): JSX.Element => {
 const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   stock,
   latestDetectedAt,
+  latestThresholdDate,
   onStarToggle,
   onNoteChange,
 }) => {
@@ -385,7 +387,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   </Badge>
                 )}
 
-                {Array.isArray(stock.top_news) && stock.top_news.length > 0 && (() => {
+                {Array.isArray(stock.top_news) && stock.top_news.length > 0 && latestThresholdDate && (() => {
                   const newsWithVerdict = stock.top_news.filter(
                     (n) => typeof n.impact_verdict === "string"
                   );
@@ -410,16 +412,17 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       : "light";
                   const textColor = verdict === "bad" ? "dark" : "light";
 
-                  // Parse news date and compare with today 15:30 JST
                   const publishedAt = new Date(bestNews.published_at);
-                  const now = new Date();
-                  // const jstOffset = 9 * 60; // JST is UTC+9
-                  const year = now.getUTCFullYear();
-                  const month = now.getUTCMonth();
-                  const day = now.getUTCDate();
-                  const threshold = new Date(Date.UTC(year, month, day, 6, 29)); // 15:30 JST = 06:30 UTC
+                  const thresholdDate = new Date(
+                    Date.UTC(
+                      latestThresholdDate.getUTCFullYear(),
+                      latestThresholdDate.getUTCMonth(),
+                      latestThresholdDate.getUTCDate(),
+                      6, 29, 0 // 06:29 UTC = 15:29 JST
+                    )
+                  );
 
-                  const isVeryRecent = publishedAt >= threshold;
+                  const isVeryRecent = publishedAt >= thresholdDate;
                   const verdictLabel = `${bestNews.impact_verdict}${isVeryRecent ? " ⭐️" : ""}`;
 
                   return (

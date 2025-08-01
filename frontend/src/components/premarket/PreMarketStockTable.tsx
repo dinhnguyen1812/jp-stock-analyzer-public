@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Table } from "react-bootstrap";
 import PreMarketStockRow from "./PreMarketStockRow";
 import type { VolumeSurgeStock } from "../../types";
-import { fetchSetNote } from "../../api";
+import { fetchSetNote, getLatestTradingDay } from "../../api";
 
 const handleNoteChange = async (ticker: string, newNote: string) => {
   try {
@@ -108,6 +108,24 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
 
   const renderSortIndicator = (key: SortKey) =>
     sortKey === key ? (sortOrder === "asc" ? " ▲" : " ▼") : "";
+
+  const [latestTradingDay, setLatestTradingDay] = useState<Date | null>(null);
+
+  useEffect(() => {
+    async function fetchThreshold() {
+      let dateStr = await getLatestTradingDay(); // e.g. '"2025-08-01"' or ' "2025-08-01" '
+
+      // Trim whitespace and remove surrounding quotes if present
+      dateStr = dateStr.trim().replace(/^"(.*)"$/, "$1");
+
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day, 6, 30)); // 15:30 JST = 06:30 UTC
+
+      setLatestTradingDay(date);
+    }
+
+    fetchThreshold();
+  }, []);
 
   return (
     <div className="small">
@@ -216,6 +234,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
                 key={stock.ticker}
                 stock={{ ...normalized, momentum_signals: keySignals }}
                 latestDetectedAt={latestDetectedAt}
+                latestThresholdDate={latestTradingDay}
                 onStarToggle={onStarToggle}
                 onNoteChange={handleNoteChange}
               />

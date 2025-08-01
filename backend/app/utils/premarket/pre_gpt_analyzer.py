@@ -318,7 +318,7 @@ def premarket_analyze_with_gpt(
         "- Check if today's price closed near high/low to infer momentum carryover.\n"
         "- Be alert to **popular market themes** (e.g. Bitcoin, AI, semiconductors, lithium, stock splits, 株式発行, 資本金変更, 剰余金の処分, 業務提携).\n"
         "- Explain **why volume surged** if applicable — strong news? speculative interest? sector sympathy?\n"
-        f"- From the headline list, pick the **top {top_n} news items most likely to influence tomorrow’s trade**.\n"
+        # f"- From the headline list, pick the **top {top_n} news items most likely to influence tomorrow’s trade**.\n"
         "- Include historical price table to help reason about trend & support/resistance zones.\n"
         "- For each headline, give:\n"
         "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
@@ -413,6 +413,7 @@ def premarket_analyze_with_gpt(
             if match:
                 matched_headline = match[0]
                 matched = next((imp for imp in impacts if imp["headline"] == matched_headline), None)
+                print(f"====matched={matched}")
                 item["impact_verdict"] = matched.get("verdict") if matched else None
                 item["impact_reason"] = matched.get("reason") if matched else None
                 top_enriched_news.append(item)
