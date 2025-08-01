@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Table } from "react-bootstrap";
 import PreMarketStockRow from "./PreMarketStockRow";
 import type { VolumeSurgeStock } from "../../types";
@@ -17,7 +17,8 @@ type EnrichedStock = VolumeSurgeStock & {
   promising_score?: number;
   momentum_score?: number;
   recommendation?: string | null;
-  watchlist_recommendation?: string;
+  highest_impact_keyword?: string;
+  highest_impact_rank?: string;
   starred?: boolean;
   momentum_signals?: {
     score: number;
@@ -56,7 +57,8 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
     promising_score: (stock as any).promising_score,
     momentum_score: (stock as any).momentum_score,
     recommendation: (stock as any).recommendation,
-    watchlist_recommendation: (stock as any).watchlist_recommendation,
+    highest_impact_keyword: (stock as any).highest_impact_keyword,
+    highest_impact_rank: (stock as any).highest_impact_rank,
     momentum_signals: (stock as any).momentum_signals ?? [],
     starred: (stock as any).starred ?? false,
     detected_at: stock.detected_at || new Date().toISOString(),
@@ -169,7 +171,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               🔑 Key Signals
             </th>
             <th
-              style={{ minWidth: "400px" }}
+              style={{ minWidth: "350px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("action_column")}
             >

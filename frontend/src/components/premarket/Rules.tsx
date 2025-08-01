@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Modal, Button, Tabs, Tab } from "react-bootstrap";
+import { Modal, Button, Tabs, Tab, Table } from "react-bootstrap";
 
 const TRADING_RULES = `
 📊 Trading Rules
@@ -103,6 +103,127 @@ const WAVE_RULES = `
 - Ride the second wave if it forms.
 `;
 
+const NewsImpactRankingTable = () => {
+  const data = [
+    {
+      rank: "S",
+      newsType: "黒字転換 (Turn to Profit)",
+      details: "From deep loss? Clean profit? Margin?",
+      impact: "+10–40% spike if surprise or large",
+      example: "-8% → +0.6% modest; -700M → +200M = big spike",
+    },
+    {
+      rank: "S",
+      newsType: "業績予想 上方修正 (Earnings Up)",
+      details: "% gain? EPS vs prior? Record profit?",
+      impact: "+10–50% if large and unexpected",
+      example: "OP doubled → record high = huge spike",
+    },
+    {
+      rank: "S",
+      newsType: "四半期サプライズ決算 (Earnings Surprise)",
+      details: "2x/3x YoY/QoQ? Margin jump? New high?",
+      impact: "+10–40%",
+      example: "3Q OP 2.4x YoY = strong",
+    },
+    {
+      rank: "S",
+      newsType: "中期経営計画 + 上方修正",
+      details: "Ambitious, clear numbers? EPS upgrades?",
+      impact: "+10–30%",
+      example: "Vision + guidance raise = catalyst",
+    },
+    {
+      rank: "A+",
+      newsType: "今期 業績予想 +50%↑ YoY",
+      details: "Big YoY%? From good base? EPS revision too?",
+      impact: "+5–25%",
+      example: "今期91%増益へ = decent spike",
+    },
+    {
+      rank: "A",
+      newsType: "新市場参入 / 独占契約",
+      details: "Sector hot? Realistic growth? Not priced in?",
+      impact: "+5–20%",
+      example: "New business in AI or crypto",
+    },
+    {
+      rank: "A",
+      newsType: "大型受注・契約発表",
+      details: "With major partner? Value disclosed? Recurring?",
+      impact: "+5–25%",
+      example: "$100M deal with major firm",
+    },
+    {
+      rank: "A-",
+      newsType: "特許取得 (Patent)",
+      details: "Useful? Sector hot? Market reaction?",
+      impact: "+3–15%",
+      example: "3D printing tech patent",
+    },
+    {
+      rank: "B",
+      newsType: "新製品・新サービス発表",
+      details: "Market size? Pricing power? PR coverage?",
+      impact: "+3–10%",
+      example: "Smart device release",
+    },
+    {
+      rank: "B",
+      newsType: "株主優待・配当増額",
+      details: "Regular or special? High yield?",
+      impact: "+2–8%",
+      example: "5% dividend hike",
+    },
+    {
+      rank: "B",
+      newsType: "新ホテル・新店舗展開",
+      details: "Location? Brand strength? Expansion plan?",
+      impact: "+2–7%",
+      example: "Hotel opening in Sendai",
+    },
+    {
+      rank: "C",
+      newsType: "IR without earnings impact (事業報告)",
+      details: "No number? No surprise?",
+      impact: "~0–3%, fade possible",
+      example: "New office, no big change",
+    },
+    {
+      rank: "D",
+      newsType: "再掲IR / 過去の材料再加熱",
+      details: "Already known? Market priced in?",
+      impact: "0% or drop",
+      example: "“Reconfirming” past plan",
+    },
+  ];
+
+  return (
+    <Table striped bordered hover responsive>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>News Type</th>
+          <th>Details to Check</th>
+          <th>Likely Impact (Positive)</th>
+          <th>Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map(({ rank, newsType, details, impact, example }) => (
+          <tr key={newsType}>
+            <td><strong>{rank}</strong></td>
+            <td>{newsType}</td>
+            <td>{details}</td>
+            <td>{impact}</td>
+            <td>{example}</td>
+          </tr>
+        ))}
+      </tbody>
+    </Table>
+  );
+};
+
 type RulesProps = {
   buttonLabel?: string;
   buttonSize?: "sm" | "lg";
@@ -150,6 +271,9 @@ const Rules: React.FC<RulesProps> = ({
               <pre style={{ whiteSpace: "pre-wrap", padding: "1rem", margin: 0 }}>
                 {WAVE_RULES}
               </pre>
+            </Tab>
+            <Tab eventKey="newsranking" title="📈 News Impact Ranking">
+              <NewsImpactRankingTable />
             </Tab>
           </Tabs>
         </Modal.Body>

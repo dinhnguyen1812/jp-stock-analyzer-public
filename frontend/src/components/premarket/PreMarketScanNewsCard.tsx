@@ -134,7 +134,7 @@ const PreMarketScanNewsCard: React.FC = () => {
   });
 
   return (
-    <Card className="mb-4 px-3 py-3 shadow-sm">
+    <Card className="mb-4 px-3 py-2 shadow-sm">
       <Card.Title>📰 Kabutan News Scanner</Card.Title>
 
       <Row className="g-3 align-items-center mb-3">
@@ -176,13 +176,13 @@ const PreMarketScanNewsCard: React.FC = () => {
         </Col>
         <Col xs={12} md={2}>
           <InputGroup>
-            <InputGroup.Text>Days =</InputGroup.Text>
             <Form.Control
               type="number"
               value={daysThreshold}
               onChange={(e) => setDaysThreshold(Number(e.target.value))}
               disabled={loadingScan || loadingPositive}
             />
+            <InputGroup.Text>days before</InputGroup.Text>
           </InputGroup>
         </Col>
         <Col xs={12} md={3}>

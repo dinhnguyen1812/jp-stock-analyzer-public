@@ -52,7 +52,8 @@ class VolumeSnapshot(Base):
     recommendation = Column(String, nullable=True)  # e.g., "Buy", "Hold", "Sell", "Short"
     promising_score = Column(Integer, nullable=True)  # 0–100 score
     top_news = Column(Text, nullable=True)  # JSON-encoded news with GPT verdict
-    watchlist_recommendation = Column(String, nullable=True)  # "Yes", "No", or None
+    highest_impact_keyword = Column(String, nullable=True)
+    highest_impact_rank = Column(String, nullable=True)
 
     # Technical momentum fields
     momentum_score = Column(Integer, nullable=True)

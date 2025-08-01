@@ -1,3 +1,4 @@
+import calendar
 from bs4 import BeautifulSoup
 import httpx
 from difflib import get_close_matches
@@ -195,7 +196,9 @@ def premarket_analyze_with_gpt(
 
     jst = timezone(timedelta(hours=9))
     now_jst = now.astimezone(jst)
-    if is_market_hours(now_jst):
+    date_str = now_jst.date().isoformat()
+    latest_trading_day = get_latest_trading_day(db)
+    if is_market_hours(now_jst, latest_trading_day):
         volume_info_ = get_intraday_volume_info_for_ticker(db, ticker)
         volume_summary = (
             f"📊 [Intraday]\n"
@@ -282,7 +285,7 @@ def premarket_analyze_with_gpt(
 
     prompt = (
         f"You are a Japanese market expert AI providing a **pre-market outlook for stock {ticker}** — to support a trade decision for **tomorrow's trading session**.\n\n"
-        f"Now is in market hour: {is_market_hours(now_jst)}\n"
+        f"Today is {date_str}, time: {now_jst}. Latest trading day: {latest_trading_day}, time: 15:30:00.\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
         f"### Trend Summary (Up/Down Movements):\n{trend_summary}\n"
@@ -300,7 +303,8 @@ def premarket_analyze_with_gpt(
         "   - When did the first spike occur?\n"
         "   - Was the reaction full or partial?\n"
         "   - Is a **second wave** or continuation setup likely tomorrow?\n"
-        "- If news was released **before 15:29 JST today**, evaluate whether it already impacted the price. Be precise about **whether the price move is already priced in or not**.\n"
+        "- If news was released **between 9:00 AM and 3:20 PM JST on weekdays (Monday–Friday)**, assume it has likely impacted the price already. Be precise about **whether the price move is already priced in or not**.\n"
+        "- For **decisive news items**, check if similar news appeared earlier; if so, consider that the market might have priced it in.\n"
         "- Predict **how the stock will behave tomorrow**: gap up/down, morning surge/pullback, and **likely closing price range**.\n"
         "- Clearly assess **wave timing and trading potential**:\n"
         "   - Is the stock in Wave 1 (initial spike), Wave 2 (pullback), Wave 3 (continuation), or post-spike exhaustion?\n"
@@ -314,22 +318,48 @@ def premarket_analyze_with_gpt(
         "- Check if today's price closed near high/low to infer momentum carryover.\n"
         "- Be alert to **popular market themes** (e.g. Bitcoin, AI, semiconductors, lithium, stock splits, 株式発行, 資本金変更, 剰余金の処分, 業務提携).\n"
         "- Explain **why volume surged** if applicable — strong news? speculative interest? sector sympathy?\n"
-        "- From the headline list, pick the **top {top_n} news items most likely to influence tomorrow’s trade**.\n"
+        f"- From the headline list, pick the **top {top_n} news items most likely to influence tomorrow’s trade**.\n"
         "- Include historical price table to help reason about trend & support/resistance zones.\n"
         "- For each headline, give:\n"
         "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
         "   - **Reason**: One sentence explaining the expected impact\n"
         "- Conclude with a concise summary and forecast for **tomorrow**:\n"
-        "   - Investment Recommendation: Buy / Hold / Sell\n"
+        "- Investment Recommendation: Buy / Hold / Sell\n"
         "- Promising Score: (0–100) based on **news**, **technical signals**, and **rebound potential**\n"
-        "- Expected Price Target (in JPY): intraday target for tomorrow\n"
-        "- Watchlist Recommendation: Yes / No\n"
+        "- News Impact Ranking: For each top news headline, assign a keyword and ranking from this ranking dictionary:\n"
+        "  {\n"
+        "    '黒字転換': 'S', 'Turn to profit': 'S', 'Profitability turnaround': 'S',\n"
+        "    '業績予想 上方修正': 'S', 'Earnings forecast upward revision': 'S',\n"
+        "    '四半期サプライズ決算': 'S', 'Quarterly earnings surprise': 'S',\n"
+        "    '中期経営計画': 'S', 'Mid-term management plan': 'S', '上方修正': 'S',\n"
+        "    'サプライズ決算': 'S', 'Surprise earnings report': 'S',\n"
+        "    '今期 業績予想 50%増益以上': 'A to S', 'This fiscal year earnings forecast +50% or more': 'A to S',\n"
+        "    '買収': 'A to S', 'Acquisition': 'A to S',\n"
+        "    '新市場参入': 'A to A+', 'New market entry': 'A to A+',\n"
+        "    '独占契約': 'A to A+', 'Exclusive contract': 'A to A+',\n"
+        "    '大型受注': 'A to A+', 'Large order': 'A to A+', 'Large contract': 'A to A+',\n"
+        "    '特許取得': 'A to A+', 'Patent acquisition': 'A to A+',\n"
+        "    '株式買戻し': 'B to A', 'Share buyback': 'B to A',\n"
+        "    '新製品発表': 'B to A', 'New product announcement': 'B to A',\n"
+        "    '新サービス発表': 'B to A', 'New service launch': 'B to A',\n"
+        "    '事業拡大': 'B to A+', 'Business expansion': 'B to A+',\n"
+        "    '新ホテル開業': 'B', 'New hotel opening': 'B',\n"
+        "    '株主優待増額': 'B', 'Increased shareholder benefit': 'B',\n"
+        "    '配当増額': 'B', 'Dividend increase': 'B',\n"
+        "    '事業報告': 'C', 'Business report': 'C',\n"
+        "    '株式発行': 'C to D', 'Capital increase': 'C to D',\n"
+        "    '資本金変更': 'C to D', 'Capital change': 'C to D',\n"
+        "    '再掲IR': 'D', 'Reposted IR': 'D',\n"
+        "    '過去の材料再加熱': 'D', 'Reheating old news': 'D'\n"
+        "  }\n"
+        "  Provide this as a list of headline text with its corresponding impact keyword and rank.\n"
         "- If expecting a move: describe **gap**, **morning action**, and **closing behavior** expected\n"
         "- Comment on **entry setup and wave timing explicitly**\n\n"
 
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
+        "   - **Keyword: ... - Rank: ...**"
         "   - **Verdict: ...**\n"
         "   - **Reason: ...**\n"
         "(Repeat for each headline)\n\n"
@@ -341,8 +371,7 @@ def premarket_analyze_with_gpt(
         "- Final Comment: [Your overall sentiment for tomorrow's trade setup]\n\n"
         "- Investment Recommendation: Buy / Hold / Sell\n"
         "- Promising Score: (0–100)\n"
-        "- Expected Price Target (in JPY): <target price for tomorrow>\n"
-        "- Watchlist Recommendation: Yes / No\n"
+        "- News Impact Ranking Summary: [Summarize the impact levels of the top news]\n"
         "- 📅 **Expected behavior tomorrow**: Gap direction, likely morning action, and closing range\n"
         "- 📊 **Wave Timing**: [Wave 1 / Wave 2 / Wave 3 / Overextended / Not started yet]\n"
         "- 🕒 **First Spike Summary**: [Did it happen? When? On what news? How strong?]\n"
@@ -363,11 +392,9 @@ def premarket_analyze_with_gpt(
         summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
         summary = summary_match.group(1).strip() if summary_match else ""
 
-        watchlist_recommendation = None
-        for line in reply.splitlines():
-            if "Watchlist Recommendation" in line:
-                watchlist_recommendation = line.split(":")[-1].strip()
-                break
+        highest_impact_keyword = None
+        highest_impact_rank = None
+        highest_impact_keyword, highest_impact_rank = extract_highest_ranked_impact(reply)
 
         # Match GPT-picked top N headlines to original news, and keep only those
         headline_texts = [imp["headline"] for imp in impacts]
@@ -393,7 +420,8 @@ def premarket_analyze_with_gpt(
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
-        volume_info.watchlist_recommendation = watchlist_recommendation
+        volume_info.highest_impact_keyword = highest_impact_keyword
+        volume_info.highest_impact_rank = highest_impact_rank
         volume_info.top_news = json.dumps(top_enriched_news, ensure_ascii=False)
         volume_info.momentum_score = momentum_result["momentum_score"]
         volume_info.momentum_confidence = momentum_result["momentum_confidence"]
@@ -422,6 +450,33 @@ def premarket_analyze_with_gpt(
     except Exception as e:
         print(f"❌ GPT error for {ticker}: {e}")
         return {"ticker": ticker, "error": str(e)}
+
+def rank_value(rank_str):
+    rank_order = ["S", "A to S", "A to A+", "B to A", "B", "C", "C to D", "D", "Good", "Neutral", "Bad", "N/A"]
+    # Return an index for rank, lower index means higher rank
+    try:
+        return rank_order.index(rank_str)
+    except ValueError:
+        return len(rank_order)  # lowest rank if unknown
+
+def extract_highest_ranked_impact(text: str):
+    # Pattern to match lines like:
+    # - **Keyword: Quarterly earnings surprise - Rank: S**
+    pattern = re.compile(r"\*\*Keyword:\s*(.+?)\s*-\s*Rank:\s*([A-Za-z0-9\s\+\-]+)\*\*", re.IGNORECASE)
+    matches = pattern.findall(text)
+
+    best_rank = None
+    best_keyword = None
+
+    for keyword, rank in matches:
+        keyword = keyword.strip()
+        rank = rank.strip()
+        current_rank_value = rank_value(rank)
+        if best_rank is None or current_rank_value < rank_value(best_rank):
+            best_rank = rank
+            best_keyword = keyword
+
+    return best_keyword, best_rank
 
 def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[dict]:
     url = f"https://finance.yahoo.co.jp/quote/{ticker}.T"
@@ -534,5 +589,20 @@ def get_trading_hours_passed(now: datetime) -> float:
     else:
         return 5.5  # full trading day
 
-def is_market_hours(now: datetime) -> bool:
-    return time(9, 0) <= now.time() <= time(15, 30)
+def is_market_hours(now_jst: datetime, latest_trading_day: datetime.date) -> bool:
+    # Market open: 09:00, close: 15:30
+    market_close_time = datetime.combine(latest_trading_day, time(15, 30), tzinfo=now_jst.tzinfo)
+    return now_jst.date() == latest_trading_day and now_jst <= market_close_time
+
+def get_latest_trading_day(db: Session):
+    ticker = '7203'
+    fetch_and_save_price_history(db, ticker)
+
+    result = (
+        db.query(DailyPrice.date)
+        .filter(DailyPrice.ticker == ticker)
+        .order_by(DailyPrice.date.desc())
+        .first()
+    )
+
+    return result[0] if result else None

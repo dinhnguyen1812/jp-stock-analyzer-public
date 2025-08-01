@@ -17,7 +17,7 @@ const PreMarketPage: React.FC = () => {
   const [priceThreshold, setPriceThreshold] = useState<number>(0);
   const [detectedAtMaxDay, setDetectedAtMaxDay] = useState<number>(1);
   const [fromPage, setFromPage] = useState<number>(1);
-  const [toPage, setToPage] = useState<number>(1);
+  const [toPage, setToPage] = useState<number>(5);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
   const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState<boolean>(false);

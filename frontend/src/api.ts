@@ -222,6 +222,7 @@ export async function fetchAllAnalyses(
       "Content-Type": "application/json",
     },
   });
+  console.log(res.json)
 
   if (!res.ok) throw new Error("Failed to fetch analyzed volume surges");
   return await res.json();
@@ -333,4 +334,20 @@ export async function fetchSetNote(ticker: string, note: string) {
     body: JSON.stringify({ note }),
   });
   if (!res.ok) throw new Error(`Failed to set note for ${ticker}`);
+}
+
+export async function getLatestTradingDay(): Promise<string> {
+  const res = await fetch(`${BASE_URL}/premarket/latest_trading_day`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Get latest trading day failed: ${errorText}`);
+  }
+
+  return await res.text(); // since it's a plain ISO date string like "2025-08-01"
 }

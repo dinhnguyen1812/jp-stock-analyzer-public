@@ -16,7 +16,7 @@ from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize
 from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
-from app.utils.premarket.pre_gpt_analyzer import premarket_analyze_with_gpt
+from app.utils.premarket.pre_gpt_analyzer import get_latest_trading_day, premarket_analyze_with_gpt
 from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 
@@ -221,7 +221,8 @@ def get_all_saved_volume_analyses(
                 "recommendation": vs.recommendation,
                 "promising_score": vs.promising_score,
                 "top_news": top_news,
-                "watchlist_recommendation": vs.watchlist_recommendation,
+                "highest_impact_keyword": vs.highest_impact_keyword,
+                "highest_impact_rank": vs.highest_impact_rank,
                 "downtrend": downtrend_info,
                 "uptrend": uptrend_info,
                 "drop_from_high_pct": price_stats["drop_from_high_pct"],
@@ -294,7 +295,8 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "recommendation": vs.recommendation,
             "promising_score": vs.promising_score,
             "top_news": top_news,
-            "watchlist_recommendation": vs.watchlist_recommendation,
+            "highest_impact_keyword": vs.highest_impact_keyword,
+            "highest_impact_rank": vs.highest_impact_rank,
             "downtrend": downtrend_info,
             "uptrend": uptrend_info,
             "drop_from_high_pct": price_stats["drop_from_high_pct"],
@@ -475,3 +477,7 @@ def scan_news_for_low_cap_bulk(
 @router.get("/positive_news", response_model=List[Dict])
 def get_positive_news_api(db: Session = Depends(get_db)):
     return get_positive_news(db)
+
+@router.get("/latest_trading_day", response_model=Optional[datetime.date])
+def get_latest_trading_day_api(db: Session = Depends(get_db)):
+    return get_latest_trading_day(db)

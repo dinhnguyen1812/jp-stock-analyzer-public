@@ -17,7 +17,8 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
     impact_verdict: string;
     impact_reason: string;
   }[];
-  watchlist_recommendation?: string;
+  highest_impact_keyword?: string;
+  highest_impact_rank?: string;
   drop_from_high_pct?: number;
   rebound_from_low_pct?: number;
   highest_price?: number;
@@ -56,7 +57,8 @@ export interface SavedAnalysis {
 
 interface PreMarketStockRowProps {
   stock: VolumeSurgeStock & {
-    watchlist_recommendation?: string;
+    highest_impact_keyword?: string;
+    highest_impact_rank?: string;
     promising_score?: number;
     recommendation?: string | null;
     starred?: boolean;
@@ -234,6 +236,35 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     setIsSaving(false);
   };
 
+  const rankColors: Record<string, string> = {
+    S: "#d32f2f",    // red
+    "A+": "#388e3c", // dark green
+    A: "#4caf50",    // green
+    B: "#fbc02d",    // yellow
+    C: "#757575",    // gray
+    D: "#9e9e9e",    // light gray
+  };
+
+  function ImpactBadge({ keyword, rank }: { keyword: string; rank: string }) {
+    const color = rankColors[rank] || "black";
+
+    return (
+      <Badge
+        style={{
+          backgroundColor: "white",
+          border: `1px solid ${color}`,
+          color: color,
+          fontWeight: "600",
+          fontSize: "0.85rem",
+        }}
+        className="px-2 py-1"
+      >
+        <span>{keyword}</span>
+        <span>: {rank}</span>
+      </Badge>
+    );
+  }
+
   return (
     <>
       <tr>
@@ -402,26 +433,35 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     </Badge>
                   );
                 })()}
-
-                {stock.watchlist_recommendation && (
-                  <Badge
-                    bg="light"
-                    text={
-                      stock.watchlist_recommendation.replace(/\*/g, "").trim().toLowerCase() === "yes"
-                        ? "success"
-                        : "danger"
-                    }
-                    className="border"
-                    style={{ fontSize: "0.75rem" }}
-                  >
-                    <span style={{ fontSize: "0.75rem", color: "gray" }}> Watch: </span>
-                    {stock.watchlist_recommendation.replace(/\*/g, "").trim()}
-                  </Badge>
-                )}
               </div>
 
-              {/* Row 2: Watchlist + Analysis button (less emphasis) */}
-              <div className="d-flex justify-content-end align-items-center mt-1 w-100">
+              {/* Row 2: Analysis button (less emphasis) */}
+              <div className="d-flex justify-content-center align-items-center mt-1 w-100">
+                {stock.highest_impact_rank && (
+                  <Badge
+                    bg="light" // fallback
+                    className="border border-secondary me-2"
+                    style={{
+                      fontSize: "1rem",
+                      backgroundColor: "white",
+                      color:
+                        {
+                          S: "#dc3545",      // Bootstrap danger
+                          "A+": "#fd7e14",   // Bootstrap orange (approx warning)
+                          A: "#198754",      // Bootstrap success
+                          B: "#0d6efd",      // Bootstrap primary
+                          C: "#6c757d",      // Bootstrap secondary
+                          D: "#212529",      // Bootstrap dark
+                        }[stock.highest_impact_rank] ?? "#000000",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.75rem", color: "gray", marginRight: 4 }}>
+                      {stock.highest_impact_keyword}:
+                    </span>
+                    {stock.highest_impact_rank.replace(/\*/g, "").trim()}
+                  </Badge>
+                )}
+
                 <Button
                   variant="primary"
                   size="sm"
@@ -588,10 +628,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   </div>
                 )}
                 <div className="mb-1">Promising Score: {analysis.volume_info.promising_score ?? "?"}</div>
-                <div className="mb-1">
-                  Watchlist Recommendation:{" "}
-                  {highlightKeywords(analysis.volume_info.watchlist_recommendation || "")}
-                </div>
               </div>
 
               <h5 className="mt-4">GPT Reasoning</h5>

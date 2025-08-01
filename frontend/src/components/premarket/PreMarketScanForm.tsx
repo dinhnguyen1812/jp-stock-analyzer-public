@@ -38,9 +38,6 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   toPage,
   starredOnly,
   loading,
-  loadingNewsSignals,
-  loadingSpikeScan,
-  autoScanEnabled,
   onSurgeThresholdChange,
   onPriceThresholdChange,
   onDetectedAtMaxDayChange,
@@ -48,8 +45,6 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onToPageChange,
   onStarredOnlyChange,
   onScan,
-  onFetchNewsSignals,
-  onScanSpike,
   onFetchAnalyzed,
   onAnalyzeStarred,
   loadingAnalyzeStarred,
@@ -64,12 +59,49 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   };
 
   return (
-    <Card className="mb-3 py-2 px-2 shadow-sm">
+    <Card className="mb-3 py-2 px-3 shadow-sm">
       <Card.Body className="py-2 px-1">
         <Form>
-          <h5 className="mb-3">📈 Pre-Market Volume Surge Scanner</h5>
+          <Row className="align-items-center mb-3">
+            <Col>
+              <h5 className="mb-0">📈 Pre-Market Volume Surge Scanner</h5>
+            </Col>
+
+            <Col xs="auto" className="ms-auto">
+              <InputGroup>
+                <Form.Control
+                  placeholder="Ticker"
+                  value={tickerInput}
+                  onChange={(e) => handleTickerChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onAnalyze(tickerInput);
+                    }
+                  }}
+                  disabled={loadingAnalyze}
+                />
+                <Button
+                  variant="primary"
+                  onClick={() => onAnalyze(tickerInput)}
+                  disabled={loadingAnalyze || tickerInput.trim() === ""}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {loadingAnalyze ? (
+                    <>
+                      <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
+                      {" "}Analyze...
+                    </>
+                  ) : (
+                    "Analyze"
+                  )}
+                </Button>
+              </InputGroup>
+            </Col>
+          </Row>
+
           <Row
-            className="align-items-center g-2 flex-nowrap"
+            className="align-items-center g-2"
             style={{ overflowX: "auto", fontSize: "0.85rem" }}
           >
             <Col style={{ minWidth: 190 }}>
@@ -190,39 +222,6 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                   "Analyze Starred"
                 )}
               </Button>
-            </Col>
-
-            {/* Single ticker analyze input/button */}
-            <Col style={{ flexGrow: 1, minWidth: 200 }}>
-              <InputGroup>
-                <Form.Control
-                  placeholder="Ticker"
-                  value={tickerInput}
-                  onChange={(e) => handleTickerChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      onAnalyze(tickerInput);
-                    }
-                  }}
-                  disabled={loadingAnalyze}
-                />
-                <Button
-                  variant="primary"
-                  onClick={() => onAnalyze(tickerInput)}
-                  disabled={loadingAnalyze || tickerInput.trim() === ""}
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  {loadingAnalyze ? (
-                    <>
-                      <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
-                      {" "}Analyze...
-                    </>
-                  ) : (
-                    "Analyze"
-                  )}
-                </Button>
-              </InputGroup>
             </Col>
           </Row>
         </Form>
