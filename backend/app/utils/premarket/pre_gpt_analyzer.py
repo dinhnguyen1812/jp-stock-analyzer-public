@@ -40,6 +40,8 @@ def extract_headline_impacts(text: str) -> list[dict]:
     lines = text.splitlines()
 
     current_headline = None
+    keyword = None
+    rank = None
     verdict = None
     reason = None
 
@@ -49,25 +51,37 @@ def extract_headline_impacts(text: str) -> list[dict]:
         # Headline line: number + bold text
         headline_match = re.match(r"^\d+\.\s+\*\*(.+?)\*\*$", line)
         if headline_match:
-            # Save previous result if any
+            # Save previous result if complete
             if current_headline and verdict and reason:
                 results.append({
                     "headline": current_headline,
+                    "keyword": keyword,
+                    "rank": rank,
                     "verdict": verdict,
                     "reason": reason,
                 })
+            # Reset values for next block
             current_headline = headline_match.group(1).strip()
+            keyword = None
+            rank = None
             verdict = None
             reason = None
             continue
 
-        # Verdict line: - **Verdict: ...**
+        # Keyword + Rank line
+        keyword_rank_match = re.match(r"- \*\*Keyword:\s*(.+?)\s*-\s*Rank:\s*(.+?)\*\*", line)
+        if keyword_rank_match:
+            keyword = keyword_rank_match.group(1).strip()
+            rank = keyword_rank_match.group(2).strip()
+            continue
+
+        # Verdict line
         verdict_match = re.match(r"- \*\*Verdict:\s*(.+?)\*\*", line)
         if verdict_match:
             verdict = verdict_match.group(1).strip()
             continue
 
-        # Reason line: - **Reason: ...**
+        # Reason line
         reason_match = re.match(r"- \*\*Reason:\s*(.+?)\*\*", line)
         if reason_match:
             reason = reason_match.group(1).strip()
@@ -77,6 +91,8 @@ def extract_headline_impacts(text: str) -> list[dict]:
     if current_headline and verdict and reason:
         results.append({
             "headline": current_headline,
+            "keyword": keyword,
+            "rank": rank,
             "verdict": verdict,
             "reason": reason,
         })
@@ -124,17 +140,6 @@ def premarket_analyze_with_gpt(
     highest_price = downtrend_info.get("highest_price")
     lowest_price = downtrend_info.get("lowest_price")
 
-    # # 🧠 Detect if uptrend was news-triggered
-    # uptrend_news_matches = []
-    # if up_to and up_to != "?":
-    #     uptrend_date = datetime.fromisoformat(up_to).date()
-    #     for item in news_items:
-    #         published_at = item.get("published_at")
-    #         if isinstance(published_at, str):
-    #             published_at = datetime.fromisoformat(published_at)
-    #         if published_at.date() == uptrend_date:
-    #             uptrend_news_matches.append(item)
-
     # 📉 Downtrend after uptrend check
     downtrend_after_up = (
         uptrend_info.get("had_uptrend") and
@@ -155,15 +160,6 @@ def premarket_analyze_with_gpt(
         )
     else:
         uptrend_section = f"📉 No strong uptrend in the recent 10 days. Last low-to-high range: {up_from} to {up_to}.\n"
-
-    # # 📰 News Trigger (if any)
-    # if uptrend_news_matches:
-    #     news_lines = [
-    #         f"- \"{item['headline']}\" ({item['published_at']})"
-    #         for item in uptrend_news_matches
-    #     ]
-    #     news_str = "\n".join(news_lines)
-    #     uptrend_section += f"📰 Likely News-Driven Spike ({len(uptrend_news_matches)} match{'es' if len(uptrend_news_matches) > 1 else ''}):\n{news_str}\n"
 
     # ⬇️ Downtrend Section
     if downtrend_info.get("had_downtrend"):
@@ -283,6 +279,7 @@ def premarket_analyze_with_gpt(
         ]
     )
 
+    # print(f"====headlines={headlines}")
     prompt = (
         f"You are a Japanese market expert AI providing a **pre-market outlook for stock {ticker}** — to support a trade decision for **tomorrow's trading session**.\n\n"
         f"Today is {date_str}, time: {now_jst}. Latest trading day: {latest_trading_day}, time: 15:30:00.\n"
@@ -303,7 +300,7 @@ def premarket_analyze_with_gpt(
         "   - When did the first spike occur?\n"
         "   - Was the reaction full or partial?\n"
         "   - Is a **second wave** or continuation setup likely tomorrow?\n"
-        "- If news was released **between 9:00 AM and 3:20 PM JST on weekdays (Monday–Friday)**, assume it has likely impacted the price already. Be precise about **whether the price move is already priced in or not**.\n"
+        "- If news was released before the latest trading day close time (15:30:00), assume it has likely impacted the price already. Be precise about **whether the price move is already priced in or not**.\n"
         "- For **decisive news items**, check if similar news appeared earlier; if so, consider that the market might have priced it in.\n"
         "- Predict **how the stock will behave tomorrow**: gap up/down, morning surge/pullback, and **likely closing price range**.\n"
         "- Clearly assess **wave timing and trading potential**:\n"
@@ -318,9 +315,9 @@ def premarket_analyze_with_gpt(
         "- Check if today's price closed near high/low to infer momentum carryover.\n"
         "- Be alert to **popular market themes** (e.g. Bitcoin, AI, semiconductors, lithium, stock splits, 株式発行, 資本金変更, 剰余金の処分, 業務提携).\n"
         "- Explain **why volume surged** if applicable — strong news? speculative interest? sector sympathy?\n"
-        # f"- From the headline list, pick the **top {top_n} news items most likely to influence tomorrow’s trade**.\n"
         "- Include historical price table to help reason about trend & support/resistance zones.\n"
         "- For each headline, give:\n"
+        "   - **Keyword: as guidance below - Rank: as guidance below**\n"
         "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
         "   - **Reason**: One sentence explaining the expected impact\n"
         "- Conclude with a concise summary and forecast for **tomorrow**:\n"
@@ -359,7 +356,7 @@ def premarket_analyze_with_gpt(
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
-        "   - **Keyword: ... - Rank: ...**"
+        "   - **Keyword: ... - Rank: ...**\n"
         "   - **Verdict: ...**\n"
         "   - **Reason: ...**\n"
         "(Repeat for each headline)\n\n"
@@ -386,15 +383,18 @@ def premarket_analyze_with_gpt(
             temperature=0.3,
         )
         reply = response.choices[0].message.content.strip()
+        print(f"====reply={reply}")
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply)
+        print(f"====impacts={impacts}")
         summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
         summary = summary_match.group(1).strip() if summary_match else ""
 
         highest_impact_keyword = None
         highest_impact_rank = None
         highest_impact_keyword, highest_impact_rank = extract_highest_ranked_impact(reply)
+        print(f"====highest_impact_keyword, highest_impact_rank={highest_impact_keyword, highest_impact_rank}")
 
         # Match GPT-picked top N headlines to original news, and keep only those
         headline_texts = [imp["headline"] for imp in impacts]
@@ -413,10 +413,12 @@ def premarket_analyze_with_gpt(
             if match:
                 matched_headline = match[0]
                 matched = next((imp for imp in impacts if imp["headline"] == matched_headline), None)
-                print(f"====matched={matched}")
                 item["impact_verdict"] = matched.get("verdict") if matched else None
                 item["impact_reason"] = matched.get("reason") if matched else None
+                item["keyword"] = matched.get("keyword") if matched else None
+                item["rank"] = matched.get("rank") if matched else None
                 top_enriched_news.append(item)
+        print(f"====top_enriched_news={top_enriched_news}")
 
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
@@ -453,7 +455,7 @@ def premarket_analyze_with_gpt(
         return {"ticker": ticker, "error": str(e)}
 
 def rank_value(rank_str):
-    rank_order = ["S", "A to S", "A to A+", "B to A", "B", "C", "C to D", "D", "Good", "Neutral", "Bad", "N/A"]
+    rank_order = ["S", "A to S", "A to A+", "B to A+", "B to A", "B", "C", "C to D", "D", "Good", "Neutral", "Bad", "N/A"]
     # Return an index for rank, lower index means higher rank
     try:
         return rank_order.index(rank_str)
@@ -473,7 +475,7 @@ def extract_highest_ranked_impact(text: str):
         keyword = keyword.strip()
         rank = rank.strip()
         current_rank_value = rank_value(rank)
-        if best_rank is None or current_rank_value < rank_value(best_rank):
+        if best_rank is None or current_rank_value <= rank_value(best_rank):
             best_rank = rank
             best_keyword = keyword
 

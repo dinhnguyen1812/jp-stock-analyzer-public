@@ -29,6 +29,7 @@ const getVerdictColor = (verdict: string) => {
   if (lower === "great") return "success";
   if (lower === "good") return "warning";
   if (lower === "neutral") return "secondary";
+  // if (lower === "unsure") return "secondary";
   return "light";
 };
 
@@ -37,6 +38,7 @@ const verdictPriority: Record<string, number> = {
   great: 3,
   good: 2,
   neutral: 1,
+  // unsure: 0,
 };
 
 const PreMarketScanNewsCard: React.FC = () => {

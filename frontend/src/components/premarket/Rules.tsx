@@ -16,6 +16,7 @@ const TRADING_RULES = `
 - 🧠 Analyze starred stocks using GPT-based evaluation.
 - 👀 Manually inspect chart and volume of each starred stock to pick 3 most promising stocks.
 - 👀 Ask ChatGPT for opinion: Is the news fresh? How likely does it impact the certain stocks?
+- All-in stocks: 
 
 🌊 2. Aim for the Wave 1 (Pre-order if very strong news) else wait for wave 2
 - Look for stocks with:
@@ -101,6 +102,40 @@ const WAVE_RULES = `
 - Watch price action 9:00–9:05; buy on pullback near support (VWAP, EMA).
 - Use tight stop-loss.
 - Ride the second wave if it forms.
+`;
+
+const ALLIN_GUIDANCE = `
+🚀 All-In Stock Criteria & Guidance
+
+🧠 Ideal All-In Setup:
+- 🔻 Stock has been down / quiet for some time (no recent hype).
+- 💰 黒字転換 (Turn to Profit): from big loss to solid profit.
+  • Example: -8億 → +0.6億 modest, -7億 → +2億 = strong.
+- 📈 業績上方修正 (Earnings Forecast Raised): large %, record level.
+- 🆕 Good news is FRESH and not yet priced in (IR release after 15:30).
+- 💹 High trading volume early, confirming market reaction.
+- 📊 Clean chart: breakout from resistance or long base.
+- 🔍 No dilution risk (no CB, 増資, or toxic debt).
+- ⚡ Sector theme is hot or related news moving similar stocks.
+
+🎯 Checklist Before Going All-In:
+1. ✅ Strong surprise news (S/A+ rank).
+2. ✅ No heavy resistance above.
+3. ✅ No dilution risk.
+4. ✅ Clean IR timing (not recycled).
+5. ✅ Volume confirmation on spike.
+6. ✅ Similar stocks moved (sector sympathy).
+7. ✅ News + chart + volume = alignment.
+
+❌ Don’t All-In If:
+- 🚨 Already up 50%+ on low volume.
+- ❓ Dilution risk / CB noted in docs.
+- 📉 Weak breakout / fake spike pattern.
+- 🧊 Market sentiment weak (broad drop).
+- 😵 Overcrowded stock with FOMO jump-ins.
+
+💡 Tip:
+Use GPT to validate news freshness, technical strength, and dilution risks.
 `;
 
 const NewsImpactRankingTable = () => {
@@ -274,6 +309,11 @@ const Rules: React.FC<RulesProps> = ({
             </Tab>
             <Tab eventKey="newsranking" title="📈 News Impact Ranking">
               <NewsImpactRankingTable />
+            </Tab>
+            <Tab eventKey="allin" title="🚀 All-In Guidance">
+              <pre style={{ whiteSpace: "pre-wrap", padding: "1rem", margin: 0 }}>
+                {ALLIN_GUIDANCE}
+              </pre>
             </Tab>
           </Tabs>
         </Modal.Body>

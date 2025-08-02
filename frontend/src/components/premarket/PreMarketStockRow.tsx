@@ -16,6 +16,8 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
     score: number;
     impact_verdict: string;
     impact_reason: string;
+    keyword: string;
+    rank: string;
   }[];
   highest_impact_keyword?: string;
   highest_impact_rank?: string;
@@ -106,6 +108,38 @@ const highlightKeywords = (text: string): JSX.Element => {
     <>
       {parts.map((part, idx) => {
         const match = keywordMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
+        return match ? (
+          <Badge key={idx} bg={match.variant} className="mx-1">
+            {part}
+          </Badge>
+        ) : (
+          <span key={idx}>{part}</span>
+        );
+      })}
+    </>
+  );
+};
+
+const rankMap = [
+  // Rank values
+  { word: "S", variant: "danger" },
+  { word: "A+", variant: "warning" },
+  { word: "A", variant: "success" },
+  { word: "B", variant: "primary" },
+  { word: "C", variant: "secondary" },
+  { word: "D", variant: "dark" },
+];
+
+const highlightRank = (text: string): JSX.Element => {
+  if (!text) return <span>(No text)</span>;
+  const cleanText = text.replace(/\*\*/g, "");
+  const keywordRegex = new RegExp(`(${rankMap.map((k) => k.word).join("|")})`, "gi");
+  const parts = cleanText.split(keywordRegex);
+
+  return (
+    <>
+      {parts.map((part, idx) => {
+        const match = rankMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
         return match ? (
           <Badge key={idx} bg={match.variant} className="mx-1">
             {part}
@@ -311,14 +345,27 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           </Button>
         </td>
 
-        <td className="align-middle text-center">{stock.ticker}</td>
-        <td className="align-middle">{stock.name}</td>
-        <td className="align-middle text-center">{stock.current_price.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.volume_rate.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td>
-        <td className="align-middle text-center">{stock.current_volume.toLocaleString()}</td>
-        <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td>
+        {/* <td className="align-middle text-center">{stock.ticker}</td>
+        <td className="align-middle">{stock.name}</td> */}
+        <td className="align-middle text-center">
+          <div>{stock.ticker}</div>
+          <div>{stock.name}</div>
+        </td>
+        <td className="align-middle text-center">
+          <div>{stock.current_price.toFixed(2)}</div>
+          <div>{stock.price_change.toFixed(2)}</div>
+        </td>
+        {/* <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td> */}
+        <td className="align-middle text-center">
+          <div>{stock.volume_rate.toFixed(2)}</div>
+          <div>{stock.money_flow_rate.toFixed(2)}</div>
+        </td>
+        {/* <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td> */}
+        <td className="align-middle text-center">
+          <div>{stock.current_volume.toLocaleString()}</div>
+          <div>{stock.avg_volume_5d.toLocaleString()}</div>
+        </td>
+        {/* <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td> */}
         <td className="align-middle text-center">
           <span
             style={{
@@ -334,153 +381,154 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         </td>
 
         {/* 🔑 Key Signals column */}
-        <td className="align-middle text-start">{renderKeySignals()}</td>
-          <td className="align-middle text-center">
-            <div className="d-flex flex-column align-items-center justify-content-center gap-1">
-              {/* Row 1: Main signals (Recommendation, Promising Score, Signal Score, News) */}
-              <div className="d-flex flex-wrap justify-content-center align-items-center gap-2">
-                {stock.recommendation && (
-                  <Badge pill bg={
-                    stock.recommendation === "Buy"
+        <td className="align-middle text-start">
+          {renderKeySignals()}
+        </td>
+        <td className="align-middle text-start">
+          {stock.highest_impact_rank && (
+            <Badge
+              bg="light" // fallback
+              className="border border-secondary me-2"
+              style={{
+                fontSize: "1rem",
+                backgroundColor: "white",
+                color: {
+                  "S": "#dc3545",         // Red - strong impact
+                  "A to S": "#e5533d",    // Between red and orange
+                  "A to A+": "#fd7e14",   // Orange - high impact
+                  "B to A+": "#f0ad4e",   // Lighter orange
+                  "B to A": "#0d6efd",    // Bootstrap primary blue
+                  "B": "#0dcaf0",         // Bootstrap info (cyan)
+                  "C": "#6c757d",         // Bootstrap secondary (gray)
+                  "C to D": "#adb5bd",    // Light gray
+                  "D": "#212529"          // Bootstrap dark
+                }[stock.highest_impact_rank] ?? "#000000",
+              }}
+            >
+              <span style={{ fontSize: "0.75rem", color: "gray", marginRight: 4 }}>
+                {stock.highest_impact_keyword}:
+              </span>
+              {stock.highest_impact_rank.replace(/\*/g, "").trim()}
+            </Badge>
+          )}
+        </td>
+        <td className="align-middle text-center">
+          <div className="d-flex flex-column align-items-center justify-content-center gap-1">
+            {/* Row 1: Main signals (Recommendation, Promising Score, Signal Score, News) */}
+            <div className="d-flex flex-wrap justify-content-center align-items-center gap-2">
+              {stock.recommendation && (
+                <Badge pill bg={
+                  stock.recommendation === "Buy"
+                    ? "success"
+                    : stock.recommendation === "Sell"
+                    ? "danger"
+                    : "warning"
+                }>
+                  {stock.recommendation}
+                </Badge>
+              )}
+
+              {stock.promising_score !== undefined && (
+                <Badge
+                  bg={
+                    stock.promising_score >= 80
                       ? "success"
-                      : stock.recommendation === "Sell"
-                      ? "danger"
-                      : "warning"
-                  }>
-                    {stock.recommendation}
-                  </Badge>
-                )}
-
-                {stock.promising_score !== undefined && (
-                  <Badge
-                    bg={
-                      stock.promising_score >= 80
-                        ? "success"
-                        : stock.promising_score >= 60
-                        ? "info"
-                        : stock.promising_score >= 40
-                        ? "warning"
-                        : "danger"
-                    }
-                    className="border"
-                    style={{ fontSize: "0.75rem" }}
-                  >
-                    Score: {stock.promising_score}
-                  </Badge>
-                )}
-
-                {stock.momentum_score !== undefined && (
-                  <Badge
-                    bg={
-                      stock.momentum_score >= 8
-                        ? "success"
-                        : stock.momentum_score >= 6
-                        ? "info"
-                        : stock.momentum_score >= 4
-                        ? "warning"
-                        : "danger"
-                    }
-                    className="border"
-                    style={{ fontSize: "0.75rem" }}
-                  >
-                    Signal: {stock.momentum_score}
-                  </Badge>
-                )}
-
-                {Array.isArray(stock.top_news) && stock.top_news.length > 0 && latestThresholdDate && (() => {
-                  const newsWithVerdict = stock.top_news.filter(
-                    (n) => typeof n.impact_verdict === "string"
-                  );
-                  if (newsWithVerdict.length === 0) return null;
-
-                  const bestNews = newsWithVerdict.sort((a, b) => {
-                    const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
-                    const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
-                    return bRank - aRank;
-                  })[0];
-
-                  const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
-                  const badgeColor =
-                    verdict === "decisive"
-                      ? "danger"
-                      : verdict === "great"
-                      ? "success"
-                      : verdict === "good"
+                      : stock.promising_score >= 60
+                      ? "info"
+                      : stock.promising_score >= 40
                       ? "warning"
-                      : verdict === "neutral"
-                      ? "secondary"
-                      : "light";
-                  const textColor = verdict === "bad" ? "dark" : "light";
-
-                  const publishedAt = new Date(bestNews.published_at);
-                  const thresholdDate = new Date(
-                    Date.UTC(
-                      latestThresholdDate.getUTCFullYear(),
-                      latestThresholdDate.getUTCMonth(),
-                      latestThresholdDate.getUTCDate(),
-                      6, 29, 0 // 06:29 UTC = 15:29 JST
-                    )
-                  );
-
-                  const isVeryRecent = publishedAt >= thresholdDate;
-                  const verdictLabel = `${bestNews.impact_verdict}${isVeryRecent ? " ⭐️" : ""}`;
-
-                  return (
-                    <Badge
-                      bg={badgeColor}
-                      text={textColor}
-                      className="border"
-                      style={{ fontSize: "0.75rem" }}
-                    >
-                      {verdictLabel}
-                    </Badge>
-                  );
-                })()}
-              </div>
-
-              {/* Row 2: Analysis button (less emphasis) */}
-              <div className="d-flex justify-content-center align-items-center mt-1 w-100">
-                {stock.highest_impact_rank && (
-                  <Badge
-                    bg="light" // fallback
-                    className="border border-secondary me-2"
-                    style={{
-                      fontSize: "1rem",
-                      backgroundColor: "white",
-                      color:
-                        {
-                          S: "#dc3545",      // Bootstrap danger
-                          "A+": "#fd7e14",   // Bootstrap orange (approx warning)
-                          A: "#198754",      // Bootstrap success
-                          B: "#0d6efd",      // Bootstrap primary
-                          C: "#6c757d",      // Bootstrap secondary
-                          D: "#212529",      // Bootstrap dark
-                        }[stock.highest_impact_rank] ?? "#000000",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.75rem", color: "gray", marginRight: 4 }}>
-                      {stock.highest_impact_keyword}:
-                    </span>
-                    {stock.highest_impact_rank.replace(/\*/g, "").trim()}
-                  </Badge>
-                )}
-
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleAnalysisClick}
-                  disabled={loading}
-                  style={{
-                    minWidth: 90,
-                    fontSize: "0.75rem",
-                    padding: "0.25rem 0.5rem",
-                  }}
+                      : "danger"
+                  }
+                  className="border"
+                  style={{ fontSize: "0.75rem" }}
                 >
-                  {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
-                </Button>
-              </div>
+                  Score: {stock.promising_score}
+                </Badge>
+              )}
+
+              {stock.momentum_score !== undefined && (
+                <Badge
+                  bg={
+                    stock.momentum_score >= 8
+                      ? "success"
+                      : stock.momentum_score >= 6
+                      ? "info"
+                      : stock.momentum_score >= 4
+                      ? "warning"
+                      : "danger"
+                  }
+                  className="border"
+                  style={{ fontSize: "0.75rem" }}
+                >
+                  Signal: {stock.momentum_score}
+                </Badge>
+              )}
+
+              {Array.isArray(stock.top_news) && stock.top_news.length > 0 && latestThresholdDate && (() => {
+                const newsWithVerdict = stock.top_news.filter(
+                  (n) => typeof n.impact_verdict === "string"
+                );
+                if (newsWithVerdict.length === 0) return null;
+
+                const bestNews = newsWithVerdict.sort((a, b) => {
+                  const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
+                  const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
+                  return bRank - aRank;
+                })[0];
+
+                const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
+                const badgeColor =
+                  verdict === "decisive"
+                    ? "danger"
+                    : verdict === "great"
+                    ? "success"
+                    : verdict === "good"
+                    ? "warning"
+                    : verdict === "neutral"
+                    ? "secondary"
+                    : "light";
+                const textColor = verdict === "bad" ? "dark" : "light";
+
+                const publishedAt = new Date(bestNews.published_at);
+                const thresholdDate = new Date(
+                  Date.UTC(
+                    latestThresholdDate.getUTCFullYear(),
+                    latestThresholdDate.getUTCMonth(),
+                    latestThresholdDate.getUTCDate(),
+                    6, 29, 0 // 06:29 UTC = 15:29 JST
+                  )
+                );
+
+                const isVeryRecent = publishedAt >= thresholdDate;
+                const verdictLabel = `${bestNews.impact_verdict}${isVeryRecent ? " ⭐️" : ""}`;
+
+                return (
+                  <Badge
+                    bg={badgeColor}
+                    text={textColor}
+                    className="border"
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    {verdictLabel}
+                  </Badge>
+                );
+              })()}
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={handleAnalysisClick}
+                disabled={loading}
+                style={{
+                  minWidth: 90,
+                  fontSize: "0.75rem",
+                  padding: "0.25rem 0.5rem",
+                }}
+              >
+                {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
+              </Button>
             </div>
-          </td>
+          </div>
+        </td>
       </tr>
 
       <Modal size="xl" show={showModal} onHide={() => setShowModal(false)} scrollable>
@@ -653,6 +701,8 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                         </small>
                         <br />
                         <strong>Impact Verdict:</strong> {highlightKeywords(item.impact_verdict)}
+                        <br />
+                        <strong>Keyword:</strong> {item.keyword}: {highlightRank(item.rank)}
                         <br />
                         <em style={{ display: "block", marginTop: "0.25rem" }}>
                           {highlightKeywords(item.impact_reason)}

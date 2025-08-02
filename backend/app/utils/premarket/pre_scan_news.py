@@ -116,8 +116,10 @@ def scan_and_analyze_news_for_ticker(
         "### Instructions:\n"
         "- Evaluate how impactful the news is for **short-term (today/tomorrow)** trading.\n"
         "- For each headline, provide:\n"
-        "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
-        "   - **Reason**: 1 concise sentence explaining the impact\n\n"
+        # "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
+        "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad, Unsure]\n"
+        "   - **Reason**: 1 concise sentence explaining the impact\n"
+        # "   - If the impact is unclear due to lack of context or vague wording, use **Unsure** so the user can review manually.\n\n"
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
@@ -160,6 +162,7 @@ def scan_and_analyze_news_for_ticker(
         db.commit()
 
         if any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
+        # if any(i["verdict"] in {"Decisive", "Great", "Good", "Unsure"} for i in impacts):
             print(f"🚨 Positive news detected for {ticker}: {', '.join(i['verdict'] for i in impacts)}")
 
         return impacts
@@ -175,6 +178,7 @@ def scan_news_for_low_cap_stocks(db: Session):
 
 def get_positive_news(db: Session) -> List[dict]:
     positive_verdicts = ["Decisive", "Great", "Good"]
+    # positive_verdicts = ["Decisive", "Great", "Good", "Unsure"]
 
     # Fetch impacts with positive verdicts
     results = (

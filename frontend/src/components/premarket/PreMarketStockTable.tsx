@@ -128,68 +128,58 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
   }, []);
 
   return (
-    <div className="small">
-      <Table striped bordered hover responsive className="table-sm align-top">
+    <div style={{ overflowX: "auto" }} className="small">
+      <Table striped bordered hover responsive className="table-sm align-top" style={{ tableLayout: "fixed", width: "100%" }}>
         <thead className="table-light sticky-top">
-          <tr>
-            <th style={{ minWidth: "150px" }} className="align-top text-center">Note</th>
-            <th style={{ width: "40px" }}> </th>
-            <th style={{ width: "80px" }} className="align-top text-center">Ticker</th>
-            <th style={{ minWidth: "120px" }} className="align-top text-center">Name</th>
+          <tr style={{ fontSize: "0.8rem"}}>
+            <th style={{ width: "150px"}} className="align-top text-center">Note</th>
+            <th className="align-top text-center" style={{ width: "40px" }}> ★ </th>
+            <th style={{ width: "130px" }} className="align-top text-center">Ticker / Name</th>
             <th
-              style={{ width: "120px" }}
+              style={{ width: "90px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("current_price")}
             >
-              Current Price (円){renderSortIndicator("current_price")}
-            </th>
-            <th
-              style={{ width: "100px" }}
-              className="align-top text-center clickable"
-              onClick={() => handleSort("price_change")}
-            >
-              Price Change (%) {renderSortIndicator("price_change")}
+              <div>Price</div>
+              <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
+              <div>Current (円)</div>
+              <div>Change (%) {renderSortIndicator("current_price")}</div>
             </th>
             <th
               style={{ width: "80px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("volume_rate")}
             >
-              Volume Rate {renderSortIndicator("volume_rate")}
+              <div>Rate (%)</div>
+              <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
+              <div>Volume {renderSortIndicator("volume_rate")}</div>
+              <div>Money</div>
             </th>
             <th
-              style={{ width: "100px" }}
-              className="align-top text-center clickable"
-              onClick={() => handleSort("money_flow_rate")}
-            >
-              Money Flow Rate {renderSortIndicator("money_flow_rate")}
-            </th>
-            <th
-              style={{ minWidth: "75px" }}
+              style={{ width: "85px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("current_volume")}
             >
-              Current Volume (株) {renderSortIndicator("current_volume")}
+              <div>Volume (株)</div>
+              <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
+              <div>Current {renderSortIndicator("current_volume")}</div>
+              <div>Avg 5d</div>
             </th>
             <th
-              style={{ minWidth: "75px" }}
-              className="align-top text-center clickable"
-              onClick={() => handleSort("avg_volume_5d")}
-            >
-              Avg Volume (5d) {renderSortIndicator("avg_volume_5d")}
-            </th>
-            <th
-              style={{ minWidth: "90px" }}
+              style={{ width: "90px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("detected_at")}
             >
               Detected At {renderSortIndicator("detected_at")}
             </th>
-            <th style={{ minWidth: "250px" }} className="align-top text-center">
-              🔑 Key Signals
+            <th style={{ width: "250px" }} className="align-top text-center">
+              Key Signals
+            </th>
+            <th style={{ width: "220px" }} className="align-top text-center">
+              Most Impact
             </th>
             <th
-              style={{ minWidth: "350px" }}
+              style={{ width: "400px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("action_column")}
             >
