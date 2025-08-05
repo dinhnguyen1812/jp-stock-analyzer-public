@@ -9,6 +9,7 @@ import {
   scanPreMarketVolumeSurges,
   fetchAllAnalyses,
   analyzeAllStarredTickers,
+  analyzeWatchList,
   analyzeSingleTicker,
 } from "../api";
 
@@ -21,6 +22,7 @@ const PreMarketPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
   const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState<boolean>(false);
+  const [loadingAnalyzeWatchList, setLoadingAnalyzeWatchList] = useState<boolean>(false);
   const [loadingAnalyze, setLoadingAnalyze] = useState<boolean>(false);
   const [starredOnly, setStarredOnly] = useState<boolean>(false);
   const [stocks, setStocks] = useState<VolumeSurgeStock[]>([]);
@@ -90,6 +92,19 @@ const PreMarketPage: React.FC = () => {
     }
   };
 
+  const handleAnalyzeWatchList = async () => {
+    setLoadingAnalyzeWatchList(true);
+    try {
+      const result = await analyzeWatchList();
+      setAnalyzedResults(result);
+      setStocks([]);
+    } catch (err) {
+      console.error("Failed to analyze watchlist", err);
+    } finally {
+      setLoadingAnalyzeWatchList(false);
+    }
+  };
+
   const handleAnalyze = async (ticker: string) => {
     if (!ticker.trim()) return;
     setLoadingAnalyze(true);
@@ -142,6 +157,7 @@ const PreMarketPage: React.FC = () => {
         autoScanEnabled={false}
         starredOnly={starredOnly}
         loadingAnalyzeStarred={loadingAnalyzeStarred}
+        loadingAnalyzeWatchList={loadingAnalyzeWatchList}
         loadingAnalyze={loadingAnalyze}
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
@@ -150,10 +166,11 @@ const PreMarketPage: React.FC = () => {
         onToPageChange={setToPage}
         onStarredOnlyChange={setStarredOnly}
         onScan={handleScan}
-        onFetchNewsSignals={() => {}}
-        onScanSpike={() => {}}
+        onFetchNewsSignals={() => { } }
+        onScanSpike={() => { } }
         onFetchAnalyzed={handleFetchAnalyzed}
         onAnalyzeStarred={handleAnalyzeStarred}
+        onAnalyzeWatchList={handleAnalyzeWatchList}
         onAnalyze={handleAnalyze}
       />
 

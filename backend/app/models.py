@@ -72,6 +72,11 @@ class StarredStock(Base):
     id = Column(Integer, primary_key=True)
     ticker = Column(String, unique=True, index=True)
 
+class WatchList(Base):
+    __tablename__ = "watch_list"
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String, unique=True, index=True)
+
 class DailyVolume(Base):
     __tablename__ = "daily_volumes"
 

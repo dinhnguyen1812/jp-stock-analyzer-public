@@ -117,3 +117,7 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Add today + yesterday high low close for analyzing
 - Check if promising score is based on both technical signals and news (sometimes news alone could be great?)
 - Add detect second spike
+
+- Add PER/PBR... indicators to analyzer
+- Add technical scanner:
+- Add watchlist table

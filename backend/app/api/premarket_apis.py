@@ -10,7 +10,7 @@ from threading import Event
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
-from app.models import DailyPrice, StockNewsImpact, VolumeSnapshot, StarredStock
+from app.models import DailyPrice, StockNewsImpact, VolumeSnapshot, StarredStock, WatchList
 from app.utils.premarket.calculate_momentum_score import calculate_momentum_score
 from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
@@ -346,7 +346,7 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         db=db,
         ticker=ticker,
         surge_threshold=0.0,
-        price_threshold=3000,
+        price_threshold=0,
     )
     if not snapshot:
         raise ValueError(f"{ticker} does not meet surge/price criteria.")
@@ -391,6 +391,27 @@ def analyze_starred_tickers(
     results = []
 
     for ticker in ticker_list:
+        try:
+            result = analyze_ticker_by_steps(db, ticker, top_n, model)
+            results.append(result)
+        except ValueError as e:
+            print(f"Skipping {ticker}: {e}")
+            continue
+
+    return results
+
+@router.post("/analyze_watch_list", response_model=List[Dict])
+def analyze_watch_list(
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db)
+):
+    watchlist_tickers = db.query(WatchList.ticker).all()
+    ticker_list = [t[0] for t in watchlist_tickers]  # convert list of tuples to list of strings
+    results = []
+
+    for ticker in ticker_list:
+        print(f"====ticker={ticker}")
         try:
             result = analyze_ticker_by_steps(db, ticker, top_n, model)
             results.append(result)

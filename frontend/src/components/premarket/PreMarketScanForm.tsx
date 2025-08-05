@@ -23,7 +23,9 @@ interface PreMarketScanFormProps {
   onScanSpike: () => void;
   onFetchAnalyzed: () => void;
   onAnalyzeStarred: () => void;
+  onAnalyzeWatchList: () => void;
   loadingAnalyzeStarred: boolean;
+  loadingAnalyzeWatchList: boolean;
 
   // New props for single ticker analyze
   onAnalyze: (ticker: string) => void;
@@ -47,7 +49,9 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onScan,
   onFetchAnalyzed,
   onAnalyzeStarred,
+  onAnalyzeWatchList,
   loadingAnalyzeStarred,
+  loadingAnalyzeWatchList,
   onAnalyze,
   loadingAnalyze,
 }) => {
@@ -65,6 +69,40 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
           <Row className="align-items-center mb-3">
             <Col>
               <h5 className="mb-0">📈 Pre-Market Volume Surge Scanner</h5>
+            </Col>
+
+            <Col xs="auto" className="ms-auto">
+              <Button
+                variant="secondary"
+                onClick={onAnalyzeWatchList}
+                disabled={loadingAnalyzeWatchList}
+                title="Analyze watchlist"
+              >
+                {loadingAnalyzeWatchList ? (
+                  <>
+                    <Spinner animation="border" size="sm" /> Analyzing Watchlist...
+                  </>
+                ) : (
+                  "Analyze Watchlist"
+                )}
+              </Button>
+            </Col>
+
+            <Col xs="auto" className="ms-auto">
+              <Button
+                variant="warning"
+                onClick={onAnalyzeStarred}
+                disabled={loadingAnalyzeStarred}
+                title="Analyze all starred stocks"
+              >
+                {loadingAnalyzeStarred ? (
+                  <>
+                    <Spinner animation="border" size="sm" /> Analyzing Starred...
+                  </>
+                ) : (
+                  "Analyze Starred"
+                )}
+              </Button>
             </Col>
 
             <Col xs="auto" className="ms-auto">
@@ -203,24 +241,6 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
               >
                 {loading && <Spinner animation="border" size="sm" className="me-2" />}
                 Fetch
-              </Button>
-            </Col>
-
-            <Col style={{ minWidth: 150 }}>
-              <Button
-                variant="warning"
-                className="w-100"
-                onClick={onAnalyzeStarred}
-                disabled={loadingAnalyzeStarred}
-                title="Analyze all starred stocks"
-              >
-                {loadingAnalyzeStarred ? (
-                  <>
-                    <Spinner animation="border" size="sm" /> Analyzing Starred...
-                  </>
-                ) : (
-                  "Analyze Starred"
-                )}
               </Button>
             </Col>
           </Row>

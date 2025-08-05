@@ -311,6 +311,14 @@ def premarket_analyze_with_gpt(
         "     - 'The first spike occurred on [date]. Tomorrow may offer a second wave breakout.'\n"
         "     - 'No major reaction yet. Tomorrow may be the initial move.'\n"
         "     - 'This looks overextended. Watch for reversal or deeper pullback.'\n"
+        "- Check for this pattern: a stock that had a **very strong multi-day spike**, followed by a **sharp drop or pullback**, and then **another sudden upward spike without clear new news**. If this pattern appears:\n"
+        "- Highlight it clearly in your summary.\n"
+        "- Explain whether the new spike is likely to continue or fail.\n"
+        "- Emphasize if this behavior is driven by **momentum reset**, **technical rebound**, or **pure speculation**.\n"
+        "- Assess whether it's **safe for a second entry** or **too volatile/exhausted**.\n"
+        "- Only consider this setup if the initial move was very strong (e.g. multiple +10% days led by a decisive news catalyst).\n"
+        "- If the pattern of \"spike → drop → spike without new news\" is detected and worth attention, include a keyword like:\n"
+        "   - **Keyword: Likely Re-spike - Rank: A** (or S if it's a very strong setup)\n"
         "- Use technical indicators (RSI, MACD, moving averages, candle patterns) to support or reject further continuation.\n"
         "- Check if today's price closed near high/low to infer momentum carryover.\n"
         "- Be alert to **popular market themes** (e.g. Bitcoin, AI, semiconductors, lithium, stock splits, 株式発行, 資本金変更, 剰余金の処分, 業務提携).\n"
@@ -383,18 +391,18 @@ def premarket_analyze_with_gpt(
             temperature=0.3,
         )
         reply = response.choices[0].message.content.strip()
-        print(f"====reply={reply}")
+        # print(f"====reply={reply}")
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply)
-        print(f"====impacts={impacts}")
+        # print(f"====impacts={impacts}")
         summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
         summary = summary_match.group(1).strip() if summary_match else ""
 
         highest_impact_keyword = None
         highest_impact_rank = None
         highest_impact_keyword, highest_impact_rank = extract_highest_ranked_impact(reply)
-        print(f"====highest_impact_keyword, highest_impact_rank={highest_impact_keyword, highest_impact_rank}")
+        # print(f"====highest_impact_keyword, highest_impact_rank={highest_impact_keyword, highest_impact_rank}")
 
         # Match GPT-picked top N headlines to original news, and keep only those
         headline_texts = [imp["headline"] for imp in impacts]
@@ -418,7 +426,7 @@ def premarket_analyze_with_gpt(
                 item["keyword"] = matched.get("keyword") if matched else None
                 item["rank"] = matched.get("rank") if matched else None
                 top_enriched_news.append(item)
-        print(f"====top_enriched_news={top_enriched_news}")
+        # print(f"====top_enriched_news={top_enriched_news}")
 
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
@@ -455,7 +463,7 @@ def premarket_analyze_with_gpt(
         return {"ticker": ticker, "error": str(e)}
 
 def rank_value(rank_str):
-    rank_order = ["S", "A to S", "A to A+", "B to A+", "B to A", "B", "C", "C to D", "D", "Good", "Neutral", "Bad", "N/A"]
+    rank_order = ["S", "A to S", "A to A+", "A", "B to A+", "B to A", "B", "C", "C to D", "D", "Good", "Neutral", "Bad", "N/A"]
     # Return an index for rank, lower index means higher rank
     try:
         return rank_order.index(rank_str)
@@ -463,8 +471,6 @@ def rank_value(rank_str):
         return len(rank_order)  # lowest rank if unknown
 
 def extract_highest_ranked_impact(text: str):
-    # Pattern to match lines like:
-    # - **Keyword: Quarterly earnings surprise - Rank: S**
     pattern = re.compile(r"\*\*Keyword:\s*(.+?)\s*-\s*Rank:\s*([A-Za-z0-9\s\+\-]+)\*\*", re.IGNORECASE)
     matches = pattern.findall(text)
 
@@ -475,6 +481,11 @@ def extract_highest_ranked_impact(text: str):
         keyword = keyword.strip()
         rank = rank.strip()
         current_rank_value = rank_value(rank)
+
+        # Prioritize "Likely Re-spike" if its rank is high
+        if "re-spike" in keyword.lower() and rank_value(rank) <= rank_value("B"):
+            return keyword, rank  # return immediately if it's a high-confidence re-spike
+
         if best_rank is None or current_rank_value <= rank_value(best_rank):
             best_rank = rank
             best_keyword = keyword

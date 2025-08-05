@@ -7,8 +7,8 @@ const TRADING_RULES = `
 🔍 1. Scan & Analyze Guidance (Night Before or Premarket)
 - ❌ Remove all previously ⭐️ starred stocks.
 - 📈 Scan Volume Surge (VS):
-  - Criteria: surge >= 2, price <= 300
-  - Pages: 1–5
+  - Criteria: surge >= 0, price <= 300
+  - Pages: 1–10
 - 📰 Scan News:
   - Criteria: price <= 1000
   - Pages: 1–40

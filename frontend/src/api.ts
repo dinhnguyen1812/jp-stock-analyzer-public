@@ -243,6 +243,21 @@ export async function analyzeAllStarredTickers() {
   return await res.json();
 }
 
+export async function analyzeWatchList() {
+  const res = await fetch(`${BASE_URL}/premarket/analyze_watch_list`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error("Analyzing watchlist failed");
+  }
+
+  return await res.json();
+}
+
 export async function analyzeSingleTicker(ticker: string) {
   if (!ticker) throw new Error("Ticker is required");
   const res = await fetch(`${BASE_URL}/premarket/analyze/${ticker}`, {

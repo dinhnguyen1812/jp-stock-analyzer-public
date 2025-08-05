@@ -123,7 +123,7 @@ def analyze_and_snapshot_ticker(
             return None
 
         current_price = price.close
-        if current_price > price_threshold:
+        if price_threshold > 0 and current_price > price_threshold:
             return None
 
         dv = db.query(DailyVolume).filter_by(ticker=ticker, date=last_day).first()
@@ -135,7 +135,7 @@ def analyze_and_snapshot_ticker(
             return None
 
         volume_rate = dv.volume / avg_vol.avg_5d_volume
-        if volume_rate < surge_threshold:
+        if surge_threshold > 0 and volume_rate < surge_threshold:
             return None
 
         # Money flow rate
