@@ -10,6 +10,8 @@ from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 import openai
 
+from app.utils.longterm.jpx_perpbr_industry import update_and_get_industry_indicators
+from app.utils.longterm.yahoo_indicators import fetch_current_indicators
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
 from app.utils.shortterm.save_shortterm_analysis_signal import save_shortterm_analysis_signal
 from .calculate_momentum_score import calculate_momentum_score
@@ -114,6 +116,39 @@ def premarket_analyze_with_gpt(
     update_avg_money_flow_for_ticker(db, ticker)
     now = datetime.now(timezone.utc)
 
+    # Long-term data
+    # stock_data = fetch_current_indicators(ticker)
+    # if not stock_data:
+    #     raise ValueError(f"Could not fetch indicators for {ticker}")
+
+    # industry_name = stock_data.get("industry", "")
+    # industry_data = update_and_get_industry_indicators(industry_name, db)
+    # if industry_data:
+    #     industry_info = industry_data[0]
+    #     industry_name = industry_info.get("industry", "N/A")
+    #     industry_per = industry_info.get("per", "N/A")
+    #     industry_pbr = industry_info.get("pbr", "N/A")
+    #     industry_roe = industry_info.get("roe", "N/A")
+    # else:
+    #     industry_name = industry_per = industry_pbr = industry_roe = "N/A"
+    
+    # longterm_summary = (
+    #     f"- PER: {stock_data.get('per', 'N/A')} vs Industry Avg: {industry_per}\n"
+    #     f"- PBR: {stock_data.get('pbr', 'N/A')} vs Industry Avg: {industry_pbr}\n"
+    #     f"- ROE: {stock_data.get('roe', 'N/A')}% vs Industry Avg: {industry_roe}%\n"
+    #     f"- EPS: {stock_data.get('eps', 'N/A')} / BPS: {stock_data.get('bps', 'N/A')}\n"
+    #     f"- Dividend Yield: {stock_data.get('dividend_yield', 'N/A')}%\n"
+    #     f"- Debt Ratio: {stock_data.get('debt_ratio', 'N/A')}%\n"
+    #     f"- Market Cap: ¥{stock_data.get('market_cap', 'N/A')}\n"
+    #     f"\nOnly use these if they are **material to interpreting recent price movement or news**. For example:\n"
+    #     f"- A low PER and high ROE might justify strong recent buying.\n"
+    #     f"- A high PER with weak EPS may indicate **speculative overreaction**.\n"
+    #     f"- A strong dividend yield could attract defensive flows.\n"
+    # )
+    # print(f"====ticker={ticker}, longterm_summary={longterm_summary}")
+    longterm_summary = ""
+
+    # Short term data
     if not news_items:
         return {"ticker": ticker, "volume_info": None, "top_news": [], "gpt_summary": "No recent news available."}
     if not volume_info:
@@ -194,26 +229,26 @@ def premarket_analyze_with_gpt(
     now_jst = now.astimezone(jst)
     date_str = now_jst.date().isoformat()
     latest_trading_day = get_latest_trading_day(db)
-    if is_market_hours(now_jst, latest_trading_day):
-        volume_info_ = get_intraday_volume_info_for_ticker(db, ticker)
-        volume_summary = (
-            f"📊 [Intraday]\n"
-            f"Ticker: {volume_info_['ticker']}\n"
-            f"Name: {volume_info_['name']}\n"
-            f"Current Price: {volume_info_['current_price']} JPY\n"
-            f"Volume Surge: {volume_info_['volume_rate']:.2f}x\n"
-            f"Money Flow: {volume_info_['money_flow_rate']:.2f}x\n"
-            f"Detected At: {now_jst.isoformat()}\n"
-        )
-    else:
-        volume_summary = (
-            f"Ticker: {volume_info.ticker}\n"
-            f"Name: {volume_info.name}\n"
-            f"Current Price: {volume_info.current_price} JPY\n"
-            f"Volume Surge: {volume_info.volume_rate}x\n"
-            f"Money Flow: {volume_info.money_flow_rate}\n"
-            f"Detected At: {volume_info.detected_at.isoformat()}\n"
-        )
+    # if is_market_hours(now_jst, latest_trading_day):
+    #     volume_info_ = get_intraday_volume_info_for_ticker(db, ticker)
+    #     volume_summary = (
+    #         f"📊 [Intraday]\n"
+    #         f"Ticker: {volume_info_['ticker']}\n"
+    #         f"Name: {volume_info_['name']}\n"
+    #         f"Current Price: {volume_info_['current_price']} JPY\n"
+    #         f"Volume Surge: {volume_info_['volume_rate']:.2f}x\n"
+    #         f"Money Flow: {volume_info_['money_flow_rate']:.2f}x\n"
+    #         f"Detected At: {now_jst.isoformat()}\n"
+    #     )
+    # else:
+    volume_summary = (
+        f"Ticker: {volume_info.ticker}\n"
+        f"Name: {volume_info.name}\n"
+        f"Current Price: {volume_info.current_price} JPY\n"
+        f"Volume Surge: {volume_info.volume_rate}x\n"
+        f"Money Flow: {volume_info.money_flow_rate}\n"
+        f"Detected At: {volume_info.detected_at.isoformat()}\n"
+    )
 
     tech_summary = (
         f"RSI: {signal.rsi or 'N/A'}\n"
@@ -271,6 +306,7 @@ def premarket_analyze_with_gpt(
         f"[{item['category']}] {item['headline']} (🕒 {item['published_at']})"
         for item in scored_news
     ]
+    # print(f"====headlines={headlines}")
 
     price_history_str = "\n".join(
         [
@@ -279,10 +315,10 @@ def premarket_analyze_with_gpt(
         ]
     )
 
-    # print(f"====headlines={headlines}")
     prompt = (
         f"You are a Japanese market expert AI providing a **pre-market outlook for stock {ticker}** — to support a trade decision for **tomorrow's trading session**.\n\n"
         f"Today is {date_str}, time: {now_jst}. Latest trading day: {latest_trading_day}, time: 15:30:00.\n"
+        # f"### Fundamental Snapshot (for context only):\n{longterm_summary}\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
         f"### Trend Summary (Up/Down Movements):\n{trend_summary}\n"
@@ -293,73 +329,145 @@ def premarket_analyze_with_gpt(
         "\n\n"
 
         "### Instructions:\n"
-        "- Focus primarily on **recent impactful news**, including **today and the past 7 days**.\n"
-        "- Pay special attention to whether there was a **strong initial reaction** to any recent headline — and whether the move is still continuing, pulling back, or setting up again.\n"
-        "- The user is preparing to trade **tomorrow**, aiming to capture a **5–7% intraday profit**. The user usually sells same-day **unless very strong continuation is likely**.\n"
-        "- Check if price has already reacted to **any recent news**. If yes, evaluate:\n"
-        "   - When did the first spike occur?\n"
+        # "- Only use **fundamental data** if it clearly explains the price move (e.g. PER far from industry avg, ROE strong, speculative excess).\n"
+        # "- Do **not** perform full valuation; use it only to support short-term momentum/sentiment judgment.\n"
+        "- Focus primarily on **recent impactful news**, especially **today** and within the **past 7 days**.\n"
+        "- Pay close attention to whether there was a **strong initial reaction** to any recent headline — and whether the move is continuing, pulling back, or setting up again.\n"
+        "- The user is preparing to trade **tomorrow**, aiming for a **5–7% intraday profit**. The user usually sells same-day **unless strong continuation is expected**.\n"
+        "- For each recent news headline, check if the price **already reacted**:\n"
+        "   - When did the **first spike** occur?\n"
         "   - Was the reaction full or partial?\n"
         "   - Is a **second wave** or continuation setup likely tomorrow?\n"
-        "- If news was released before the latest trading day close time (15:30:00), assume it has likely impacted the price already. Be precise about **whether the price move is already priced in or not**.\n"
-        "- For **decisive news items**, check if similar news appeared earlier; if so, consider that the market might have priced it in.\n"
-        "- Predict **how the stock will behave tomorrow**: gap up/down, morning surge/pullback, and **likely closing price range**.\n"
+        "- If the news was released **before the most recent trading day’s close (15:30)**, assume it likely influenced the price already.\n"
+        "- Be precise: say whether the move is already **priced in** or if there’s still potential.\n"
+        "- For **decisive news**, check if similar headlines came out earlier. If so, the market may have already priced it in.\n"
+        "- Predict how the stock will behave **tomorrow**:\n"
+        "   - Will it gap up/down?\n"
+        "   - Will it surge in the morning or fade?\n"
+        "   - What is the likely closing price range?\n"
         "- Clearly assess **wave timing and trading potential**:\n"
-        "   - Is the stock in Wave 1 (initial spike), Wave 2 (pullback), Wave 3 (continuation), or post-spike exhaustion?\n"
-        "   - When was the **first spike**, what triggered it, and how strong was it?\n"
-        "   - Is price **pulling back, consolidating, or resetting** for a new move?\n"
-        "   - Comment clearly on entry potential, such as:\n"
+        "   - Is this Wave 1 (initial spike), Wave 2 (pullback), Wave 3 (continuation), or post-spike exhaustion?\n"
+        "   - When was the first spike? What triggered it? How strong was it?\n"
+        "   - Is price currently pulling back, consolidating, or resetting for a new move?\n"
+        "   - Give guidance such as:\n"
         "     - 'The first spike occurred on [date]. Tomorrow may offer a second wave breakout.'\n"
         "     - 'No major reaction yet. Tomorrow may be the initial move.'\n"
-        "     - 'This looks overextended. Watch for reversal or deeper pullback.'\n"
-        "- Check for this pattern: a stock that had a **very strong multi-day spike**, followed by a **sharp drop or pullback**, and then **another sudden upward spike without clear new news**. If this pattern appears:\n"
-        "- Highlight it clearly in your summary.\n"
-        "- Explain whether the new spike is likely to continue or fail.\n"
-        "- Emphasize if this behavior is driven by **momentum reset**, **technical rebound**, or **pure speculation**.\n"
-        "- Assess whether it's **safe for a second entry** or **too volatile/exhausted**.\n"
-        "- Only consider this setup if the initial move was very strong (e.g. multiple +10% days led by a decisive news catalyst).\n"
-        "- If the pattern of \"spike → drop → spike without new news\" is detected and worth attention, include a keyword like:\n"
-        "   - **Keyword: Likely Re-spike - Rank: A** (or S if it's a very strong setup)\n"
-        "- Use technical indicators (RSI, MACD, moving averages, candle patterns) to support or reject further continuation.\n"
-        "- Check if today's price closed near high/low to infer momentum carryover.\n"
-        "- Be alert to **popular market themes** (e.g. Bitcoin, AI, semiconductors, lithium, stock splits, 株式発行, 資本金変更, 剰余金の処分, 業務提携).\n"
-        "- Explain **why volume surged** if applicable — strong news? speculative interest? sector sympathy?\n"
-        "- Include historical price table to help reason about trend & support/resistance zones.\n"
+        "     - 'Looks overextended. Watch for reversal or deeper pullback.'\n"
+
+        "- Use technical indicators (RSI, MACD, MAs, candlesticks) to support or reject further upside.\n"
+        "- Check if today’s close is near high/low to gauge momentum carryover.\n"
+        "- Be alert to hot market themes (e.g. **Bitcoin, AI, semiconductors, lithium, etc**).\n"
+        "- Explain **why volume surged**, if applicable: strong news? speculation? sympathy move?\n"
+        "- Include **historical price table** for context on trend, resistance, and support zones.\n"
+
         "- For each headline, give:\n"
         "   - **Keyword: as guidance below - Rank: as guidance below**\n"
         "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
         "   - **Reason**: One sentence explaining the expected impact\n"
-        "- Conclude with a concise summary and forecast for **tomorrow**:\n"
-        "- Investment Recommendation: Buy / Hold / Sell\n"
-        "- Promising Score: (0–100) based on **news**, **technical signals**, and **rebound potential**\n"
-        "- News Impact Ranking: For each top news headline, assign a keyword and ranking from this ranking dictionary:\n"
+        "- Choose and analyze the **top 10 most impactful headlines** based on rank and relevance.\n"
+
+        "- Conclude with a **concise summary and forecast for tomorrow**:\n"
+        "   - Investment Recommendation: Buy / Hold / Sell\n"
+        "   - Promising Score: (0–100) — based on news, technicals, and rebound potential\n"
+
+        "- 🧠 News Impact Ranking:\n"
+        "- For each top headline, assign a keyword and rank based on this table:\n"
         "  {\n"
-        "    '黒字転換': 'S', 'Turn to profit': 'S', 'Profitability turnaround': 'S',\n"
-        "    '業績予想 上方修正': 'S', 'Earnings forecast upward revision': 'S',\n"
-        "    '四半期サプライズ決算': 'S', 'Quarterly earnings surprise': 'S',\n"
-        "    '中期経営計画': 'S', 'Mid-term management plan': 'S', '上方修正': 'S',\n"
-        "    'サプライズ決算': 'S', 'Surprise earnings report': 'S',\n"
-        "    '今期 業績予想 50%増益以上': 'A to S', 'This fiscal year earnings forecast +50% or more': 'A to S',\n"
-        "    '買収': 'A to S', 'Acquisition': 'A to S',\n"
-        "    '新市場参入': 'A to A+', 'New market entry': 'A to A+',\n"
-        "    '独占契約': 'A to A+', 'Exclusive contract': 'A to A+',\n"
-        "    '大型受注': 'A to A+', 'Large order': 'A to A+', 'Large contract': 'A to A+',\n"
-        "    '特許取得': 'A to A+', 'Patent acquisition': 'A to A+',\n"
-        "    '株式買戻し': 'B to A', 'Share buyback': 'B to A',\n"
-        "    '新製品発表': 'B to A', 'New product announcement': 'B to A',\n"
-        "    '新サービス発表': 'B to A', 'New service launch': 'B to A',\n"
-        "    '事業拡大': 'B to A+', 'Business expansion': 'B to A+',\n"
-        "    '新ホテル開業': 'B', 'New hotel opening': 'B',\n"
-        "    '株主優待増額': 'B', 'Increased shareholder benefit': 'B',\n"
-        "    '配当増額': 'B', 'Dividend increase': 'B',\n"
-        "    '事業報告': 'C', 'Business report': 'C',\n"
-        "    '株式発行': 'C to D', 'Capital increase': 'C to D',\n"
-        "    '資本金変更': 'C to D', 'Capital change': 'C to D',\n"
-        "    '再掲IR': 'D', 'Reposted IR': 'D',\n"
-        "    '過去の材料再加熱': 'D', 'Reheating old news': 'D'\n"
+        # S rank - strongest triggers
+        "    'TOB / MBO': 'S',\n"
+
+        # A+ rank - very strong positive
+        "    '独占契約': 'A+',\n"
+        "    '大型受注': 'A+',\n"
+        "    '業績予想 上方修正': 'A+',\n"
+
+        # A rank - strong positive
+        "    '筆頭株主変更': 'A',\n"
+        "    '今期 業績予想 50%増益以上': 'A',\n"
+        "    '新市場参入': 'A',\n"
+        "    '買収': 'A',\n"
+        "    '黒字転換': 'A',\n"
+        "    'サプライズ決算': 'A',\n"
+        "    '四半期サプライズ決算': 'A',\n"
+        "    '増益': 'A',\n"
+        "    '利益倍増': 'A',\n"
+        "    'fisco注目': 'A',\n"
+
+        # A- rank - technical signals
+        "    'ゴールデンクロス': 'A-',\n"
+        "    '±３σブレイク': 'A-',\n"
+        "    'ボリンジャーバンド上抜け': 'A-',\n"
+
+        # B rank - moderate positive
+        "    '中期経営計画': 'B',\n"
+        "    '特許取得': 'B',\n"
+        "    '株式買戻し': 'B',\n"
+        "    '新製品発表': 'B',\n"
+        "    '新サービス発表': 'B',\n"
+        "    '事業拡大': 'B',\n"
+        "    '特別利益': 'B',\n"
+        "    '特別利益計上': 'B',\n"
+        "    '株主優待増額': 'B',\n"
+        "    '配当増額': 'B',\n"
+        "    '販売契約': 'B',\n"
+        "    '大量保有報告書': 'B',\n"
+
+        # C rank - negative or neutral
+        "    '施設閉鎖': 'C',\n"
+        "    '運営終了': 'C',\n"
+        "    '事業報告': 'C',\n"
+        "    '株式発行': 'C',\n"
+        "    '赤字縮小': 'C',\n"
+
+        # D rank - negative
+        "    '減益': 'D',\n"
+        "    '赤字転落': 'D',\n"
+        "    '資本金変更': 'D',\n"
+        "    '再掲IR': 'D',\n"
+        "    '過去の材料再加熱': 'D'\n"
         "  }\n"
-        "  Provide this as a list of headline text with its corresponding impact keyword and rank.\n"
-        "- If expecting a move: describe **gap**, **morning action**, and **closing behavior** expected\n"
-        "- Comment on **entry setup and wave timing explicitly**\n\n"
+        "\n"
+        "- 🔧 Booster Instruction:\n"
+        "  - For certain keywords, **boost to 'S' or 'A+' only if strong value is clear**:\n"
+        "    • 'TOB / MBO': Boost to S+ if offer has a large premium, from a notable acquirer, or leads to immediate price gap-up with strong volume.\n"
+        "    • '筆頭株主変更': Boost to S if new shareholder is a large institutional investor, foreign fund, or strategic partner.\n"
+        "    • '新市場参入': Boost to S only if into a **high-growth, exclusive, or emerging field**.\n"
+        "    • '特許取得': Boost to S only if it enables a **monopoly or first-mover advantage**.\n"
+        "    • '新サービス発表': Boost to S only if it’s a **game-changer, large partnership, or disruptor**.\n"
+        "    • '買収': Boost to S only if it’s **accretive, cross-border, or creates synergy in hot markets**.\n"
+        "    • '中期経営計画': Boost to A+ or S only if plan includes **aggressive growth, global expansion, or restructuring**.\n"
+        "    • '特別利益': Boost to A+ only if it **significantly improves EPS or changes valuation metrics**.\n"
+        "    • '事業拡大': Boost to A+ or S only if it’s into **large-scale, strategic, or trending sectors**.\n"
+        "    • '今期 業績予想 50%増益以上': Boost to A+ if forecast is **unexpected, from a low-float/small-cap stock, or paired with strong catalysts**\n"
+        "    • '独占契約': Boost to S only if partner is **top-tier or market scale is large**.\n"
+        "    • '大型受注': Boost to S only if it’s from a **major client or long-term contract**.\n"
+        "    • '黒字転換': Boost to S only if it leads to **sustained profitability or likely leads to strong market reaction**.\n"
+        "    • 'サプライズ決算': Boost to S only if it's confirmed that results **exceed expectations significantly**.\n"
+        "    • '四半期サプライズ決算': Boost to S only if it's confirmed that **quarterly results strongly surprise**.\n"
+        "    • '増益': Boost to S if **profit growth exceeds 50% and is unexpected**, A if **between 30–50% with positive sentiment or low float**.\n"
+        "    • '利益倍増': Boost to S if **2倍以上** and supported by **strong catalyst** (e.g. restructuring, new business)\n"
+        "    • 'fisco注目': Boost to A+ if stock already trending or backed by strong catalyst."
+        "    • '大量保有報告書': Boost to A if new investor is a known activist fund, foreign investor, or signals strategic interest.\n"
+
+        "- 🚨 **KEY PATTERN: Re-Spike After Pullback**\n"
+        "- Detect this setup:\n"
+        "   - A **spike (one or multiple)** triggered by a **strong catalyst** (e.g. news/IR)\n"
+        "   - Followed by a **pullback** (price decline or consolidation)\n"
+        "   - Later, watch for a **second/third spike** — which may occur *without* new material news\n"
+        "- Always **highlight in the summary** and explain:\n"
+        "   - What is the current pattern stage? (e.g. initial spike → pullback → re-spike, or not spike yet)\n"
+        "   - Is it a **momentum reset**, **technical rebound**, or **speculative move**?\n"
+        "   - Is it **safe to re-enter**, or **too volatile/exhausted**?\n"
+        "   - Confirm whether the original spike was based on a **strong catalyst**\n"
+        "- Assign a keyword in headline evaluation:\n"
+        "   - **Keyword: Likely Re-spike — Rank: A** (or **S** if setup is very strong)\n"
+        "- This is a **high-priority pattern** — always include it in the final recommendation if present.\n"
+
+        "- If a move is likely, briefly describe:\n"
+        "  - Expected gap direction\n"
+        "  - Morning reaction\n"
+        "  - Likely closing range\n"
+        "- Comment explicitly on wave stage and wave timing.\n"
 
         "### Output Format:\n"
         "Headline List:\n"
@@ -372,15 +480,18 @@ def premarket_analyze_with_gpt(
         "Summary:\n"
         "- 📰 **News Evaluation**: [Short reasoning about which headlines matter and how price responded]\n"
         "- 📊 **Signal/Technical Analysis**: [Do indicators support continuation or exhaustion?]\n"
-        "- 📈 **Trend & Rebound Context**: [Explain any pullbacks, potential rebound zones, or exhaustion]\n"
+        "- 📈 **Trend & Rebound Context**: [Explain any pullbacks, potential rebound zones, or exhaustion. Also state if re-spike pattern was detected — and if not, why not (e.g. no prior strong spike, new news exists, weak volume, etc).]\n"
+        "- 🧠 **Long-Term Sentiment**: [Bullish / Bearish / Neutral] — [Short reason if relevant]\n"
+        "- 🧮 **Fair Value Estimate**: ¥[estimated_price] — Current Price: ¥[current_price]\n"
+        "- ℹ️ Use fair value as a reference: If current price is far **below**, continuation may have long-term support. If far **above**, risk of speculative exhaustion.\n"
         "- Final Comment: [Your overall sentiment for tomorrow's trade setup]\n\n"
         "- Investment Recommendation: Buy / Hold / Sell\n"
-        "- Promising Score: (0–100)\n"
-        "- News Impact Ranking Summary: [Summarize the impact levels of the top news]\n"
-        "- 📅 **Expected behavior tomorrow**: Gap direction, likely morning action, and closing range\n"
-        "- 📊 **Wave Timing**: [Wave 1 / Wave 2 / Wave 3 / Overextended / Not started yet]\n"
-        "- 🕒 **First Spike Summary**: [Did it happen? When? On what news? How strong?]\n"
-        "- ⏳ **Tomorrow Entry Guidance**: [E.g. 'Wait for second spike', 'Buy dip on rebound', 'Risk of exhaustion — wait']\n"
+        "- Promising Score: (0–100) [estimates how likely the stock will spike in the coming days, based on **how strong and recent the news are**, the **most impactful keyword**, its **ranking**, and any **supporting signals**]\n"
+        "- News Rank Summary: [Overall impact levels of top news]\n"
+        "- 📅 **Tomorrow's Action Expectation**: Gap direction, morning behavior, and closing tendency\n"
+        "- 📊 **Wave Stage**: [Wave 1 / Wave 2 / Wave 3 / Overextended / Not started]\n"
+        "- 🕒 **First Spike Summary**: [Did it happen? If it did: when? On what news? How strong?]\n"
+        "- ⏳ **Entry Guidance**: [E.g. 'Wait for second spike', 'Buy dip on rebound', 'Risk of exhaustion — wait']\n"
     )
     # print(f"prompt={prompt}")
 
@@ -391,7 +502,7 @@ def premarket_analyze_with_gpt(
             temperature=0.3,
         )
         reply = response.choices[0].message.content.strip()
-        # print(f"====reply={reply}")
+        # print(f"====ticker={ticker}, reply={reply}")
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply)
@@ -463,7 +574,7 @@ def premarket_analyze_with_gpt(
         return {"ticker": ticker, "error": str(e)}
 
 def rank_value(rank_str):
-    rank_order = ["S", "A to S", "A to A+", "A", "B to A+", "B to A", "B", "C", "C to D", "D", "Good", "Neutral", "Bad", "N/A"]
+    rank_order = ["S+", "S", "A+", "A", "A-", "B", "C", "D", "N/A"]
     # Return an index for rank, lower index means higher rank
     try:
         return rank_order.index(rank_str)

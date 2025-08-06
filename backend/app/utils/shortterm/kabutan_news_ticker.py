@@ -29,72 +29,83 @@ def relevance_score(headline: str) -> int:
     return sum(1 for kw in KEYWORDS if kw in headline)
 
 def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: int = 30) -> List[Dict]:
-    url = f"https://kabutan.jp/stock/news?code={ticker}"
+    base_url = f"https://kabutan.jp/stock/news?code={ticker}&nmode=0&page="
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept-Language": "ja,en;q=0.9"
     }
 
+    news_items = []
+    page = 1
+
     try:
-        resp = httpx.get(url, headers=headers, timeout=10)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        while len(news_items) < limit and page < 3:
+            url = base_url + str(page)
+            resp = httpx.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
 
-        news_table = soup.find("table", class_="s_news_list mgbt0")
-        if not news_table:
-            print("❌ Could not find news table on Kabutan page")
-            return []
+            news_table = soup.find("table", class_="s_news_list mgbt0")
+            if not news_table:
+                print(f"❌ Could not find news table on Kabutan page {page}")
+                break  # no more news pages
 
-        news_items = []
-        rows = news_table.find_all("tr")
+            rows = news_table.find_all("tr")
+            if not rows:
+                break  # no news rows on this page
 
-        for row in rows:
-            time_td = row.find("td", class_="news_time")
-            if not time_td:
-                continue
-            time_tag = time_td.find("time")
-            if not time_tag or not time_tag.has_attr("datetime"):
-                continue
+            for row in rows:
+                time_td = row.find("td", class_="news_time")
+                if not time_td:
+                    continue
+                time_tag = time_td.find("time")
+                if not time_tag or not time_tag.has_attr("datetime"):
+                    continue
 
-            published_at = time_tag["datetime"]
+                published_at = time_tag["datetime"]
 
-            # ✅ Skip news older than 30 days
-            try:
-                published_dt = datetime.fromisoformat(published_at)
-            except ValueError:
-                continue
-            now = datetime.now(tz=published_dt.tzinfo)
-            if published_dt < now - timedelta(days=days_threshold):
-                continue
+                try:
+                    published_dt = datetime.fromisoformat(published_at)
+                except ValueError:
+                    continue
+                now = datetime.now(tz=published_dt.tzinfo)
+                if published_dt < now - timedelta(days=days_threshold):
+                    # Skip news older than threshold
+                    continue
 
-            category_td = time_td.find_next_sibling("td")
-            category_div = category_td.find("div", class_="newslist_ctg") if category_td else None
-            category = category_div.text.strip() if category_div else None
+                category_td = time_td.find_next_sibling("td")
+                category_div = category_td.find("div", class_="newslist_ctg") if category_td else None
+                category = category_div.text.strip() if category_div else None
 
-            headline_td = category_td.find_next_sibling("td") if category_td else None
-            if not headline_td:
-                continue
-            a_tag = headline_td.find("a")
-            if not a_tag or not a_tag.text.strip():
-                continue
+                headline_td = category_td.find_next_sibling("td") if category_td else None
+                if not headline_td:
+                    continue
+                a_tag = headline_td.find("a")
+                if not a_tag or not a_tag.text.strip():
+                    continue
 
-            headline = a_tag.text.strip()
-            href = a_tag.get("href")
-            if href and not href.startswith("http"):
-                href = f"https://kabutan.jp{href}"
+                headline = a_tag.text.strip()
+                href = a_tag.get("href")
+                if href and not href.startswith("http"):
+                    href = f"https://kabutan.jp{href}"
 
-            score = relevance_score(headline)
+                score = relevance_score(headline)
 
-            news_items.append({
-                "published_at": published_at,
-                "category": category,
-                "headline": headline,
-                "url": href,
-                "score": score
-            })
+                news_items.append({
+                    "published_at": published_at,
+                    "category": category,
+                    "headline": headline,
+                    "url": href,
+                    "score": score
+                })
+
+                if len(news_items) >= limit:
+                    break
 
             if len(news_items) >= limit:
                 break
+
+            page += 1  # move to next page
 
         news_items.sort(key=lambda x: (x["score"], x["published_at"]), reverse=True)
         return news_items

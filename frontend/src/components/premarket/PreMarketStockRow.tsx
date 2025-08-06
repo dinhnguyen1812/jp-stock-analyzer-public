@@ -53,6 +53,7 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
 }
 
 export interface SavedAnalysis {
+  longterm_info: any;
   volume_info: AnalyzedVolumeInfo;
   analysis_signal: AnalysisSignal;
 }
@@ -272,34 +273,23 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     setIsSaving(false);
   };
 
-  const rankColors: Record<string, string> = {
-    S: "#d32f2f",    // red
-    "A+": "#388e3c", // dark green
-    A: "#4caf50",    // green
-    B: "#fbc02d",    // yellow
-    C: "#757575",    // gray
-    D: "#9e9e9e",    // light gray
+  const compareIndicator = (
+    stockValue: string | number | null | undefined,
+    industryValue: string | number | null | undefined,
+    type: "higher" | "lower" = "higher"
+  ): string => {
+    if (stockValue == null || industryValue == null) return "➖";
+
+    const s = typeof stockValue === "number" ? stockValue : parseFloat(stockValue);
+    const i = typeof industryValue === "number" ? industryValue : parseFloat(industryValue);
+
+    if (isNaN(s) || isNaN(i)) return "➖";
+
+    if (type === "higher") return s >= i ? "✅" : "❌";
+    if (type === "lower") return s <= i ? "✅" : "❌";
+
+    return "➖";
   };
-
-  function ImpactBadge({ keyword, rank }: { keyword: string; rank: string }) {
-    const color = rankColors[rank] || "black";
-
-    return (
-      <Badge
-        style={{
-          backgroundColor: "white",
-          border: `1px solid ${color}`,
-          color: color,
-          fontWeight: "600",
-          fontSize: "0.85rem",
-        }}
-        className="px-2 py-1"
-      >
-        <span>{keyword}</span>
-        <span>: {rank}</span>
-      </Badge>
-    );
-  }
 
   return (
     <>
@@ -345,8 +335,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           </Button>
         </td>
 
-        {/* <td className="align-middle text-center">{stock.ticker}</td>
-        <td className="align-middle">{stock.name}</td> */}
         <td className="align-middle text-center">
           <div>{stock.ticker}</div>
           <div>{stock.name}</div>
@@ -355,17 +343,14 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           <div>{stock.current_price.toFixed(2)}</div>
           <div>{stock.price_change.toFixed(2)}</div>
         </td>
-        {/* <td className="align-middle text-center">{stock.price_change.toFixed(2)}</td> */}
         <td className="align-middle text-center">
           <div>{stock.volume_rate.toFixed(2)}</div>
           <div>{stock.money_flow_rate.toFixed(2)}</div>
         </td>
-        {/* <td className="align-middle text-center">{stock.money_flow_rate.toFixed(2)}</td> */}
         <td className="align-middle text-center">
           <div>{stock.current_volume.toLocaleString()}</div>
           <div>{stock.avg_volume_5d.toLocaleString()}</div>
         </td>
-        {/* <td className="align-middle text-center">{stock.avg_volume_5d.toLocaleString()}</td> */}
         <td className="align-middle text-center">
           <span
             style={{
@@ -393,14 +378,15 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 fontSize: "1rem",
                 backgroundColor: "white",
                 color: {
-                  "S": "#dc3545",         // Red - strong impact
-                  "A to S": "#e5533d",    // Between red and orange
-                  "A to A+": "#fd7e14",   // Orange - high impact
-                  "B to A+": "#f0ad4e",   // Lighter orange
-                  "B to A": "#0d6efd",    // Bootstrap primary blue
+                  "S+": "#dc3545",         // Red - strong impact
+                  "S": "#e5533d",    // Between red and orange
+                  "A+": "#fd7e14",   // Orange - high impact
+                  "A": "#0d6efd",   // Bootstrap primary blue
+                  "A-": "#f0ad4e",   // Lighter orange
+                  // "B to A": "#0d6efd",    // Bootstrap primary blue
                   "B": "#0dcaf0",         // Bootstrap info (cyan)
                   "C": "#6c757d",         // Bootstrap secondary (gray)
-                  "C to D": "#adb5bd",    // Light gray
+                  // "C to D": "#adb5bd",    // Light gray
                   "D": "#212529"          // Bootstrap dark
                 }[stock.highest_impact_rank] ?? "#000000",
               }}
@@ -541,7 +527,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           {analysis && (
             <>
               <Row>
-                <Col md={4}>
+                <Col md={3}>
                   <h5>Volume Info</h5>
                   <ul>
                     <li>Name: {analysis.volume_info.name}</li>
@@ -568,7 +554,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   </ul>
                 </Col>
 
-                <Col md={4}>
+                <Col md={3}>
                   <h5>Analysis Signals</h5>
                   {analysis.analysis_signal ? (
                     <ul>
@@ -596,8 +582,42 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   )}
                 </Col>
 
-                <Col md={4}>
-                  <h5 className="mt-4">Recent Uptrend</h5>
+                {/* Long-Term Indicator Column */}
+                <Col md={3}>
+                  <h5>📊 Long-Term Indicators</h5>
+                  <ul>
+                    <li>
+                      PER: {analysis.longterm_info.stock_per} vs Industry Avg: {analysis.longterm_info.industry_per}{" "}
+                      {compareIndicator(analysis.longterm_info.stock_per, analysis.longterm_info.industry_per, "lower")}
+                    </li>
+                    <li>
+                      PBR: {analysis.longterm_info.stock_pbr} vs Industry Avg: {analysis.longterm_info.industry_pbr}{" "}
+                      {compareIndicator(analysis.longterm_info.stock_pbr, analysis.longterm_info.industry_pbr, "lower")}
+                    </li>
+                    <li>
+                      ROE: {analysis.longterm_info.stock_roe}% vs Industry Avg: {analysis.longterm_info.industry_roe}%{" "}
+                      {compareIndicator(analysis.longterm_info.stock_roe, analysis.longterm_info.industry_roe, "higher")}
+                    </li>
+                    <li>
+                      EPS: {analysis.longterm_info.eps} / BPS: {analysis.longterm_info.bps}
+                    </li>
+                    <li>
+                      Dividend Yield: {analysis.longterm_info.dividend_yield}%{" "}
+                      {compareIndicator(analysis.longterm_info.dividend_yield, 1, "higher")}
+                    </li>
+                    <li>
+                      Debt Ratio: {analysis.longterm_info.debt_ratio}%{" "}
+                      {compareIndicator(analysis.longterm_info.debt_ratio, 100, "lower")}
+                    </li>
+                    <li>Market Cap: ¥{analysis.longterm_info.market_cap}</li>
+                    <li>
+                      Industry: {analysis.longterm_info.industry_name || "N/A"}
+                    </li>
+                  </ul>
+                </Col>
+
+                <Col md={3}>
+                  <h5>Recent Uptrend</h5>
                   {analysis.volume_info.uptrend ? (
                     <ul>
                       <li>Had Uptrend: {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}</li>

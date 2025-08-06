@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import IndustryIndicator
 from app.db.db import SessionLocal
+import re
 
 DOWNLOAD_DIR = "app/db/industries"
 BASE_URL = "https://www.jpx.co.jp"
@@ -20,34 +21,43 @@ def download_latest_excel() -> str:
     resp = httpx.get(TARGET_URL, timeout=10)
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # Find the .xlsx link
-    link_tag = next((a for a in soup.find_all("a", href=True) if a["href"].endswith(".xlsx")), None)
-    if not link_tag:
-        raise Exception("❌ No .xlsx download link found.")
+    # 🔍 Find all .xlsx links
+    xlsx_links = [
+        a["href"] for a in soup.find_all("a", href=True)
+        if a["href"].endswith(".xlsx")
+    ]
 
-    file_url = BASE_URL + link_tag["href"]
+    if not xlsx_links:
+        raise Exception("❌ No .xlsx download links found.")
+
+    # 🔢 Extract year-month from filename and sort
+    def extract_yyyymm(href: str) -> int:
+        match = re.search(r"(\d{6})\.xlsx$", href)
+        return int(match.group(1)) if match else 0
+
+    latest_href = max(xlsx_links, key=extract_yyyymm)
+    file_url = BASE_URL + latest_href
     filename = os.path.basename(file_url)
     local_path = os.path.join(DOWNLOAD_DIR, filename)
 
-    # ✅ Check if this file already exists
+    # ✅ Skip if already downloaded
     if os.path.exists(local_path):
         print(f"✅ File already exists: {filename}, skipping download.")
         return local_path
 
-    # 📥 Download the new file
+    # 📥 Download the latest file
     print(f"⬇️ Downloading {file_url} ...")
     with httpx.stream("GET", file_url, timeout=30) as r:
         with open(local_path, "wb") as f:
             for chunk in r.iter_bytes():
                 f.write(chunk)
 
-    # 🧹 Clean up older files (except the one we just downloaded)
+    # 🧹 Clean up older files
     for f in os.listdir(DOWNLOAD_DIR):
         if f.endswith(".xlsx") and f != filename:
             os.remove(os.path.join(DOWNLOAD_DIR, f))
 
     return local_path
-
 
 def parse_excel(filepath: str) -> list[dict]:
 

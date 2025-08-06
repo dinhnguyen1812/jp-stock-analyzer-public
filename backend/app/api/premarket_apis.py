@@ -10,8 +10,9 @@ from threading import Event
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
-from app.models import DailyPrice, StockNewsImpact, VolumeSnapshot, StarredStock, WatchList
-from app.utils.premarket.calculate_momentum_score import calculate_momentum_score
+from app.models import VolumeSnapshot, StarredStock, WatchList
+from app.utils.longterm.jpx_perpbr_industry import update_and_get_industry_indicators
+from app.utils.longterm.yahoo_indicators import fetch_current_indicators
 from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
@@ -280,6 +281,48 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
     # Technical signals (RSI, MACD, etc.)
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
 
+    # Long-term indicators
+    # stock_data = fetch_current_indicators(ticker)
+    # if not stock_data:
+    #     raise HTTPException(status_code=500, detail=f"Could not fetch indicators for {ticker}")
+
+    # industry_name = stock_data.get("industry", "")
+    # industry_data = update_and_get_industry_indicators(industry_name, db)
+
+    # if industry_data:
+    #     industry_info = industry_data[0]
+    #     industry_name = industry_info.get("industry", "N/A")
+    #     industry_per = industry_info.get("per", "N/A")
+    #     industry_pbr = industry_info.get("pbr", "N/A")
+    #     industry_roe = industry_info.get("roe", "N/A")
+    # else:
+    #     industry_name = industry_per = industry_pbr = industry_roe = "N/A"
+
+    # longterm_info = {
+    #     "industry_name": industry_name,
+    #     "stock_per": stock_data.get("per", "N/A"),
+    #     "industry_per": industry_per,
+    #     "stock_pbr": stock_data.get("pbr", "N/A"),
+    #     "industry_pbr": industry_pbr,
+    #     "stock_roe": stock_data.get("roe", "N/A"),
+    #     "industry_roe": industry_roe,
+    #     "eps": stock_data.get("eps", "N/A"),
+    #     "bps": stock_data.get("bps", "N/A"),
+    #     "dividend_yield": stock_data.get("dividend_yield", "N/A"),
+    #     "debt_ratio": stock_data.get("debt_ratio", "N/A"),
+    #     "market_cap": stock_data.get("market_cap", "N/A"),
+    #     "summary": (
+    #         f"- PER: {stock_data.get('per', 'N/A')} vs Industry Avg: {industry_per}\n"
+    #         f"- PBR: {stock_data.get('pbr', 'N/A')} vs Industry Avg: {industry_pbr}\n"
+    #         f"- ROE: {stock_data.get('roe', 'N/A')}% vs Industry Avg: {industry_roe}%\n"
+    #         f"- EPS: {stock_data.get('eps', 'N/A')} / BPS: {stock_data.get('bps', 'N/A')}\n"
+    #         f"- Dividend Yield: {stock_data.get('dividend_yield', 'N/A')}%\n"
+    #         f"- Debt Ratio: {stock_data.get('debt_ratio', 'N/A')}%\n"
+    #         f"- Market Cap: ¥{stock_data.get('market_cap', 'N/A')}\n"
+    #     )
+    # }
+    longterm_info = ""
+
     return {
         "volume_info": {
             "ticker": ticker,
@@ -310,6 +353,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "kabutan_chart_url": f"https://kabutan.jp/stock/chart?code={ticker}",
         },
         "analysis_signal": analysis_signal_data,
+        "longterm_info": longterm_info,
     }
 
 class NoteRequest(BaseModel):
@@ -411,7 +455,6 @@ def analyze_watch_list(
     results = []
 
     for ticker in ticker_list:
-        print(f"====ticker={ticker}")
         try:
             result = analyze_ticker_by_steps(db, ticker, top_n, model)
             results.append(result)

@@ -13,6 +13,7 @@ class IndustryIndicator(Base):
     pbr = Column(Float)
     roe = Column(Float)
     fetched_at = Column(TIMESTAMP, default=datetime.datetime.utcnow)
+    # filename = Column(String)
 
     __table_args__ = (
         PrimaryKeyConstraint("industry", "section"),  # Composite primary key
