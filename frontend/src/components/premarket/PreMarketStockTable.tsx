@@ -20,6 +20,7 @@ type EnrichedStock = VolumeSurgeStock & {
   highest_impact_keyword?: string;
   highest_impact_rank?: string;
   starred?: boolean;
+  watched?: boolean;
   momentum_signals?: {
     score: number;
     passed: boolean;
@@ -33,6 +34,7 @@ type EnrichedStock = VolumeSurgeStock & {
 interface PreMarketStockTableProps {
   stocks: EnrichedStock[];
   onStarToggle: (ticker: string, starred: boolean) => void;
+  onWatchToggle: (ticker: string, watched: boolean) => void;
 }
 
 type SortKey = keyof Pick<
@@ -47,7 +49,7 @@ type SortKey = keyof Pick<
   | "promising_score"
 >;
 
-const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onStarToggle }) => {
+const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onStarToggle, onWatchToggle }) => {
   const [sortKey, setSortKey] = useState<SortKey>("volume_rate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [actionSortKey, setActionSortKey] = useState<"promising_score" | "momentum_score">("promising_score");
@@ -61,6 +63,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
     highest_impact_rank: (stock as any).highest_impact_rank,
     momentum_signals: (stock as any).momentum_signals ?? [],
     starred: (stock as any).starred ?? false,
+    watched: (stock as any).watched ?? false,
     detected_at: stock.detected_at || new Date().toISOString(),
   });
 
@@ -133,7 +136,10 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
         <thead className="table-light sticky-top">
           <tr style={{ fontSize: "0.8rem"}}>
             <th style={{ width: "150px"}} className="align-top text-center">Note</th>
-            <th className="align-top text-center" style={{ width: "40px" }}> ★ </th>
+            <th className="align-top text-center" style={{ width: "40px" }}>
+              <div> ★ </div>
+              <div> 👀 </div>
+            </th>
             <th style={{ width: "130px" }} className="align-top text-center">Ticker / Name</th>
             <th
               style={{ width: "90px" }}
@@ -226,6 +232,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
                 latestDetectedAt={latestDetectedAt}
                 latestThresholdDate={latestTradingDay}
                 onStarToggle={onStarToggle}
+                onWatchToggle={onWatchToggle}
                 onNoteChange={handleNoteChange}
               />
             );

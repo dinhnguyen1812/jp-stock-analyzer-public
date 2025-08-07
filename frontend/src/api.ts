@@ -35,10 +35,11 @@ export async function fetchRecentVolumeSurges(
   surgeThreshold: number = 1.5,
   priceThreshold: number = 300.0,
   promisingScoreThreshold: number = 0.0,
-  starredOnly: boolean = false
+  starredOnly: boolean = false,
+  watchedOnly: boolean = false
 ) {
   const res = await fetch(
-    `${BASE_URL}/shortterm/volume_surges?surge_threshold=${surgeThreshold}&price_threshold=${priceThreshold}&promising_score_threshold=${promisingScoreThreshold}&starred_only=${starredOnly}`
+    `${BASE_URL}/shortterm/volume_surges?surge_threshold=${surgeThreshold}&price_threshold=${priceThreshold}&promising_score_threshold=${promisingScoreThreshold}&starred_only=${starredOnly}&watched_only=${watchedOnly}`
   );
   if (!res.ok) throw new Error("Failed to fetch volume surge results");
   return await res.json();
@@ -204,6 +205,7 @@ export async function fetchAllAnalyses(
   surge_threshold: number = 2.0,
   price_threshold: number = 300,
   starred_only: boolean = false,
+  watched_only: boolean = false,
   detected_at_max_age_days: number = 1.0
 ) {
   const queryParams = new URLSearchParams({
@@ -214,6 +216,10 @@ export async function fetchAllAnalyses(
 
   if (starred_only) {
     queryParams.append("starred_only", "true");
+  }
+
+  if (watched_only) {
+    queryParams.append("watched_only", "true");
   }
 
   const res = await fetch(`${BASE_URL}/premarket/get_saved_vs?${queryParams.toString()}`, {
@@ -365,4 +371,67 @@ export async function getLatestTradingDay(): Promise<string> {
   }
 
   return await res.text(); // since it's a plain ISO date string like "2025-08-01"
+}
+
+export interface TickerInfo {
+  ticker: string;
+  name: string;
+  current_price: number;
+}
+
+export async function getWatchlist(): Promise<TickerInfo[]> {
+  const res = await fetch(`${BASE_URL}/premarket/get_watchlist`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Get watchlist failed: ${errorText}`);
+  }
+
+  const data = await res.json();
+  return data.watchlist; // already an array of TickerInfo
+}
+
+export async function addToWatchlistBatch(tickerInput: string): Promise<string[]> {
+  const params = new URLSearchParams({ tickers_str: tickerInput });
+
+  const res = await fetch(`${BASE_URL}/premarket/add_watchlist_batch?${params.toString()}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Add to watchlist failed: ${errorText}`);
+  }
+
+  const data = await res.json();
+  return data.added; // return array of successfully added tickers
+}
+
+
+export async function removeFromWatchlist(ticker: string): Promise<void> {
+  await fetch(`${BASE_URL}/premarket/watchlist/${ticker}`, { method: "DELETE" });
+}
+
+export async function watchStock(ticker: string) {
+  const res = await fetch(`${BASE_URL}/premarket/${ticker}/watch_stock`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to watch stock");
+  return await res.json();
+}
+
+export async function unwatchStock(ticker: string) {
+  const res = await fetch(`${BASE_URL}/premarket/${ticker}/unwatch_stock`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to unwatch stock");
+  return await res.json();
 }

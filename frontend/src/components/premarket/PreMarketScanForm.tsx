@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Form, Button, Spinner, Row, Col, InputGroup, Card } from "react-bootstrap";
+import { WatchListButton } from "../../components/premarket/WatchListButton";
 
 interface PreMarketScanFormProps {
   surgeThreshold: number;
@@ -8,6 +9,7 @@ interface PreMarketScanFormProps {
   fromPage: number;
   toPage: number;
   starredOnly: boolean;
+  watchedOnly: boolean;
   loading: boolean;
   loadingNewsSignals: boolean;
   loadingSpikeScan: boolean;
@@ -18,6 +20,7 @@ interface PreMarketScanFormProps {
   onFromPageChange: (value: number) => void;
   onToPageChange: (value: number) => void;
   onStarredOnlyChange: (checked: boolean) => void;
+  onWatchedOnlyChange: (checked: boolean) => void;
   onScan: () => void;
   onFetchNewsSignals: () => void;
   onScanSpike: () => void;
@@ -39,6 +42,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   fromPage,
   toPage,
   starredOnly,
+  watchedOnly,
   loading,
   onSurgeThresholdChange,
   onPriceThresholdChange,
@@ -46,6 +50,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onFromPageChange,
   onToPageChange,
   onStarredOnlyChange,
+  onWatchedOnlyChange,
   onScan,
   onFetchAnalyzed,
   onAnalyzeStarred,
@@ -69,6 +74,10 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
           <Row className="align-items-center mb-3">
             <Col>
               <h5 className="mb-0">📈 Pre-Market Volume Surge Scanner</h5>
+            </Col>
+
+            <Col xs="auto" className="ms-auto">
+              <WatchListButton />
             </Col>
 
             <Col xs="auto" className="ms-auto">
@@ -210,13 +219,24 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
             </Col>
 
             <Col style={{ flexGrow: 0.1, minWidth: 60 }}>
-              <Form.Check
-                type="checkbox"
-                label="⭐"
-                checked={starredOnly}
-                onChange={(e) => onStarredOnlyChange(e.target.checked)}
-                disabled={loading}
-              />
+              <div>
+                <Form.Check
+                  type="checkbox"
+                  label="⭐"
+                  checked={starredOnly}
+                  onChange={(e) => onStarredOnlyChange(e.target.checked)}
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <Form.Check
+                  type="checkbox"
+                  label="👀"
+                  checked={watchedOnly}
+                  onChange={(e) => onWatchedOnlyChange(e.target.checked)}
+                  disabled={loading}
+                />
+              </div>
             </Col>
 
             <Col style={{ minWidth: 180 }}>

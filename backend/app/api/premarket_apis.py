@@ -20,6 +20,7 @@ from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabu
 from app.utils.premarket.pre_gpt_analyzer import get_latest_trading_day, premarket_analyze_with_gpt
 from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
 from app.api.shortterm_apis import get_latest_analysis_signal_data
+from app.utils.premarket.watchlist import append_batch_to_watchlist, read_watchlist, remove_from_watchlist_csv, add_to_watchlist_csv
 
 router = APIRouter()
 
@@ -146,6 +147,7 @@ def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
     price_threshold: float = Query(0, ge=0),
     starred_only: bool = False,
+    watched_only: bool = False,
     detected_at_max_age_days: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
@@ -169,6 +171,9 @@ def get_all_saved_volume_analyses(
 
     if starred_only:
         query = query.join(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker)
+
+    if watched_only:
+        query = query.join(WatchList, VolumeSnapshot.ticker == WatchList.ticker)
 
     query = query.group_by(VolumeSnapshot.ticker)
     subq = query.subquery()
@@ -231,6 +236,7 @@ def get_all_saved_volume_analyses(
                 "highest_price": price_stats["highest_price"],
                 "lowest_price": price_stats["lowest_price"],
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
+                "watched": bool(db.query(WatchList).filter_by(ticker=vs.ticker).first()),
                 "momentum_score": vs.momentum_score,
                 "momentum_confidence": vs.momentum_confidence,
                 "momentum_signals": vs.momentum_signals,
@@ -350,6 +356,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "momentum_confidence": vs.momentum_confidence,
             "momentum_signals": vs.momentum_signals,
             "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
+            "watched": bool(db.query(WatchList).filter_by(ticker=ticker).first()),
             "kabutan_chart_url": f"https://kabutan.jp/stock/chart?code={ticker}",
         },
         "analysis_signal": analysis_signal_data,
@@ -545,3 +552,70 @@ def get_positive_news_api(db: Session = Depends(get_db)):
 @router.get("/latest_trading_day", response_model=Optional[datetime.date])
 def get_latest_trading_day_api(db: Session = Depends(get_db)):
     return get_latest_trading_day(db)
+
+@router.get("/get_watchlist")
+def get_watchlist(db: Session = Depends(get_db)):
+    tickers = read_watchlist()
+    results = []
+
+    for ticker in tickers:
+        snapshot = db.query(VolumeSnapshot).filter_by(ticker=ticker).first()
+
+        if not snapshot:
+            # Analyze and save snapshot if not exists
+            snapshot = analyze_and_snapshot_ticker(
+                db=db,
+                ticker=ticker,
+                surge_threshold=0.0,
+                price_threshold=0,
+            )
+
+        if snapshot:
+            results.append({
+                "ticker": ticker,
+                "name": snapshot.name,
+                "current_price": snapshot.current_price
+            })
+
+    return {"watchlist": results}
+
+@router.post("/add_watchlist_batch")
+def add_watchlist_batch(tickers_str: str = Query(...), db: Session = Depends(get_db)):
+    added = append_batch_to_watchlist(tickers_str)
+    for ticker in added:
+        if not db.query(WatchList).filter_by(ticker=ticker).first():
+            db.add(WatchList(ticker=ticker))
+    db.commit()
+    return {"added": added}
+
+@router.delete("/watchlist/{ticker}")
+def delete_watchlist_ticker(ticker: str, db: Session = Depends(get_db)):
+    remove_from_watchlist_csv(ticker)
+    entry = db.query(WatchList).filter(WatchList.ticker == ticker).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"{ticker} not found in watchlist.")
+    
+    db.delete(entry)
+    db.commit()
+    return {"detail": f"{ticker} removed from watchlist."}
+
+# For Use
+@router.post("/{ticker}/watch_stock")
+def star_stock(ticker: str, db: Session = Depends(get_db)):
+    add_to_watchlist_csv(ticker)
+    existing = db.query(WatchList).filter_by(ticker=ticker).first()
+    if not existing:
+        new_star = WatchList(ticker=ticker)
+        db.add(new_star)
+        db.commit()
+    return {"status": "watched"}
+
+# For Use
+@router.delete("/{ticker}/unwatch_stock")
+def unstar_stock(ticker: str, db: Session = Depends(get_db)):
+    remove_from_watchlist_csv(ticker)
+    existing = db.query(WatchList).filter_by(ticker=ticker).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+    return {"status": "watched"}

@@ -25,6 +25,7 @@ const PreMarketPage: React.FC = () => {
   const [loadingAnalyzeWatchList, setLoadingAnalyzeWatchList] = useState<boolean>(false);
   const [loadingAnalyze, setLoadingAnalyze] = useState<boolean>(false);
   const [starredOnly, setStarredOnly] = useState<boolean>(false);
+  const [watchedOnly, setWatchedOnly] = useState<boolean>(false);
   const [stocks, setStocks] = useState<VolumeSurgeStock[]>([]);
   const [analyzedResults, setAnalyzedResults] = useState<any[]>([]);
   const [tickerInput, setTickerInput] = useState<string>("");
@@ -47,7 +48,6 @@ const PreMarketPage: React.FC = () => {
     };
   };
 
-
   const handleScan = async () => {
     setLoading(true);
     setAnalyzedResults([]);
@@ -69,7 +69,7 @@ const PreMarketPage: React.FC = () => {
   const handleFetchAnalyzed = async () => {
     setLoadingFetchAnalyzed(true);
     try {
-      const result = await fetchAllAnalyses(surgeThreshold, priceThreshold, starredOnly, detectedAtMaxDay);
+      const result = await fetchAllAnalyses(surgeThreshold, priceThreshold, starredOnly, watchedOnly, detectedAtMaxDay);
       setAnalyzedResults(result);
       setStocks([]);
     } catch (err) {
@@ -133,6 +133,19 @@ const PreMarketPage: React.FC = () => {
     );
   };
 
+  const handleWatchToggle = (ticker: string, watched: boolean) => {
+    setStocks((prev) =>
+      prev.map((s) => (s.ticker === ticker ? { ...s, watched } : s))
+    );
+    setAnalyzedResults((prev) =>
+      prev.map((item) =>
+        item.volume_info.ticker === ticker
+          ? { ...item, volume_info: { ...item.volume_info, watched } }
+          : item
+      )
+    );
+  };
+
   return (
     <div className="container mt-3">
       {/* Holdings Button */}
@@ -156,6 +169,7 @@ const PreMarketPage: React.FC = () => {
         loadingSpikeScan={false}
         autoScanEnabled={false}
         starredOnly={starredOnly}
+        watchedOnly={watchedOnly}
         loadingAnalyzeStarred={loadingAnalyzeStarred}
         loadingAnalyzeWatchList={loadingAnalyzeWatchList}
         loadingAnalyze={loadingAnalyze}
@@ -165,6 +179,7 @@ const PreMarketPage: React.FC = () => {
         onFromPageChange={setFromPage}
         onToPageChange={setToPage}
         onStarredOnlyChange={setStarredOnly}
+        onWatchedOnlyChange={setWatchedOnly}
         onScan={handleScan}
         onFetchNewsSignals={() => { } }
         onScanSpike={() => { } }
@@ -179,7 +194,7 @@ const PreMarketPage: React.FC = () => {
       {stocks.length > 0 && (
         <>
           <h5 className="mt-4">Scan Results ({stocks.length})</h5>
-          <PreMarketStockTable stocks={stocks} onStarToggle={handleStarToggle} />
+          <PreMarketStockTable stocks={stocks} onStarToggle={handleStarToggle} onWatchToggle={handleWatchToggle} />
         </>
       )}
 
@@ -193,6 +208,7 @@ const PreMarketPage: React.FC = () => {
           <PreMarketStockTable
             stocks={analyzedResults.map(normalizeAnalyzedStock).filter(Boolean)}
             onStarToggle={handleStarToggle}
+            onWatchToggle={handleWatchToggle}
           />
         </>
       )}

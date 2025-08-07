@@ -1,7 +1,7 @@
 import React, { useState, useCallback, type JSX, useEffect } from "react";
 import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
 import { formatDistance } from "date-fns";
-import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock } from "../../api";
+import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 
 export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
@@ -65,6 +65,7 @@ interface PreMarketStockRowProps {
     promising_score?: number;
     recommendation?: string | null;
     starred?: boolean;
+    watched?: boolean;
     detected_at: string;
     momentum_score?: number;
     momentum_signals?: {
@@ -79,6 +80,7 @@ interface PreMarketStockRowProps {
   latestDetectedAt: string;
   latestThresholdDate: Date | null;
   onStarToggle: (ticker: string, starred: boolean) => void;
+  onWatchToggle: (ticker: string, watched: boolean) => void;
   onNoteChange: (ticker: string, newNote: string) => void;
 }
 
@@ -158,6 +160,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   latestDetectedAt,
   latestThresholdDate,
   onStarToggle,
+  onWatchToggle,
   onNoteChange,
 }) => {
   const [showModal, setShowModal] = useState(false);
@@ -165,6 +168,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   const [analysis, setAnalysis] = useState<SavedAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starLoading, setStarLoading] = useState(false);
+  const [watchLoading, setWatchLoading] = useState(false);
   const [, setForceUpdate] = useState(0);
 
   const [noteValue, setNoteValue] = useState(stock.note || "");
@@ -206,6 +210,21 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
       setStarLoading(false);
     }
   }, [stock, onStarToggle]);
+
+  const handleToggleWatch = useCallback(async () => {
+    setWatchLoading(true);
+    try {
+      const newWatchedStatus = !stock.watched;
+      if (newWatchedStatus) await watchStock(stock.ticker);
+      else await unwatchStock(stock.ticker);
+      onWatchToggle(stock.ticker, newWatchedStatus);
+      setForceUpdate((prev) => prev + 1);
+    } catch {
+      alert("Failed to update watch status.");
+    } finally {
+      setWatchLoading(false);
+    }
+  }, [stock, onWatchToggle]);
 
   const ONE_HOUR_MS = 1000 * 60 * 60;
   const isOld =
@@ -304,35 +323,68 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           />
         </td>
         <td className="text-center align-middle" style={{ width: 40 }}>
-          <Button
-            variant="outline-secondary"
-            size="sm"
-            title={stock.starred ? "Unstar stock" : "Star stock"}
-            aria-pressed={stock.starred}
-            onClick={handleToggleStar}
-            disabled={starLoading}
-            className="p-0 d-flex justify-content-center align-items-center"
-            style={{ width: 32, height: 32 }}
-          >
-            {starLoading ? (
-              <Spinner animation="border" size="sm" />
-            ) : (
-              <span
-                style={{
-                  fontSize: "1.25rem",
-                  lineHeight: 1,
-                  userSelect: "none",
-                  color: stock.starred ? "#ffc107" : "#6c757d",
-                  textShadow: stock.starred
-                    ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
-                    : "none",
-                }}
-                aria-hidden="true"
-              >
-                ★
-              </span>
-            )}
-          </Button>
+          <div>
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              title={stock.starred ? "Unstar stock" : "Star stock"}
+              aria-pressed={stock.starred}
+              onClick={handleToggleStar}
+              disabled={starLoading}
+              className="p-0 d-flex justify-content-center align-items-center"
+              style={{ width: 32, height: 32 }}
+            >
+              {starLoading ? (
+                <Spinner animation="border" size="sm" />
+              ) : (
+                <span
+                  style={{
+                    fontSize: "1.25rem",
+                    lineHeight: 1,
+                    userSelect: "none",
+                    color: stock.starred ? "#ffc107" : "#6c757d",
+                    textShadow: stock.starred
+                      ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
+                      : "none",
+                  }}
+                  aria-hidden="true"
+                >
+                  ★
+                </span>
+              )}
+            </Button>
+          </div>
+          <div>
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              title={stock.watched ? "Unwatch stock" : "Watch stock"}
+              aria-pressed={stock.watched}
+              onClick={handleToggleWatch}
+              disabled={watchLoading}
+              className="p-0 d-flex justify-content-center align-items-center"
+              style={{ width: 32, height: 32 }}
+            >
+              {watchLoading ? (
+                <Spinner animation="border" size="sm" />
+              ) : (
+                <span
+                  style={{
+                    fontSize: "1.25rem",
+                    lineHeight: 1,
+                    userSelect: "none",
+                    color: stock.watched ? "#ffc107" : "#6c757d",
+                    textShadow: stock.watched
+                      ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
+                      : "none",
+                  }}
+                  aria-hidden="true"
+                >
+                  👀
+                </span>
+              )}
+            </Button>
+          </div>
         </td>
 
         <td className="align-middle text-center">
