@@ -73,7 +73,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
         <Form>
           <Row className="align-items-center mb-3">
             <Col>
-              <h5 className="mb-0">📈 Pre-Market Volume Surge Scanner</h5>
+              <h5 className="mb-0">📈 Volume Surge Scanner</h5>
             </Col>
 
             <Col xs="auto" className="ms-auto">

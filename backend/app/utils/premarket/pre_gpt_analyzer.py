@@ -21,7 +21,7 @@ from app.utils.shortterm.moneyflow_history import fetch_daily_money_flow_history
 from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
-from app.models import AverageMoneyFlow, AverageVolume, DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal
+from app.models import AverageMoneyFlow, AverageVolume, DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal, DailyVolume
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -107,7 +107,8 @@ def premarket_analyze_with_gpt(
     ticker: str,
     news_items: List[Dict],
     volume_info: VolumeSnapshot,
-    user_prompt: str = "",
+    is_market_hours: False,
+    extra_guidance: str = "",
     top_n: int = 3,
     model: str = "gpt-4o"
 ) -> Dict:
@@ -229,25 +230,22 @@ def premarket_analyze_with_gpt(
     now_jst = now.astimezone(jst)
     date_str = now_jst.date().isoformat()
     latest_trading_day = get_latest_trading_day(db)
-    # if is_market_hours(now_jst, latest_trading_day):
-    #     volume_info_ = get_intraday_volume_info_for_ticker(db, ticker)
-    #     volume_summary = (
-    #         f"📊 [Intraday]\n"
-    #         f"Ticker: {volume_info_['ticker']}\n"
-    #         f"Name: {volume_info_['name']}\n"
-    #         f"Current Price: {volume_info_['current_price']} JPY\n"
-    #         f"Volume Surge: {volume_info_['volume_rate']:.2f}x\n"
-    #         f"Money Flow: {volume_info_['money_flow_rate']:.2f}x\n"
-    #         f"Detected At: {now_jst.isoformat()}\n"
-    #     )
-    # else:
+    if is_market_hours:
+        intraday_info = get_intraday_volume_info_for_ticker(db, ticker)
+        intraday_summary = (
+            f"Current Price: {intraday_info['current_price']} JPY\n"
+            f"Volume: {intraday_info['current_volume']}\n"
+            f"Volume Surge: {intraday_info['volume_rate']:.2f}x\n"
+            f"Money Flow: {intraday_info['money_flow_rate']:.2f}x\n"
+        )
     volume_summary = (
         f"Ticker: {volume_info.ticker}\n"
         f"Name: {volume_info.name}\n"
         f"Current Price: {volume_info.current_price} JPY\n"
+        f"Volume: {volume_info.current_volume} JPY\n"
         f"Volume Surge: {volume_info.volume_rate}x\n"
         f"Money Flow: {volume_info.money_flow_rate}\n"
-        f"Detected At: {volume_info.detected_at.isoformat()}\n"
+        # f"Detected At: {volume_info.detected_at.isoformat()}\n"
     )
 
     tech_summary = (
@@ -317,9 +315,10 @@ def premarket_analyze_with_gpt(
 
     prompt = (
         f"You are a Japanese market expert AI providing a **pre-market outlook for stock {ticker}** — to support a trade decision for **tomorrow's trading session**.\n\n"
-        f"Today is {date_str}, time: {now_jst}. Latest trading day: {latest_trading_day}, time: 15:30:00.\n"
+        f"Today is {date_str}, time: {now_jst}. Latest completed trading day: {latest_trading_day}, time: 15:30:00.\n"
         # f"### Fundamental Snapshot (for context only):\n{longterm_summary}\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
+        f"### Intraday: {is_market_hours}. Intraday summary:\n{intraday_summary if is_market_hours else None}\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
         f"### Trend Summary (Up/Down Movements):\n{trend_summary}\n"
         f"### Momentum Signals Summary:\n{momentum_summary}\n"
@@ -329,6 +328,7 @@ def premarket_analyze_with_gpt(
         "\n\n"
 
         "### Instructions:\n"
+        f"{extra_guidance}"
         # "- Only use **fundamental data** if it clearly explains the price move (e.g. PER far from industry avg, ROE strong, speculative excess).\n"
         # "- Do **not** perform full valuation; use it only to support short-term momentum/sentiment judgment.\n"
         "- Focus primarily on **recent impactful news**, especially **today** and within the **past 7 days**.\n"
@@ -431,13 +431,13 @@ def premarket_analyze_with_gpt(
         "  - For certain keywords, **boost to 'S' or 'A+' only if strong value is clear**:\n"
         "    • 'TOB / MBO': Boost to S+ if offer has a large premium, from a notable acquirer, or leads to immediate price gap-up with strong volume.\n"
         "    • '筆頭株主変更': Boost to S if new shareholder is a large institutional investor, foreign fund, or strategic partner.\n"
-        "    • '新市場参入': Boost to S only if into a **high-growth, exclusive, or emerging field**.\n"
-        "    • '特許取得': Boost to S only if it enables a **monopoly or first-mover advantage**.\n"
-        "    • '新サービス発表': Boost to S only if it’s a **game-changer, large partnership, or disruptor**.\n"
-        "    • '買収': Boost to S only if it’s **accretive, cross-border, or creates synergy in hot markets**.\n"
-        "    • '中期経営計画': Boost to A+ or S only if plan includes **aggressive growth, global expansion, or restructuring**.\n"
+        "    • '新市場参入': Boost to S only if into a **high-growth, exclusive, or emerging field (e.g. AI, Web3, semiconductors, space, quantum computing)**.\n"
+        "    • '特許取得': Boost to S only if it enables a **monopoly or first-mover advantage in hot sectors (e.g. AI, medical tech, robotics)**.\n"
+        "    • '新サービス発表': Boost to S only if it’s a **game-changer, large partnership, or disruptor, especially in trending areas like AI, FinTech, or crypto**.\n"
+        "    • '買収': Boost to S only if it’s **accretive, cross-border, or creates synergy in hot markets (e.g. AI, mobility, biotech)**.\n"
+        "    • '中期経営計画': Boost to A+ or S only if plan includes **aggressive growth, global expansion, or restructuring in promising sectors**.\n"
         "    • '特別利益': Boost to A+ only if it **significantly improves EPS or changes valuation metrics**.\n"
-        "    • '事業拡大': Boost to A+ or S only if it’s into **large-scale, strategic, or trending sectors**.\n"
+        "    • '事業拡大': Boost to A+ or S only if it’s into **large-scale, strategic, or trending sectors (e.g. data centers, EV, hydrogen, AI)**.\n"
         "    • '今期 業績予想 50%増益以上': Boost to A+ if forecast is **unexpected, from a low-float/small-cap stock, or paired with strong catalysts**\n"
         "    • '独占契約': Boost to S only if partner is **top-tier or market scale is large**.\n"
         "    • '大型受注': Boost to S only if it’s from a **major client or long-term contract**.\n"
@@ -445,9 +445,10 @@ def premarket_analyze_with_gpt(
         "    • 'サプライズ決算': Boost to S only if it's confirmed that results **exceed expectations significantly**.\n"
         "    • '四半期サプライズ決算': Boost to S only if it's confirmed that **quarterly results strongly surprise**.\n"
         "    • '増益': Boost to S if **profit growth exceeds 50% and is unexpected**, A if **between 30–50% with positive sentiment or low float**.\n"
-        "    • '利益倍増': Boost to S if **2倍以上** and supported by **strong catalyst** (e.g. restructuring, new business)\n"
-        "    • 'fisco注目': Boost to A+ if stock already trending or backed by strong catalyst."
+        "    • '利益倍増': Boost to S if **2倍以上** and supported by **strong catalyst** (e.g. restructuring, new business, hot sector entry).\n"
+        "    • 'fisco注目': Boost to A+ if stock already trending or backed by strong catalyst.\n"
         "    • '大量保有報告書': Boost to A if new investor is a known activist fund, foreign investor, or signals strategic interest.\n"
+
 
         "- 🚨 **KEY PATTERN: Re-Spike After Pullback**\n"
         "- Detect this setup:\n"
@@ -714,11 +715,6 @@ def get_trading_hours_passed(now: datetime) -> float:
     else:
         return 5.5  # full trading day
 
-def is_market_hours(now_jst: datetime, latest_trading_day: datetime.date) -> bool:
-    # Market open: 09:00, close: 15:30
-    market_close_time = datetime.combine(latest_trading_day, time(15, 30), tzinfo=now_jst.tzinfo)
-    return now_jst.date() == latest_trading_day and now_jst <= market_close_time
-
 def get_latest_trading_day(db: Session):
     ticker = '7203'
     fetch_and_save_price_history(db, ticker)
@@ -731,3 +727,41 @@ def get_latest_trading_day(db: Session):
     )
 
     return result[0] if result else None
+
+def check_market_hours(db):
+    update_avg_volume_for_ticker(db, '7203')
+
+    latest_record = (
+        db.query(DailyVolume)
+        .filter_by(ticker='7203')
+        .order_by(DailyVolume.date.desc())
+        .first()
+    )
+
+    url = f"https://finance.yahoo.co.jp/quote/7203.T"
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "ja,en;q=0.9",
+    }
+
+    try:
+        resp = httpx.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # 2. Extract 出来高 (current volume)
+        current_volume = None
+        labels = soup.select("span.DataListItem__name__3RQJ")
+        for label in labels:
+            if "出来高" in label.text:
+                value_span = label.find_next("span", class_="StyledNumber__value__3rXW")
+                if value_span:
+                    raw_volume = value_span.text.strip()
+                    if raw_volume not in {"---", "-", ""}:
+                        current_volume = parse_volume(raw_volume)
+                break
+        return current_volume != latest_record.volume
+
+    except Exception as e:
+        print(f"⚠️ Error while scraping 7203: {e}")
+        return False
