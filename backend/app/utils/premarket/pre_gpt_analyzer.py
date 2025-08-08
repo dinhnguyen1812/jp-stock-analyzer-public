@@ -128,7 +128,7 @@ def premarket_analyze_with_gpt(
         db.query(VolumeSnapshot)
         .filter(
             VolumeSnapshot.ticker == volume_info.ticker,
-            VolumeSnapshot.promising_score <= 50
+            VolumeSnapshot.promising_score <= 30
         )
         .first()
     )
@@ -166,7 +166,6 @@ def premarket_analyze_with_gpt(
     #     f"- A strong dividend yield could attract defensive flows.\n"
     # )
     # print(f"====ticker={ticker}, longterm_summary={longterm_summary}")
-    longterm_summary = ""
 
     # Short term data
     if not news_items:
@@ -179,28 +178,28 @@ def premarket_analyze_with_gpt(
         save_shortterm_analysis_signal(db, ticker)
         signal = db.query(ShortTermAnalysisSignal).filter_by(ticker=ticker).first()
 
-    uptrend_info = normalize_uptrend_for_json(get_uptrend_analysis(db, ticker))
-    downtrend_info = normalize_downtrend_for_json(get_downtrend_analysis(db, ticker))
+    # uptrend_info = normalize_uptrend_for_json(get_uptrend_analysis(db, ticker))
+    # downtrend_info = normalize_downtrend_for_json(get_downtrend_analysis(db, ticker))
 
-    # Extract key trend data
-    drop_pct = downtrend_info.get("drop_pct", 0)
-    rise_pct = uptrend_info.get("rise_pct", 0)
-    down_from = downtrend_info.get("from_date", "?")
-    down_to = downtrend_info.get("to_date", "?")
-    up_from = uptrend_info.get("from_date", "?")
-    up_to = uptrend_info.get("to_date", "?")
+    # # Extract key trend data
+    # drop_pct = downtrend_info.get("drop_pct", 0)
+    # rise_pct = uptrend_info.get("rise_pct", 0)
+    # down_from = downtrend_info.get("from_date", "?")
+    # down_to = downtrend_info.get("to_date", "?")
+    # up_from = uptrend_info.get("from_date", "?")
+    # up_to = uptrend_info.get("to_date", "?")
 
-    drop_from_high_pct = downtrend_info.get("drop_from_high_pct")
-    rebound_from_low_pct = downtrend_info.get("rebound_from_low_pct")
-    highest_price = downtrend_info.get("highest_price")
-    lowest_price = downtrend_info.get("lowest_price")
+    # drop_from_high_pct = downtrend_info.get("drop_from_high_pct")
+    # rebound_from_low_pct = downtrend_info.get("rebound_from_low_pct")
+    # highest_price = downtrend_info.get("highest_price")
+    # lowest_price = downtrend_info.get("lowest_price")
 
-    # 📉 Downtrend after uptrend check
-    downtrend_after_up = (
-        uptrend_info.get("had_uptrend") and
-        downtrend_info.get("had_downtrend") and
-        up_to and down_from and down_from >= up_to
-    )
+    # # 📉 Downtrend after uptrend check
+    # downtrend_after_up = (
+    #     uptrend_info.get("had_uptrend") and
+    #     downtrend_info.get("had_downtrend") and
+    #     up_to and down_from and down_from >= up_to
+    # )
 
     # 🧾 Trend Summary Construction
     # trend_summary = ""
@@ -359,7 +358,7 @@ def premarket_analyze_with_gpt(
         "   - Is a **second wave** or continuation setup likely tomorrow?\n"
         "- If the news was released **before the most recent trading day’s close (15:30)**, assume it likely influenced the price already.\n"
         "- Be precise: say whether the move is already **priced in** or if there’s still potential.\n"
-        "- For **decisive news**, check if similar headlines came out earlier. If so, the market may have already priced it in.\n"
+        "- For **A to S+ ranked news**, check if similar headlines came out earlier. If so, the market may have already priced it in.\n"
         "- Predict how the stock will behave **tomorrow**:\n"
         "   - Will it gap up/down?\n"
         "   - Will it surge in the morning or fade?\n"
@@ -381,7 +380,7 @@ def premarket_analyze_with_gpt(
 
         "- For each headline, give:\n"
         "   - **Keyword: as guidance below - Rank: as guidance below**\n"
-        "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
+        "   - **Verdict**: Same as Rank, one of [S+, S, A+, A, A-, B, C, D, N/A]\n"
         "   - **Reason**: One sentence explaining the expected impact\n"
         "- Choose and analyze the **top 10 most impactful headlines** based on rank and relevance.\n"
 
@@ -402,14 +401,13 @@ def premarket_analyze_with_gpt(
 
         # A rank - strong positive
         "    '筆頭株主変更': 'A',\n"
-        "    '今期 業績予想 50%増益以上': 'A',\n"
-        "    '買収': 'A',\n"
         "    '黒字転換': 'A',\n"
         "    '新市場参入': 'A',\n"
         "    '新サービス発表': 'A',\n"
         "    '特許取得': 'A',\n"
         "    '新製品発表': 'A',\n"
         "    '事業拡大': 'A',\n"
+        "    '買収': 'A',\n"
 
         # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"
@@ -430,6 +428,7 @@ def premarket_analyze_with_gpt(
         "    '四半期サプライズ決算': 'B',\n"
         "    '増益': 'B',\n"
         "    '利益倍増': 'B',\n"
+        "    '今期 業績予想 50%増益以上': 'B',\n"
 
         # C rank - negative or neutral
         "    '施設閉鎖': 'C',\n"
@@ -578,12 +577,12 @@ def premarket_analyze_with_gpt(
             "headline_impacts": impacts,
             "summary": summary,
             "gpt_raw_response": reply,
-            "downtrend": downtrend_info,
-            "uptrend": uptrend_info,
-            "drop_from_high_pct": drop_from_high_pct,
-            "rebound_from_low_pct": rebound_from_low_pct,
-            "highest_price": highest_price,
-            "lowest_price": lowest_price,
+            # "downtrend": downtrend_info,
+            # "uptrend": uptrend_info,
+            # "drop_from_high_pct": drop_from_high_pct,
+            # "rebound_from_low_pct": rebound_from_low_pct,
+            # "highest_price": highest_price,
+            # "lowest_price": lowest_price,
             "momentum_score": momentum_result["momentum_score"],
             "momentum_confidence": momentum_result["momentum_confidence"],
             "momentum_signals": momentum_result["momentum_signals"],

@@ -90,7 +90,7 @@ export interface NewsImpactItem {
   url: string;
   category: string;
   published_at: string;
-  verdict: "Neutral" | "Good" | "Great" | "Decisive";
+  verdict: "S+" | "S" | "A+" | "A" | "A-"| "B";
   reason: string;
 }
 

@@ -113,18 +113,92 @@ def scan_and_analyze_news_for_ticker(
         "- Pay special attention to topics like **semiconductors, AI, lithium, stock splits, offerings**, etc.\n"
         "- Even procedural headlines like 株式発行, 剰余金の処分, 業務提携 can move markets — do not dismiss them without consideration.\n"
         "- **Note: Any company name in the headlines refers to the ticker being analyzed, or an entity directly involved with it.**\n\n"
-        "### Instructions:\n"
-        "- Evaluate how impactful the news is for **short-term (today/tomorrow)** trading.\n"
-        "- For each headline, provide:\n"
-        # "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad]\n"
-        "   - **Verdict**: One of [Decisive, Great, Good, Neutral, Bad, Unsure]\n"
-        "   - **Reason**: 1 concise sentence explaining the impact\n"
-        # "   - If the impact is unclear due to lack of context or vague wording, use **Unsure** so the user can review manually.\n\n"
+
+        "- 🧠 News Impact Ranking:\n"
+        "- For each top headline, assign a keyword and rank based on this table:\n"
+        "  {\n"
+        # S rank - strongest triggers
+        "    'TOB / MBO': 'S',\n"
+
+        # A+ rank - very strong positive
+        "    '独占契約': 'A+',\n"
+        "    '大型受注': 'A+',\n"
+        "    '業績予想 上方修正': 'A+',\n"
+
+        # A rank - strong positive
+        "    '筆頭株主変更': 'A',\n"
+        "    '黒字転換': 'A',\n"
+        "    '新市場参入': 'A',\n"
+        "    '新サービス発表': 'A',\n"
+        "    '特許取得': 'A',\n"
+        "    '新製品発表': 'A',\n"
+        "    '事業拡大': 'A',\n"
+        "    '買収': 'A',\n"
+
+        # A- rank - technical signals
+        "    'ゴールデンクロス': 'A-',\n"
+        "    '±３σブレイク': 'A-',\n"
+        "    'ボリンジャーバンド上抜け': 'A-',\n"
+        "    'fisco注目': 'A-',\n"
+
+        # B rank - moderate positive
+        "    '中期経営計画': 'B',\n"
+        "    '株式買戻し': 'B',\n"
+        "    '特別利益': 'B',\n"
+        "    '特別利益計上': 'B',\n"
+        "    '株主優待増額': 'B',\n"
+        "    '配当増額': 'B',\n"
+        "    '販売契約': 'B',\n"
+        "    '大量保有報告書': 'B',\n"
+        "    'サプライズ決算': 'B',\n"
+        "    '四半期サプライズ決算': 'B',\n"
+        "    '増益': 'B',\n"
+        "    '利益倍増': 'B',\n"
+        "    '今期 業績予想 50%増益以上': 'B',\n"
+
+        # C rank - negative or neutral
+        "    '施設閉鎖': 'C',\n"
+        "    '運営終了': 'C',\n"
+        "    '事業報告': 'C',\n"
+        "    '株式発行': 'C',\n"
+        "    '赤字縮小': 'C',\n"
+
+        # D rank - negative
+        "    '減益': 'D',\n"
+        "    '赤字転落': 'D',\n"
+        "    '資本金変更': 'D',\n"
+        "    '再掲IR': 'D',\n"
+        "    '過去の材料再加熱': 'D'\n"
+        "  }\n"
+        "\n"
+        "- 🔧 Booster Instruction:\n"
+        "  - Define **hot/trending sectors**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
+        "  - For certain keywords, **boost to 'S' or 'A+' only if strong value is clear**:\n"
+        "    • 'TOB / MBO': Boost to S+ if offer has a large premium, from a notable acquirer, or leads to immediate price gap-up with strong volume.\n"
+        "    • '筆頭株主変更': Boost to S if new shareholder is a large institutional investor, foreign fund, or strategic partner.\n"
+        "    • '新市場参入': Boost to S only if into a **hot/trending sector** with exclusivity or growth potential.\n"
+        "    • '特許取得': Boost to S only if it enables a **monopoly or first-mover advantage in hot/trending fields**.\n"
+        "    • '新サービス発表': Boost to S only if it’s a **game-changer or disruptor in hot/trending sectors**.\n"
+        "    • '買収': Boost to S only if it’s **accretive, cross-border, or synergistic in hot/trending markets**.\n"
+        "    • '中期経営計画': Boost to A+ or S only if plan includes **aggressive growth, global expansion, or restructuring in promising areas**.\n"
+        "    • '特別利益': Boost to A+ only if it **significantly improves EPS or changes valuation metrics**.\n"
+        "    • '事業拡大': Boost to A+ or S only if it’s into **large-scale, strategic, or hot/trending sectors**.\n"
+        "    • '今期 業績予想 50%増益以上': Boost to A+ if forecast is **unexpected, from a low-float/small-cap stock, or paired with strong catalysts**\n"
+        "    • '独占契約': Boost to S only if partner is **top-tier or market scale is large**.\n"
+        "    • '大型受注': Boost to S only if it’s from a **major client or long-term contract**.\n"
+        "    • '黒字転換': Boost to S only if it leads to **sustained profitability or likely leads to strong market reaction**.\n"
+        "    • 'サプライズ決算': Boost to S only if it's confirmed that results **exceed expectations significantly**.\n"
+        "    • '四半期サプライズ決算': Boost to S only if it's confirmed that **quarterly results strongly surprise**.\n"
+        "    • '増益': Boost to S if **profit growth exceeds 50% and is unexpected**, A if **between 30–50% with positive sentiment or low float**.\n"
+        "    • '利益倍増': Boost to A if **2倍以上** and supported by **strong catalyst** (e.g. restructuring, new business, or entry into hot/trending sectors).\n"
+        "    • 'fisco注目': Boost to A+ if stock already trending or backed by strong catalyst.\n"
+        "    • '大量保有報告書': Boost to A if new investor is a known activist fund, foreign investor, or signals strategic interest.\n"
+
         "### Output Format:\n"
         "Headline List:\n"
         "1. **[Headline text here]**\n"
-        "   - **Verdict: ...**\n"
-        "   - **Reason: ...**\n"
+        "   - **Verdict: [S+, S, A+, A, A-, B, C, D]**\n"
+        "   - **Reason: [Keyword - 1 short sentence explaining the expected short-term impact]**\n"
         "(Repeat for each headline)\n\n"
         "News headlines:\n" + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(raw_headlines)])
     )
@@ -161,8 +235,7 @@ def scan_and_analyze_news_for_ticker(
             db.add(impact)
         db.commit()
 
-        if any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
-        # if any(i["verdict"] in {"Decisive", "Great", "Good", "Unsure"} for i in impacts):
+        if any(i["verdict"] in {"S+", "S", "A+", "A", "A-", "B"} for i in impacts):
             print(f"🚨 Positive news detected for {ticker}: {', '.join(i['verdict'] for i in impacts)}")
 
         return impacts
@@ -177,8 +250,7 @@ def scan_news_for_low_cap_stocks(db: Session):
         scan_and_analyze_news_for_ticker(db, ticker)
 
 def get_positive_news(db: Session) -> List[dict]:
-    positive_verdicts = ["Decisive", "Great", "Good"]
-    # positive_verdicts = ["Decisive", "Great", "Good", "Unsure"]
+    positive_verdicts = ["S+", "S", "A+", "A", "A-", "B"]
 
     # Fetch impacts with positive verdicts
     results = (

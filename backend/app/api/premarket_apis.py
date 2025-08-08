@@ -209,18 +209,18 @@ def get_all_saved_volume_analyses(
 
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
 
-        downtrend_model = get_downtrend_analysis(db, vs.ticker)
-        downtrend_info = normalize_downtrend_for_json(downtrend_model)
+        # downtrend_model = get_downtrend_analysis(db, vs.ticker)
+        # downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
-        uptrend_model = get_uptrend_analysis(db, vs.ticker)
-        uptrend_info = normalize_uptrend_for_json(uptrend_model)
+        # uptrend_model = get_uptrend_analysis(db, vs.ticker)
+        # uptrend_info = normalize_uptrend_for_json(uptrend_model)
 
-        price_stats = {
-            "highest_price": downtrend_info.get("highest_price"),
-            "lowest_price": downtrend_info.get("lowest_price"),
-            "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
-            "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
-        }
+        # price_stats = {
+        #     "highest_price": downtrend_info.get("highest_price"),
+        #     "lowest_price": downtrend_info.get("lowest_price"),
+        #     "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
+        #     "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
+        # }
 
         results.append({
             "volume_info": {
@@ -239,12 +239,12 @@ def get_all_saved_volume_analyses(
                 "top_news": top_news,
                 "highest_impact_keyword": vs.highest_impact_keyword,
                 "highest_impact_rank": vs.highest_impact_rank,
-                "downtrend": downtrend_info,
-                "uptrend": uptrend_info,
-                "drop_from_high_pct": price_stats["drop_from_high_pct"],
-                "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
-                "highest_price": price_stats["highest_price"],
-                "lowest_price": price_stats["lowest_price"],
+                # "downtrend": downtrend_info,
+                # "uptrend": uptrend_info,
+                # "drop_from_high_pct": price_stats["drop_from_high_pct"],
+                # "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
+                # "highest_price": price_stats["highest_price"],
+                # "lowest_price": price_stats["lowest_price"],
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
                 "watched": bool(db.query(WatchList).filter_by(ticker=vs.ticker).first()),
                 "momentum_score": vs.momentum_score,
@@ -278,21 +278,21 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
         except Exception:
             top_news = []
 
-    # Downtrend info
-    downtrend_model = get_downtrend_analysis(db, ticker)
-    downtrend_info = normalize_downtrend_for_json(downtrend_model)
+    # # Downtrend info
+    # downtrend_model = get_downtrend_analysis(db, ticker)
+    # downtrend_info = normalize_downtrend_for_json(downtrend_model)
 
-    # Uptrend info
-    uptrend_model = get_uptrend_analysis(db, ticker)
-    uptrend_info = normalize_uptrend_for_json(uptrend_model)
+    # # Uptrend info
+    # uptrend_model = get_uptrend_analysis(db, ticker)
+    # uptrend_info = normalize_uptrend_for_json(uptrend_model)
 
-    # Use price stats from cached downtrend info directly
-    price_stats = {
-        "highest_price": downtrend_info.get("highest_price"),
-        "lowest_price": downtrend_info.get("lowest_price"),
-        "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
-        "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
-    }
+    # # Use price stats from cached downtrend info directly
+    # price_stats = {
+    #     "highest_price": downtrend_info.get("highest_price"),
+    #     "lowest_price": downtrend_info.get("lowest_price"),
+    #     "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
+    #     "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
+    # }
 
     # Technical signals (RSI, MACD, etc.)
     analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
@@ -356,12 +356,12 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "top_news": top_news,
             "highest_impact_keyword": vs.highest_impact_keyword,
             "highest_impact_rank": vs.highest_impact_rank,
-            "downtrend": downtrend_info,
-            "uptrend": uptrend_info,
-            "drop_from_high_pct": price_stats["drop_from_high_pct"],
-            "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
-            "highest_price": price_stats["highest_price"],
-            "lowest_price": price_stats["lowest_price"],
+            # "downtrend": downtrend_info,
+            # "uptrend": uptrend_info,
+            # "drop_from_high_pct": price_stats["drop_from_high_pct"],
+            # "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
+            # "highest_price": price_stats["highest_price"],
+            # "lowest_price": price_stats["lowest_price"],
             "momentum_score": vs.momentum_score,
             "momentum_confidence": vs.momentum_confidence,
             "momentum_signals": vs.momentum_signals,
@@ -526,7 +526,7 @@ def scan_and_analyze_low_cap_tickers(
                 days_threshold=days_threshold,
                 model=model
             )
-            if impacts and any(i["verdict"] in {"Decisive", "Great", "Good"} for i in impacts):
+            if impacts and any(i["verdict"] in {"S+", "S", "A+", "A", "A-", "B"} for i in impacts):
                 alert_tickers.append(ticker)
         except Exception as e:
             print(f"⚠️ Error scanning {ticker}: {e}")

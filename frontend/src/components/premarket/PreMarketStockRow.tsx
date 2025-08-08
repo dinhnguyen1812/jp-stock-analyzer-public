@@ -25,20 +25,20 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
   rebound_from_low_pct?: number;
   highest_price?: number;
   lowest_price?: number;
-  downtrend?: {
-    ticker: string;
-    had_downtrend: boolean;
-    drop_pct: number;
-    from_date: string;
-    to_date: string;
-  };
-  uptrend?: {
-    ticker: string;
-    had_uptrend: boolean;
-    rise_pct: number;
-    from_date: string;
-    to_date: string;
-  };
+  // downtrend?: {
+  //   ticker: string;
+  //   had_downtrend: boolean;
+  //   drop_pct: number;
+  //   from_date: string;
+  //   to_date: string;
+  // };
+  // uptrend?: {
+  //   ticker: string;
+  //   had_uptrend: boolean;
+  //   rise_pct: number;
+  //   from_date: string;
+  //   to_date: string;
+  // };
   kabutan_chart_url?: string;
   momentum_score?: number;
   momentum_confidence?: string;
@@ -53,7 +53,7 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
 }
 
 export interface SavedAnalysis {
-  longterm_info: any;
+  // longterm_info: any;
   volume_info: AnalyzedVolumeInfo;
   analysis_signal: AnalysisSignal;
 }
@@ -94,11 +94,7 @@ const keywordMap = [
   { word: "short-term", variant: "warning" },
   { word: "Yes", variant: "success" },
   { word: "3_bullish", variant: "success" },
-  { word: "3_bearish", variant: "danger" },
-  { word: "decisive", variant: "danger" },
-  { word: "great", variant: "success" },
-  { word: "good", variant: "warning" },
-  { word: "bad", variant: "secondary" },
+  { word: "3_bearish", variant: "danger" }
 ];
 
 const highlightKeywords = (text: string): JSX.Element => {
@@ -125,12 +121,14 @@ const highlightKeywords = (text: string): JSX.Element => {
 
 const rankMap = [
   // Rank values
-  { word: "S", variant: "danger" },
-  { word: "A+", variant: "warning" },
-  { word: "A", variant: "success" },
-  { word: "B", variant: "primary" },
-  { word: "C", variant: "secondary" },
-  { word: "D", variant: "dark" },
+  { word: "S+", variant: "danger" },
+  { word: "S", variant: "success" },
+  { word: "A+", variant: "primary" },
+  { word: "A", variant: "warning" },
+  { word: "A-", variant: "info" },
+  { word: "B", variant: "secondary" },
+  { word: "C", variant: "dark" },
+  { word: "D", variant: "dark" }
 ];
 
 const highlightRank = (text: string): JSX.Element => {
@@ -232,11 +230,14 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
 
   const verdictRank: Record<string, number> = {
-    decisive: 5,
-    great: 4,
-    good: 3,
-    neutral: 2,
-    bad: 1,
+    "S+": 7,
+    "S": 6,
+    "A+": 5,
+    "A": 4,
+    "A-": 3,
+    "B": 2,
+    "C": 1,
+    "D": 0
   };
 
   const renderKeySignals = () => {
@@ -292,23 +293,23 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     setIsSaving(false);
   };
 
-  const compareIndicator = (
-    stockValue: string | number | null | undefined,
-    industryValue: string | number | null | undefined,
-    type: "higher" | "lower" = "higher"
-  ): string => {
-    if (stockValue == null || industryValue == null) return "➖";
+  // const compareIndicator = (
+  //   stockValue: string | number | null | undefined,
+  //   industryValue: string | number | null | undefined,
+  //   type: "higher" | "lower" = "higher"
+  // ): string => {
+  //   if (stockValue == null || industryValue == null) return "➖";
 
-    const s = typeof stockValue === "number" ? stockValue : parseFloat(stockValue);
-    const i = typeof industryValue === "number" ? industryValue : parseFloat(industryValue);
+  //   const s = typeof stockValue === "number" ? stockValue : parseFloat(stockValue);
+  //   const i = typeof industryValue === "number" ? industryValue : parseFloat(industryValue);
 
-    if (isNaN(s) || isNaN(i)) return "➖";
+  //   if (isNaN(s) || isNaN(i)) return "➖";
 
-    if (type === "higher") return s >= i ? "✅" : "❌";
-    if (type === "lower") return s <= i ? "✅" : "❌";
+  //   if (type === "higher") return s >= i ? "✅" : "❌";
+  //   if (type === "lower") return s <= i ? "✅" : "❌";
 
-    return "➖";
-  };
+  //   return "➖";
+  // };
 
   return (
     <>
@@ -421,6 +422,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         <td className="align-middle text-start">
           {renderKeySignals()}
         </td>
+        {/* Most impact column */}
         <td className="align-middle text-start">
           {stock.highest_impact_rank && (
             <Badge
@@ -435,10 +437,8 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   "A+": "#fd7e14",   // Orange - high impact
                   "A": "#0d6efd",   // Bootstrap primary blue
                   "A-": "#f0ad4e",   // Lighter orange
-                  // "B to A": "#0d6efd",    // Bootstrap primary blue
                   "B": "#0dcaf0",         // Bootstrap info (cyan)
                   "C": "#6c757d",         // Bootstrap secondary (gray)
-                  // "C to D": "#adb5bd",    // Light gray
                   "D": "#212529"          // Bootstrap dark
                 }[stock.highest_impact_rank] ?? "#000000",
               }}
@@ -509,23 +509,24 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 if (newsWithVerdict.length === 0) return null;
 
                 const bestNews = newsWithVerdict.sort((a, b) => {
-                  const aRank = verdictRank[a.impact_verdict?.toLowerCase() ?? ""] ?? 0;
-                  const bRank = verdictRank[b.impact_verdict?.toLowerCase() ?? ""] ?? 0;
+                  const aRank = verdictRank[a.impact_verdict?.toUpperCase() ?? ""] ?? 0;
+                  const bRank = verdictRank[b.impact_verdict?.toUpperCase() ?? ""] ?? 0;
                   return bRank - aRank;
                 })[0];
 
-                const verdict = bestNews.impact_verdict?.toLowerCase() ?? "";
+                const verdict = bestNews.impact_verdict?.toUpperCase() ?? "";
+
                 const badgeColor =
-                  verdict === "decisive"
-                    ? "danger"
-                    : verdict === "great"
-                    ? "success"
-                    : verdict === "good"
-                    ? "warning"
-                    : verdict === "neutral"
-                    ? "secondary"
-                    : "light";
-                const textColor = verdict === "bad" ? "dark" : "light";
+                  verdict === "S+" ? "danger" :
+                  verdict === "S" ? "success" :
+                  verdict === "A+" ? "primary" :
+                  verdict === "A" ? "warning" :
+                  verdict === "A-" ? "info" :
+                  verdict === "B" ? "secondary" :
+                  verdict === "C" || verdict === "D" ? "dark" :
+                  "light";
+
+                const textColor = verdict === "C" || verdict === "D" ? "dark" : "light";
 
                 const publishedAt = new Date(bestNews.published_at);
                 const thresholdDate = new Date(
@@ -538,7 +539,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 );
 
                 const isVeryRecent = publishedAt >= thresholdDate;
-                const verdictLabel = `${bestNews.impact_verdict}${isVeryRecent ? " ⭐️" : ""}`;
+                const verdictLabel = `${verdict}${isVeryRecent ? " ⭐️" : ""}`;
 
                 return (
                   <Badge
@@ -635,7 +636,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 </Col>
 
                 {/* Long-Term Indicator Column */}
-                <Col md={3}>
+                {/* <Col md={3}>
                   <h5>📊 Long-Term Indicators</h5>
                   <ul>
                     <li>
@@ -666,10 +667,10 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       Industry: {analysis.longterm_info.industry_name || "N/A"}
                     </li>
                   </ul>
-                </Col>
+                </Col> */}
 
                 <Col md={3}>
-                  <h5>Recent Uptrend</h5>
+                  {/* <h5>Recent Uptrend</h5>
                   {analysis.volume_info.uptrend ? (
                     <ul>
                       <li>Had Uptrend: {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}</li>
@@ -689,7 +690,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     </ul>
                   ) : (
                     <p className="text-muted">(No downtrend data)</p>
-                  )}
+                  )} */}
                   <h5>📈{" "}
                     <a
                       href={analysis.volume_info.kabutan_chart_url}
@@ -771,8 +772,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                         <small className="text-muted">
                           [{item.category}] {new Date(item.published_at).toLocaleString()}
                         </small>
-                        <br />
-                        <strong>Impact Verdict:</strong> {highlightKeywords(item.impact_verdict)}
                         <br />
                         <strong>Keyword:</strong> {item.keyword}: {highlightRank(item.rank)}
                         <br />

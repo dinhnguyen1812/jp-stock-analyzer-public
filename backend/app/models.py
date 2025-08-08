@@ -209,7 +209,7 @@ class StockNewsImpact(Base):
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String, index=True)
     headline = Column(Text, nullable=False)
-    verdict = Column(String, nullable=True)  # e.g., "Neutral", "Good", "Great", "Decisive"
+    verdict = Column(String, nullable=True)  # e.g., D-S+
     reason = Column(String, nullable=True)   # Max 1-line reason
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     published_at = Column(DateTime, nullable=True)  # <--- Add this

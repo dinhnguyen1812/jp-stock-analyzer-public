@@ -23,22 +23,33 @@ interface PositiveNewsItem {
   starred?: boolean;
 }
 
-const getVerdictColor = (verdict: string) => {
-  const lower = verdict?.toLowerCase();
-  if (lower === "decisive") return "danger";
-  if (lower === "great") return "success";
-  if (lower === "good") return "warning";
-  if (lower === "neutral") return "secondary";
-  // if (lower === "unsure") return "secondary";
-  return "light";
+const getVerdictColor = (rank: string) => {
+  const upper = rank?.toUpperCase();
+  switch (upper) {
+    case "S+":
+      return "danger"; // strongest
+    case "S":
+      return "success"; // very strong
+    case "A+":
+      return "primary"; // blue
+    case "A":
+      return "warning"; // orange
+    case "A-":
+      return "info"; // light blue
+    case "B":
+      return "secondary"; // gray
+    default:
+      return "light";
+  }
 };
 
 const verdictPriority: Record<string, number> = {
-  decisive: 4,
-  great: 3,
-  good: 2,
-  neutral: 1,
-  // unsure: 0,
+  "S+": 6,
+  "S": 5,
+  "A+": 4,
+  "A": 3,
+  "A-": 2,
+  "B": 1
 };
 
 const PreMarketScanNewsCard: React.FC = () => {

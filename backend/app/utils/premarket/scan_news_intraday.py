@@ -84,7 +84,7 @@ def scan_intraday_news(db: Session):
         db.add(news_record)
         db.commit()
 
-        if verdict in {"Decisive", "Great", "Good"}:
+        if verdict in {"S+", "S", "A+", "A", "A-", "B"}:
             print(f"🚨 [{verdict}] {ticker} - {headline} | Reason: {reason}")
 
 def analyze_news_headline(ticker: str, headline: str, model="gpt-4o") -> tuple[str, str]:
@@ -94,7 +94,7 @@ def analyze_news_headline(ticker: str, headline: str, model="gpt-4o") -> tuple[s
     prompt = (
         f"Evaluate this Japanese stock news headline for {ticker}:\n"
         f"'{headline}'\n\n"
-        "Return a verdict (Decisive, Great, Good, Neutral, Bad) and a brief reason."
+        "Return a verdict (S+, S, A+, A, A-, B) and a brief reason."
     )
 
     try:
