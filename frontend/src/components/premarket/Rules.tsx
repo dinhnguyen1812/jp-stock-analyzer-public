@@ -1,16 +1,40 @@
 import React, { useState } from "react";
 import { Modal, Button, Tabs, Tab, Table } from "react-bootstrap";
 
+const CORE_RULES = `
+📈 Spike Entry Rule (Low-cap Hot Stocks)
+
+1. Ideal Conditions:
+🔥 Hot Theme or Good Catalyst (e.g. AI, biotech, M&A, etc.)
+💰 High Trading Volume (≥ 10M)
+🧢 Low Market Cap (≤ 300億円)
+🚀 Recent Spike (strong upward move in last 1–2 days)
+
+2. Strategy:
+✅ Entry Timing:
+📉 Wait for Pullback Completion, then enter on rebound.
+📈 Or, buy early if price continues rising with strong volume (especially in first spike phase).
+
+3. 📊 Position Sizing:
+Buy in portions (e.g., scale in 1/3–1/2–full depending on confirmation).
+Avoid overexposing to a single volatile stock.
+
+4. Optional Filters:
+🧠 Positive GPT news verdict or institutional interest
+📅 Spike linked to same-day or next-day news
+🐳 Presence of large volume at low prices (support zone)
+`
+
 const TRADING_RULES = `
 📊 Trading Rules
 
 🔍 1. Scan & Analyze Guidance (Night Before or Premarket)
 - ❌ Remove all previously ⭐️ starred stocks.
 - 📈 Scan Volume Surge (VS):
-  - Criteria: surge >= 0, price <= 300
+  - Criteria: surge >= 1, price <= 300
   - Pages: 1–10
 - 📰 Scan News:
-  - Criteria: price <= 1000
+  - Criteria: price <= 500
   - Pages: 1–40
 - ⭐️ Star the stocks with good or decisive news.
 - 🧠 Analyze starred stocks using GPT-based evaluation.
@@ -292,6 +316,11 @@ const Rules: React.FC<RulesProps> = ({
         </Modal.Header>
         <Modal.Body>
           <Tabs activeKey={key} onSelect={(k) => setKey(k || "rules")} id="rules-tabs">
+            <Tab eventKey="core_rules" title="📊 Core Rules">
+              <pre style={{ whiteSpace: "pre-wrap", padding: "1rem", margin: 0 }}>
+                {CORE_RULES}
+              </pre>
+            </Tab>
             <Tab eventKey="rules" title="📊 Trading Rules">
               <pre style={{ whiteSpace: "pre-wrap", padding: "1rem", margin: 0 }}>
                 {TRADING_RULES}

@@ -28,7 +28,7 @@ KEYWORDS = [
 def relevance_score(headline: str) -> int:
     return sum(1 for kw in KEYWORDS if kw in headline)
 
-def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: int = 30) -> List[Dict]:
+def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: float = 30.0) -> List[Dict]:
     base_url = f"https://kabutan.jp/stock/news?code={ticker}&nmode=0&page="
     headers = {
         "User-Agent": "Mozilla/5.0",

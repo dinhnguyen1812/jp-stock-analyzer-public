@@ -30,4 +30,4 @@ class ScanParams(BaseModel):
     price_threshold: float = 300.0
     from_page: int = 1
     to_page: int = 3
-    days_threshold: int = 1
+    days_threshold: float = 1.0

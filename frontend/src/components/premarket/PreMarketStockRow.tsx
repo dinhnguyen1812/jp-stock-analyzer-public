@@ -344,7 +344,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     userSelect: "none",
                     color: stock.starred ? "#ffc107" : "#6c757d",
                     textShadow: stock.starred
-                      ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
+                      ? "0 0 2px #ffc107, 0 0 4px #ffc107"
                       : "none",
                   }}
                   aria-hidden="true"
@@ -375,12 +375,12 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     userSelect: "none",
                     color: stock.watched ? "#ffc107" : "#6c757d",
                     textShadow: stock.watched
-                      ? "0 0 6px #ffc107, 0 0 10px #ffc107, 0 0 14px #ffd54f"
+                      ? "0 0 2px #ffc107, 0 0 4px #ffc107"
                       : "none",
                   }}
                   aria-hidden="true"
                 >
-                  👀
+                  ♥
                 </span>
               )}
             </Button>

@@ -44,8 +44,8 @@ const verdictPriority: Record<string, number> = {
 const PreMarketScanNewsCard: React.FC = () => {
   const [fromPage, setFromPage] = useState(1);
   const [toPage, setToPage] = useState(40);
-  const [priceThreshold, setPriceThreshold] = useState(1000);
-  const [daysThreshold, setDaysThreshold] = useState(1);
+  const [priceThreshold, setPriceThreshold] = useState(500);
+  const [daysThreshold, setDaysThreshold] = useState(0.5);
   const [loadingScan, setLoadingScan] = useState(false);
   const [loadingPositive, setLoadingPositive] = useState(false);
   const [alertTickers, setAlertTickers] = useState<PositiveNewsItem[]>([]);
@@ -260,7 +260,7 @@ const PreMarketScanNewsCard: React.FC = () => {
                               fontSize: "1.2rem",
                               color: starred[item.ticker] ? "#ffc107" : "#6c757d",
                               textShadow: starred[item.ticker]
-                                ? "0 0 6px #ffc107, 0 0 10px #ffc107"
+                                ? "0 0 2px #ffc107, 0 0 4px #ffc107"
                                 : "none",
                               pointerEvents: "none",
                               userSelect: "none",

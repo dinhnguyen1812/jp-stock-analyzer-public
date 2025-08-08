@@ -219,23 +219,34 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
             </Col>
 
             <Col style={{ flexGrow: 0.1, minWidth: 60 }}>
-              <div>
-                <Form.Check
-                  type="checkbox"
-                  label="⭐"
-                  checked={starredOnly}
-                  onChange={(e) => onStarredOnlyChange(e.target.checked)}
-                  disabled={loading}
-                />
+              <div
+                onClick={() => onStarredOnlyChange(!starredOnly)}
+                style={{
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontSize: "1.4rem",
+                  color: starredOnly ? "#ffc107" : "#6c757d",
+                  textShadow: starredOnly ? "0 0 2px #ffc107, 0 0 4px #ffc107" : "none",
+                  opacity: loading ? 0.5 : 1,
+                  userSelect: "none",
+                }}
+                title="Filter starred stocks"
+              >
+                ★
               </div>
-              <div>
-                <Form.Check
-                  type="checkbox"
-                  label="👀"
-                  checked={watchedOnly}
-                  onChange={(e) => onWatchedOnlyChange(e.target.checked)}
-                  disabled={loading}
-                />
+
+              <div
+                onClick={() => onWatchedOnlyChange(!watchedOnly)}
+                style={{
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontSize: "1.4rem",
+                  color: watchedOnly ? "#ffc107" : "#6c757d",
+                  textShadow: watchedOnly ? "0 0 2px #ffc107, 0 0 4px #ffc107" : "none",
+                  opacity: loading ? 0.5 : 1,
+                  userSelect: "none",
+                }}
+                title="Filter watched stocks"
+              >
+                ♥
               </div>
             </Col>
 

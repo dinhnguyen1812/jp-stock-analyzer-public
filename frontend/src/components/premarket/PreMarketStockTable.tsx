@@ -138,7 +138,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
             <th style={{ width: "150px"}} className="align-top text-center">Note</th>
             <th className="align-top text-center" style={{ width: "40px" }}>
               <div> ★ </div>
-              <div> 👀 </div>
+              <div> ♥ </div>
             </th>
             <th style={{ width: "130px" }} className="align-top text-center">Ticker / Name</th>
             <th

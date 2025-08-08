@@ -117,6 +117,25 @@ def premarket_analyze_with_gpt(
     update_avg_money_flow_for_ticker(db, ticker)
     now = datetime.now(timezone.utc)
 
+    if volume_info.reasoning is not None:
+        detected_at = volume_info.detected_at
+        if detected_at is not None and (now - detected_at) < timedelta(hours=1):
+            # Skip processing
+            print("Skipping because reasoning exists and detected_at < 1 hour ago")
+            return
+
+    low_score_exists = (
+        db.query(VolumeSnapshot)
+        .filter(
+            VolumeSnapshot.ticker == volume_info.ticker,
+            VolumeSnapshot.promising_score <= 50
+        )
+        .first()
+    )
+    if low_score_exists:
+        print("⏩ Skipping: found previous snapshot with promising_score <= 50")
+        return
+
     # Long-term data
     # stock_data = fetch_current_indicators(ticker)
     # if not stock_data:
@@ -184,47 +203,47 @@ def premarket_analyze_with_gpt(
     )
 
     # 🧾 Trend Summary Construction
-    trend_summary = ""
+    # trend_summary = ""
 
-    # ⬆️ Uptrend Section
-    if uptrend_info.get("had_uptrend"):
-        uptrend_section = (
-            f"📈 Uptrend: Rose {rise_pct:.2f}% from {up_from} to {up_to}.\n"
-            f"- Starting price: {uptrend_info.get('start_price')} JPY\n"
-            f"- Ending price: {uptrend_info.get('end_price')} JPY\n"
-            f"- Duration: {uptrend_info.get('duration_days')} days\n"
-        )
-    else:
-        uptrend_section = f"📉 No strong uptrend in the recent 10 days. Last low-to-high range: {up_from} to {up_to}.\n"
+    # # ⬆️ Uptrend Section
+    # if uptrend_info.get("had_uptrend"):
+    #     uptrend_section = (
+    #         f"📈 Uptrend: Rose {rise_pct:.2f}% from {up_from} to {up_to}.\n"
+    #         f"- Starting price: {uptrend_info.get('start_price')} JPY\n"
+    #         f"- Ending price: {uptrend_info.get('end_price')} JPY\n"
+    #         f"- Duration: {uptrend_info.get('duration_days')} days\n"
+    #     )
+    # else:
+    #     uptrend_section = f"📉 No strong uptrend in the recent 10 days. Last low-to-high range: {up_from} to {up_to}.\n"
 
-    # ⬇️ Downtrend Section
-    if downtrend_info.get("had_downtrend"):
-        downtrend_section = (
-            f"📉 Downtrend: Dropped {drop_pct:.2f}% from {down_from} to {down_to}.\n"
-            f"- Starting price: {downtrend_info.get('start_price')} JPY\n"
-            f"- Ending price: {downtrend_info.get('end_price')} JPY\n"
-            f"- Duration: {downtrend_info.get('duration_days')} days\n"
-        )
-    else:
-        downtrend_section = f"📈 No major downtrend in the recent 10 days. Latest range: {down_from} to {down_to}.\n"
+    # # ⬇️ Downtrend Section
+    # if downtrend_info.get("had_downtrend"):
+    #     downtrend_section = (
+    #         f"📉 Downtrend: Dropped {drop_pct:.2f}% from {down_from} to {down_to}.\n"
+    #         f"- Starting price: {downtrend_info.get('start_price')} JPY\n"
+    #         f"- Ending price: {downtrend_info.get('end_price')} JPY\n"
+    #         f"- Duration: {downtrend_info.get('duration_days')} days\n"
+    #     )
+    # else:
+    #     downtrend_section = f"📈 No major downtrend in the recent 10 days. Latest range: {down_from} to {down_to}.\n"
 
-    # 📊 Price Stats
-    price_stats_str = ""
-    if drop_from_high_pct is not None:
-        price_stats_str += f"📊 Drop from 10-day high: {drop_from_high_pct}%\n"
-    if rebound_from_low_pct is not None:
-        price_stats_str += f"📈 Rebound from 10-day low: {rebound_from_low_pct}%\n"
+    # # 📊 Price Stats
+    # price_stats_str = ""
+    # if drop_from_high_pct is not None:
+    #     price_stats_str += f"📊 Drop from 10-day high: {drop_from_high_pct}%\n"
+    # if rebound_from_low_pct is not None:
+    #     price_stats_str += f"📈 Rebound from 10-day low: {rebound_from_low_pct}%\n"
 
-    # ⚠️ Pattern Alert
-    pattern_str = ""
-    if downtrend_after_up:
-        pattern_str += (
-            "⚠️ The stock has pulled back after a prior uptrend (possibly news-based).\n"
-            "📈 Watch for potential 2nd/3rd wave rebound opportunities.\n"
-        )
+    # # ⚠️ Pattern Alert
+    # pattern_str = ""
+    # if downtrend_after_up:
+    #     pattern_str += (
+    #         "⚠️ The stock has pulled back after a prior uptrend (possibly news-based).\n"
+    #         "📈 Watch for potential 2nd/3rd wave rebound opportunities.\n"
+    #     )
 
-    # Combine trend sections
-    trend_summary = uptrend_section + downtrend_section + price_stats_str + pattern_str
+    # # Combine trend sections
+    # trend_summary = uptrend_section + downtrend_section + price_stats_str + pattern_str
 
     jst = timezone(timedelta(hours=9))
     now_jst = now.astimezone(jst)
@@ -320,7 +339,7 @@ def premarket_analyze_with_gpt(
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"### Intraday: {is_market_hours}. Intraday summary:\n{intraday_summary if is_market_hours else None}\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
-        f"### Trend Summary (Up/Down Movements):\n{trend_summary}\n"
+        # f"### Trend Summary (Up/Down Movements):\n{trend_summary}\n"
         f"### Momentum Signals Summary:\n{momentum_summary}\n"
         f"### Technical Indicators (for reference only):\n{tech_summary}\n"
         f"### Recent News Headlines (past 7 days, timestamp included):\n"
@@ -384,33 +403,33 @@ def premarket_analyze_with_gpt(
         # A rank - strong positive
         "    '筆頭株主変更': 'A',\n"
         "    '今期 業績予想 50%増益以上': 'A',\n"
-        "    '新市場参入': 'A',\n"
         "    '買収': 'A',\n"
         "    '黒字転換': 'A',\n"
-        "    'サプライズ決算': 'A',\n"
-        "    '四半期サプライズ決算': 'A',\n"
-        "    '増益': 'A',\n"
-        "    '利益倍増': 'A',\n"
-        "    'fisco注目': 'A',\n"
+        "    '新市場参入': 'A',\n"
+        "    '新サービス発表': 'A',\n"
+        "    '特許取得': 'A',\n"
+        "    '新製品発表': 'A',\n"
+        "    '事業拡大': 'A',\n"
 
         # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"
         "    '±３σブレイク': 'A-',\n"
         "    'ボリンジャーバンド上抜け': 'A-',\n"
+        "    'fisco注目': 'A-',\n"
 
         # B rank - moderate positive
         "    '中期経営計画': 'B',\n"
-        "    '特許取得': 'B',\n"
         "    '株式買戻し': 'B',\n"
-        "    '新製品発表': 'B',\n"
-        "    '新サービス発表': 'B',\n"
-        "    '事業拡大': 'B',\n"
         "    '特別利益': 'B',\n"
         "    '特別利益計上': 'B',\n"
         "    '株主優待増額': 'B',\n"
         "    '配当増額': 'B',\n"
         "    '販売契約': 'B',\n"
         "    '大量保有報告書': 'B',\n"
+        "    'サプライズ決算': 'B',\n"
+        "    '四半期サプライズ決算': 'B',\n"
+        "    '増益': 'B',\n"
+        "    '利益倍増': 'B',\n"
 
         # C rank - negative or neutral
         "    '施設閉鎖': 'C',\n"
@@ -428,16 +447,17 @@ def premarket_analyze_with_gpt(
         "  }\n"
         "\n"
         "- 🔧 Booster Instruction:\n"
+        "  - Define **hot/trending sectors**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
         "  - For certain keywords, **boost to 'S' or 'A+' only if strong value is clear**:\n"
         "    • 'TOB / MBO': Boost to S+ if offer has a large premium, from a notable acquirer, or leads to immediate price gap-up with strong volume.\n"
         "    • '筆頭株主変更': Boost to S if new shareholder is a large institutional investor, foreign fund, or strategic partner.\n"
-        "    • '新市場参入': Boost to S only if into a **high-growth, exclusive, or emerging field (e.g. AI, Web3, semiconductors, space, quantum computing)**.\n"
-        "    • '特許取得': Boost to S only if it enables a **monopoly or first-mover advantage in hot sectors (e.g. AI, medical tech, robotics)**.\n"
-        "    • '新サービス発表': Boost to S only if it’s a **game-changer, large partnership, or disruptor, especially in trending areas like AI, FinTech, or crypto**.\n"
-        "    • '買収': Boost to S only if it’s **accretive, cross-border, or creates synergy in hot markets (e.g. AI, mobility, biotech)**.\n"
-        "    • '中期経営計画': Boost to A+ or S only if plan includes **aggressive growth, global expansion, or restructuring in promising sectors**.\n"
+        "    • '新市場参入': Boost to S only if into a **hot/trending sector** with exclusivity or growth potential.\n"
+        "    • '特許取得': Boost to S only if it enables a **monopoly or first-mover advantage in hot/trending fields**.\n"
+        "    • '新サービス発表': Boost to S only if it’s a **game-changer or disruptor in hot/trending sectors**.\n"
+        "    • '買収': Boost to S only if it’s **accretive, cross-border, or synergistic in hot/trending markets**.\n"
+        "    • '中期経営計画': Boost to A+ or S only if plan includes **aggressive growth, global expansion, or restructuring in promising areas**.\n"
         "    • '特別利益': Boost to A+ only if it **significantly improves EPS or changes valuation metrics**.\n"
-        "    • '事業拡大': Boost to A+ or S only if it’s into **large-scale, strategic, or trending sectors (e.g. data centers, EV, hydrogen, AI)**.\n"
+        "    • '事業拡大': Boost to A+ or S only if it’s into **large-scale, strategic, or hot/trending sectors**.\n"
         "    • '今期 業績予想 50%増益以上': Boost to A+ if forecast is **unexpected, from a low-float/small-cap stock, or paired with strong catalysts**\n"
         "    • '独占契約': Boost to S only if partner is **top-tier or market scale is large**.\n"
         "    • '大型受注': Boost to S only if it’s from a **major client or long-term contract**.\n"
@@ -445,10 +465,9 @@ def premarket_analyze_with_gpt(
         "    • 'サプライズ決算': Boost to S only if it's confirmed that results **exceed expectations significantly**.\n"
         "    • '四半期サプライズ決算': Boost to S only if it's confirmed that **quarterly results strongly surprise**.\n"
         "    • '増益': Boost to S if **profit growth exceeds 50% and is unexpected**, A if **between 30–50% with positive sentiment or low float**.\n"
-        "    • '利益倍増': Boost to S if **2倍以上** and supported by **strong catalyst** (e.g. restructuring, new business, hot sector entry).\n"
+        "    • '利益倍増': Boost to A if **2倍以上** and supported by **strong catalyst** (e.g. restructuring, new business, or entry into hot/trending sectors).\n"
         "    • 'fisco注目': Boost to A+ if stock already trending or backed by strong catalyst.\n"
         "    • '大量保有報告書': Boost to A if new investor is a known activist fund, foreign investor, or signals strategic interest.\n"
-
 
         "- 🚨 **KEY PATTERN: Re-Spike After Pullback**\n"
         "- Detect this setup:\n"
@@ -461,7 +480,7 @@ def premarket_analyze_with_gpt(
         "   - Is it **safe to re-enter**, or **too volatile/exhausted**?\n"
         "   - Confirm whether the original spike was based on a **strong catalyst**\n"
         "- Assign a keyword in headline evaluation:\n"
-        "   - **Keyword: Likely Re-spike — Rank: A** (or **S** if setup is very strong)\n"
+        "   - **Keyword: Likely Re-spike — Rank: S**\n"
         "- This is a **high-priority pattern** — always include it in the final recommendation if present.\n"
 
         "- If a move is likely, briefly describe:\n"
@@ -576,7 +595,6 @@ def premarket_analyze_with_gpt(
 
 def rank_value(rank_str):
     rank_order = ["S+", "S", "A+", "A", "A-", "B", "C", "D", "N/A"]
-    # Return an index for rank, lower index means higher rank
     try:
         return rank_order.index(rank_str)
     except ValueError:
@@ -589,14 +607,25 @@ def extract_highest_ranked_impact(text: str):
     best_rank = None
     best_keyword = None
 
+    skip_keywords = {
+        "ゴールデンクロス",
+        "±３σブレイク",
+        "ボリンジャーバンド上抜け",
+        "fisco注目"
+    }
+
     for keyword, rank in matches:
         keyword = keyword.strip()
         rank = rank.strip()
         current_rank_value = rank_value(rank)
 
-        # Prioritize "Likely Re-spike" if its rank is high
-        if "re-spike" in keyword.lower() and rank_value(rank) <= rank_value("B"):
-            return keyword, rank  # return immediately if it's a high-confidence re-spike
+        # Skip if keyword is in skip list
+        if keyword in skip_keywords:
+            continue
+
+        # Prioritize high-confidence "re-spike"
+        if "re-spike" in keyword.lower() and current_rank_value <= rank_value("B"):
+            return keyword, rank  # return immediately
 
         if best_rank is None or current_rank_value <= rank_value(best_rank):
             best_rank = rank

@@ -4,7 +4,7 @@ from difflib import get_close_matches
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from typing import Dict, List, Optional, Tuple
 from threading import Event
 from app.schemas import ScanParams
@@ -86,7 +86,7 @@ def get_ranked_volume_tickers(
     return {"ranked_tickers": tickers, "count": len(tickers)}
 
 @router.get("/scrape_kabutan_news/{ticker}")
-def scrape_kabutan_news_(ticker: str, days_threshold: int):
+def scrape_kabutan_news_(ticker: str, days_threshold: float):
     return scrape_kabutan_news(ticker, days_threshold)
 
 @router.post("/volume_scan")
@@ -171,10 +171,18 @@ def get_all_saved_volume_analyses(
     if price_threshold > 0:
         query = query.filter(VolumeSnapshot.current_price <= price_threshold)
 
-    if starred_only:
+    if starred_only and watched_only:
+        query = query.outerjoin(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker) \
+                    .outerjoin(WatchList, VolumeSnapshot.ticker == WatchList.ticker) \
+                    .filter(
+                        or_(
+                            StarredStock.ticker != None,
+                            WatchList.ticker != None
+                        )
+                    )
+    elif starred_only:
         query = query.join(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker)
-
-    if watched_only:
+    elif watched_only:
         query = query.join(WatchList, VolumeSnapshot.ticker == WatchList.ticker)
 
     query = query.group_by(VolumeSnapshot.ticker)
@@ -462,7 +470,7 @@ def analyze_watch_list(
     model: str = "gpt-4o",
     db: Session = Depends(get_db)
 ):
-    extra_guidance = "### FOCUS ON **POSSBLE RE-SPIKE**"
+    extra_guidance = "### FOCUS ON **POSSBLE RE-SPIKE**. If there is possible re-spike, provide more details about **HOW TO ENTRY**"
     is_market_hours = check_market_hours(db)
     watchlist_tickers = db.query(WatchList.ticker).all()
     ticker_list = [t[0] for t in watchlist_tickers]  # convert list of tuples to list of strings
@@ -505,7 +513,7 @@ def scan_and_analyze_low_cap_tickers(
     price_threshold: float,
     top_n: int,
     model: str,
-    days_threshold: int,
+    days_threshold: float,
 ) -> Tuple[List[str], List[str]]:
     tickers = fetch_low_cap_tickers(from_page, to_page, price_threshold)
     alert_tickers = []

@@ -56,7 +56,7 @@ def scan_and_analyze_news_for_ticker(
     db: Session,
     ticker: str,
     top_n: int = 3,
-    days_threshold=30,
+    days_threshold: float = 30.0,
     model: str = "gpt-4o"
 ):
     news_items = scrape_kabutan_news(ticker, limit=30, days_threshold=days_threshold)
