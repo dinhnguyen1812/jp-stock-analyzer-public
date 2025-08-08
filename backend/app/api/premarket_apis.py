@@ -10,7 +10,7 @@ from threading import Event
 from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
-from app.models import VolumeSnapshot, StarredStock, WatchList
+from app.models import VolumeSnapshot, StarredStock, WatchList, DailyPrice
 from app.utils.longterm.jpx_perpbr_industry import update_and_get_industry_indicators
 from app.utils.longterm.yahoo_indicators import fetch_current_indicators
 from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
@@ -144,6 +144,25 @@ def trigger_volume_scan(
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
 
+def get_recent_price_data(db: Session, ticker: str, limit: int = 15) -> List[Dict]:
+    recent_prices_query = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.ticker == ticker)
+        .order_by(DailyPrice.date.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "date": p.date.isoformat(),
+            "open": p.open,
+            "high": p.high,
+            "low": p.low,
+            "close": p.close,
+        }
+        for p in reversed(recent_prices_query)  # oldest to newest
+    ]
+
 @router.get("/get_saved_vs", response_model=List[Dict])
 def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
@@ -222,6 +241,8 @@ def get_all_saved_volume_analyses(
         #     "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
         # }
 
+        recent_prices = get_recent_price_data(db, vs.ticker)
+
         results.append({
             "volume_info": {
                 "ticker": vs.ticker,
@@ -251,6 +272,7 @@ def get_all_saved_volume_analyses(
                 "momentum_confidence": vs.momentum_confidence,
                 "momentum_signals": vs.momentum_signals,
                 "note": vs.note,
+                "recent_prices": recent_prices,
             },
             "analysis_signal": analysis_signal_data,
         })
@@ -337,7 +359,9 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
     #         f"- Market Cap: ¥{stock_data.get('market_cap', 'N/A')}\n"
     #     )
     # }
-    longterm_info = ""
+    # longterm_info = ""
+
+    recent_prices = get_recent_price_data(db, ticker)
 
     return {
         "volume_info": {
@@ -368,9 +392,10 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "starred": bool(db.query(StarredStock).filter_by(ticker=ticker).first()),
             "watched": bool(db.query(WatchList).filter_by(ticker=ticker).first()),
             "kabutan_chart_url": f"https://kabutan.jp/stock/chart?code={ticker}",
+            "recent_prices": recent_prices,
         },
         "analysis_signal": analysis_signal_data,
-        "longterm_info": longterm_info,
+        # "longterm_info": longterm_info,
     }
 
 class NoteRequest(BaseModel):

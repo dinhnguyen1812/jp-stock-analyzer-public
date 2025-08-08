@@ -278,7 +278,7 @@ def premarket_analyze_with_gpt(
         db.query(DailyPrice)
         .filter(DailyPrice.ticker == ticker)
         .order_by(DailyPrice.date.desc())
-        .limit(10)
+        .limit(15)
         .all()
     )
     recent_prices = [
@@ -521,7 +521,7 @@ def premarket_analyze_with_gpt(
             temperature=0.3,
         )
         reply = response.choices[0].message.content.strip()
-        # print(f"====ticker={ticker}, reply={reply}")
+        print(f"====ticker={ticker}, reply={reply}")
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
         impacts = extract_headline_impacts(reply)

@@ -3,8 +3,18 @@ import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
 import { formatDistance } from "date-fns";
 import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
+import MiniCandleChart from "./MiniPriceChart";
+
+export interface DailyPrice {
+  date: string;   // ISO date string, e.g. "2025-08-09"
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
 
 export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
+  recent_prices?: DailyPrice[];
   reasoning?: string;
   recommendation?: "Buy" | "Hold" | "Sell" | null;
   promising_score?: number;
@@ -60,6 +70,7 @@ export interface SavedAnalysis {
 
 interface PreMarketStockRowProps {
   stock: VolumeSurgeStock & {
+    recent_prices?: DailyPrice[];
     highest_impact_keyword?: string;
     highest_impact_rank?: string;
     promising_score?: number;
@@ -249,12 +260,12 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             key={i}
             style={{
               fontSize: "0.75rem",
-              color: s.passed ? "green" : "red",
+              color: s.passed ? "green" : "gray",
               fontWeight: "bold",
               whiteSpace: "nowrap",
             }}
           >
-            {shortenLabel(s.label)}: {s.passed ? "✅" : "❌"}
+            {shortenLabel(s.label)}: {s.passed ? "✅" : "⛔"}
             {s.score > 0 ? `+${s.score}` : s.score}
           </span>
         ))}
@@ -404,24 +415,32 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           <div>{stock.current_volume.toLocaleString()}</div>
           <div>{stock.avg_volume_5d.toLocaleString()}</div>
         </td>
-        <td className="align-middle text-center">
-          <span
-            style={{
-              color: isOld ? "#999" : undefined,
-              fontStyle: isOld ? "italic" : undefined,
-            }}
-            title={new Date(stock.detected_at + "Z").toLocaleString()}
-          >
-            {formatDistance(new Date(stock.detected_at + "Z"), new Date(), {
-              addSuffix: true,
-            })}
-          </span>
-        </td>
 
         {/* 🔑 Key Signals column */}
         <td className="align-middle text-start">
           {renderKeySignals()}
         </td>
+        {/* 🔑 MiniChart */}
+        <td
+          className="align-middle text-start"
+          style={{ minWidth: 120, maxWidth: 160 }}
+        >
+          {stock.recent_prices && stock.recent_prices.length > 0 ? (
+            <MiniCandleChart
+              data={stock.recent_prices.map(p => ({
+                date: p.date,
+                open: p.open,
+                high: p.high,
+                low: p.low,
+                close: p.close,
+              }))}
+            />
+          ) : (
+            <small className="text-muted">No price data</small>
+          )}
+        </td>
+
+
         {/* Most impact column */}
         <td className="align-middle text-start">
           {stock.highest_impact_rank && (
@@ -568,6 +587,19 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             </div>
           </div>
         </td>
+        <td className="align-middle text-center">
+          <span
+            style={{
+              color: isOld ? "#999" : undefined,
+              fontStyle: isOld ? "italic" : undefined,
+            }}
+            title={new Date(stock.detected_at + "Z").toLocaleString()}
+          >
+            {formatDistance(new Date(stock.detected_at + "Z"), new Date(), {
+              addSuffix: true,
+            })}
+          </span>
+        </td>
       </tr>
 
       <Modal size="xl" show={showModal} onHide={() => setShowModal(false)} scrollable>
@@ -580,7 +612,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           {analysis && (
             <>
               <Row>
-                <Col md={3}>
+                <Col md={4}>
                   <h5>Volume Info</h5>
                   <ul>
                     <li>Name: {analysis.volume_info.name}</li>
@@ -607,7 +639,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   </ul>
                 </Col>
 
-                <Col md={3}>
+                <Col md={4}>
                   <h5>Analysis Signals</h5>
                   {analysis.analysis_signal ? (
                     <ul>
@@ -669,7 +701,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   </ul>
                 </Col> */}
 
-                <Col md={3}>
+                <Col md={4}>
                   {/* <h5>Recent Uptrend</h5>
                   {analysis.volume_info.uptrend ? (
                     <ul>
@@ -691,7 +723,23 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   ) : (
                     <p className="text-muted">(No downtrend data)</p>
                   )} */}
-                  <h5>📈{" "}
+                  <h5 className="mb-3">📉 15-Day Chart</h5>
+                  {analysis.volume_info.recent_prices &&
+                  analysis.volume_info.recent_prices.length > 0 ? (
+                    <MiniCandleChart
+                      data={analysis.volume_info.recent_prices.map(p => ({
+                        date: p.date,
+                        open: p.open,
+                        high: p.high,
+                        low: p.low,
+                        close: p.close,
+                      }))}
+                    />
+                  ) : (
+                    <p className="text-muted">No price data</p>
+                  )}
+
+                  <h5 className="mt-4">📈{" "}
                     <a
                       href={analysis.volume_info.kabutan_chart_url}
                       target="_blank"
