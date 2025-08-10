@@ -101,6 +101,35 @@ def extract_headline_impacts(text: str) -> list[dict]:
 
     return results
 
+# def extract_spike_info(text: str) -> Optional[Dict[str, str]]:
+#     pattern = re.compile(
+#         r"\*\*Spiked\*\*:\s*\[?(Yes|No)\]?\s*—\s*\*\*Spike next\*\*:\s*\(?(\d{1,3})\)?",
+#         re.IGNORECASE
+#     )
+
+#     for line in text.splitlines():
+#         line = line.strip()
+#         m = pattern.search(line)
+#         if m:
+#             return {
+#                 "spiked": m.group(1).capitalize(),
+#                 "spike_next": m.group(2)
+#             }
+
+#     return None
+
+def extract_spiked_and_spike_next(text: str):
+    cleaned = re.sub(r"[*#•\-–—●★▶◆]", "", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+
+    spiked_match = re.search(r"\bspiked\s*[:\-]?\s*(yes|no)", cleaned)
+    spiked = spiked_match.group(1).capitalize() if spiked_match else "Unknown"
+
+    spike_next_match = re.search(r"\bspike next\s*[:\-]?\s*(\d{1,3})", cleaned)
+    spike_next = int(spike_next_match.group(1)) if spike_next_match else -1
+    spike_next = max(0, min(spike_next, 100))
+
+    return spiked, spike_next
 
 def premarket_analyze_with_gpt(
     db: Session,
@@ -500,12 +529,11 @@ def premarket_analyze_with_gpt(
         "- 📰 **News Evaluation**: [Short reasoning about which headlines matter and how price responded]\n"
         "- 📊 **Signal/Technical Analysis**: [Do indicators support continuation or exhaustion?]\n"
         "- 📈 **Trend & Rebound Context**: [Explain any pullbacks, potential rebound zones, or exhaustion. Also state if re-spike pattern was detected — and if not, why not (e.g. no prior strong spike, new news exists, weak volume, etc).]\n"
-        "- 🧠 **Long-Term Sentiment**: [Bullish / Bearish / Neutral] — [Short reason if relevant]\n"
-        "- 🧮 **Fair Value Estimate**: ¥[estimated_price] — Current Price: ¥[current_price]\n"
-        "- ℹ️ Use fair value as a reference: If current price is far **below**, continuation may have long-term support. If far **above**, risk of speculative exhaustion.\n"
         "- Final Comment: [Your overall sentiment for tomorrow's trade setup]\n\n"
         "- Investment Recommendation: Buy / Hold / Sell\n"
         "- Promising Score: (0–100) [estimates how likely the stock will spike in the coming days, based on **how strong and recent the news are**, the **most impactful keyword**, its **ranking**, and any **supporting signals**]\n"
+        "- **Spiked**: [Yes / No] — indicates whether a recent spike has occurred.\n"
+        "- **Spike next**: (0–100) — estimates the likelihood of a near-term spike or re-spike, based on recent price action, volume patterns, and catalyst strength.\n"
         "- News Rank Summary: [Overall impact levels of top news]\n"
         "- 📅 **Tomorrow's Action Expectation**: Gap direction, morning behavior, and closing tendency\n"
         "- 📊 **Wave Stage**: [Wave 1 / Wave 2 / Wave 3 / Overextended / Not started]\n"
@@ -524,6 +552,9 @@ def premarket_analyze_with_gpt(
         print(f"====ticker={ticker}, reply={reply}")
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
+
+        spiked, spike_next = extract_spiked_and_spike_next(reply)
+
         impacts = extract_headline_impacts(reply)
         # print(f"====impacts={impacts}")
         summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
@@ -561,6 +592,8 @@ def premarket_analyze_with_gpt(
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
+        volume_info.spiked = spiked
+        volume_info.spike_next = spike_next
         volume_info.highest_impact_keyword = highest_impact_keyword
         volume_info.highest_impact_rank = highest_impact_rank
         volume_info.top_news = json.dumps(top_enriched_news, ensure_ascii=False)

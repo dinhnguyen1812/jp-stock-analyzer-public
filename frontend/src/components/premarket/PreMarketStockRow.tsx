@@ -18,6 +18,8 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
   reasoning?: string;
   recommendation?: "Buy" | "Hold" | "Sell" | null;
   promising_score?: number;
+  spiked?: string;
+  spike_next?: number;
   top_news?: {
     published_at: string;
     category: string;
@@ -74,6 +76,8 @@ interface PreMarketStockRowProps {
     highest_impact_keyword?: string;
     highest_impact_rank?: string;
     promising_score?: number;
+    spiked?: string;
+    spike_next?: number;
     recommendation?: string | null;
     starred?: boolean;
     watched?: boolean;
@@ -440,7 +444,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           )}
         </td>
 
-
         {/* Most impact column */}
         <td className="align-middle text-start">
           {stock.highest_impact_rank && (
@@ -452,13 +455,13 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 backgroundColor: "white",
                 color: {
                   "S+": "#dc3545",         // Red - strong impact
-                  "S": "#e5533d",    // Between red and orange
-                  "A+": "#fd7e14",   // Orange - high impact
-                  "A": "#0d6efd",   // Bootstrap primary blue
-                  "A-": "#f0ad4e",   // Lighter orange
-                  "B": "#0dcaf0",         // Bootstrap info (cyan)
-                  "C": "#6c757d",         // Bootstrap secondary (gray)
-                  "D": "#212529"          // Bootstrap dark
+                  "S": "#e5533d",          // Between red and orange
+                  "A+": "#fd7e14",         // Orange - high impact
+                  "A": "#0d6efd",          // Bootstrap primary blue
+                  "A-": "#f0ad4e",         // Lighter orange
+                  "B": "#0dcaf0",          // Bootstrap info (cyan)
+                  "C": "#6c757d",          // Bootstrap secondary (gray)
+                  "D": "#212529"           // Bootstrap dark
                 }[stock.highest_impact_rank] ?? "#000000",
               }}
             >
@@ -468,10 +471,38 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
               {stock.highest_impact_rank.replace(/\*/g, "").trim()}
             </Badge>
           )}
+          <div style={{ height: 8 }} /> {/* Space between rows */}
+          {stock.spiked !== undefined && (
+            <Badge
+              bg={stock.spiked.toLowerCase() === "yes" ? "success" : "danger"}
+              className="border me-2"
+              style={{ fontSize: "0.75rem" }}
+            >
+              Spike: {stock.spiked}
+            </Badge>
+          )}
+          {stock.spike_next !== undefined && (
+            <Badge
+              bg={
+                stock.spike_next >= 80
+                  ? "success"
+                  : stock.spike_next >= 60
+                  ? "info"
+                  : stock.spike_next >= 40
+                  ? "warning"
+                  : "danger"
+              }
+              className="border"
+              style={{ fontSize: "0.75rem" }}
+            >
+              Spike next: {stock.spike_next}
+            </Badge>
+          )}
         </td>
+
+        {/* Action/GPT column */}
         <td className="align-middle text-center">
           <div className="d-flex flex-column align-items-center justify-content-center gap-1">
-            {/* Row 1: Main signals (Recommendation, Promising Score, Signal Score, News) */}
             <div className="d-flex flex-wrap justify-content-center align-items-center gap-2">
               {stock.recommendation && (
                 <Badge pill bg={

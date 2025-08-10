@@ -55,6 +55,8 @@ class VolumeSnapshot(Base):
     top_news = Column(Text, nullable=True)  # JSON-encoded news with GPT verdict
     highest_impact_keyword = Column(String, nullable=True)
     highest_impact_rank = Column(String, nullable=True)
+    spiked = Column(String, nullable=True)
+    spike_next = Column(Integer, nullable=True)
 
     # Technical momentum fields
     momentum_score = Column(Integer, nullable=True)
