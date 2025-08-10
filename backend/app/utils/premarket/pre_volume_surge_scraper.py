@@ -163,6 +163,16 @@ def analyze_and_snapshot_ticker(
             detected_at=datetime.now(JP_TZ),
         )
 
+        # 🔹 Copy note from the most recent snapshot with a non-empty note
+        prev_snapshot = (
+            db.query(VolumeSnapshot)
+            .filter(VolumeSnapshot.ticker == ticker, VolumeSnapshot.note.isnot(None))
+            .order_by(VolumeSnapshot.detected_at.desc())
+            .first()
+        )
+        if prev_snapshot and prev_snapshot.note:
+            snapshot.note = prev_snapshot.note
+
         db.add(snapshot)
         db.commit()
 

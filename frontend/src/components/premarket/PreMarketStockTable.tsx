@@ -7,6 +7,9 @@ import { fetchSetNote, getLatestTradingDay } from "../../api";
 const handleNoteChange = async (ticker: string, newNote: string) => {
   try {
     await fetchSetNote(ticker, newNote);
+    setStocks(prev =>
+      prev.map((s: { ticker: string; }) => s.ticker === ticker ? { ...s, note: newNote } : s)
+    );
     console.log(`✅ Note updated for ${ticker}`);
   } catch (err) {
     console.error(`❌ Failed to update note for ${ticker}:`, err);
@@ -247,3 +250,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
 };
 
 export default PreMarketStockTable;
+function setStocks(arg0: (prev: any) => any) {
+  throw new Error("Function not implemented.");
+}
+

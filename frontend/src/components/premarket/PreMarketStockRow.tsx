@@ -873,25 +873,47 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
               )}
             </>
           )}
-          <div className="mt-3">
-            <label htmlFor="stock-note" className="form-label fw-bold">📝 Note</label>
-            <textarea
-              id="stock-note"
-              className="form-control"
-              rows={3}
-              value={localNote}
-              onChange={(e) => setLocalNote(e.target.value)}
-              disabled={isSaving}
-            />
-            <button
-              className="btn btn-primary btn-sm mt-2"
-              onClick={handleNoteSave}
-              disabled={isSaving}
-            >
-              {isSaving ? "Saving..." : "Save Note"}
-            </button>
-          </div>
 
+          {/* Sticky bottom-right note box */}
+          <div
+            style={{
+              position: "sticky",
+              bottom: 0,
+              display: "flex",
+              justifyContent: "flex-end",
+              background: "transparent",
+              zIndex: 2,
+            }}
+          >
+            <div
+              style={{
+                width: "35%",
+                background: "white",
+                padding: "8px",
+                borderTop: "1px solid #ddd",
+                boxShadow: "0 -2px 6px rgba(0,0,0,0.1)",
+              }}
+            >
+              <label htmlFor="stock-note" className="form-label fw-bold">
+                📝 Note
+              </label>
+              <textarea
+                id="stock-note"
+                className="form-control"
+                rows={3}
+                value={noteValue}
+                onChange={(e) => setNoteValue(e.target.value)}
+                disabled={isSaving}
+              />
+              <button
+                className="btn btn-primary btn-sm mt-2"
+                onClick={() => onNoteChange(stock.ticker, noteValue)}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save Note"}
+              </button>
+            </div>
+          </div>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowModal(false)}>
