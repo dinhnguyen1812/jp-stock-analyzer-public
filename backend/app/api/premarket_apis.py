@@ -522,11 +522,6 @@ def scan_news_for_ticker(
     model: str = "gpt-4o",
     db: Session = Depends(get_db),
 ):
-    """
-    Analyze news for a specific ticker using GPT. 
-    Caches headline hash to avoid duplicate GPT calls.
-    """
-
     result = scan_and_analyze_news_for_ticker(db, ticker, top_n=top_n, days_threshold=30, model=model)
     return {
         "ticker": ticker,

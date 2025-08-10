@@ -424,9 +424,7 @@ def premarket_analyze_with_gpt(
         "    'TOB / MBO': 'S',\n"
 
         # A+ rank - very strong positive
-        "    '独占契約': 'A+',\n"
         "    '大型受注': 'A+',\n"
-        "    '業績予想 上方修正': 'A+',\n"
 
         # A rank - strong positive
         "    '筆頭株主変更': 'A',\n"
@@ -437,18 +435,20 @@ def premarket_analyze_with_gpt(
         "    '新製品発表': 'A',\n"
         "    '事業拡大': 'A',\n"
         "    '買収': 'A',\n"
+        "    '独占契約': 'A',\n"
 
         # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"
         "    '±３σブレイク': 'A-',\n"
         "    'ボリンジャーバンド上抜け': 'A-',\n"
         "    'fisco注目': 'A-',\n"
+        "    'ストップ高': 'A-',\n"
+        "    '動意株': 'A-',\n"
 
         # B rank - moderate positive
         "    '中期経営計画': 'B',\n"
         "    '株式買戻し': 'B',\n"
         "    '特別利益': 'B',\n"
-        "    '特別利益計上': 'B',\n"
         "    '株主優待増額': 'B',\n"
         "    '配当増額': 'B',\n"
         "    '販売契約': 'B',\n"
@@ -458,6 +458,7 @@ def premarket_analyze_with_gpt(
         "    '増益': 'B',\n"
         "    '利益倍増': 'B',\n"
         "    '今期 業績予想 50%増益以上': 'B',\n"
+        "    '業績予想 上方修正': 'B',\n"
 
         # C rank - negative or neutral
         "    '施設閉鎖': 'C',\n"
@@ -475,41 +476,43 @@ def premarket_analyze_with_gpt(
         "  }\n"
         "\n"
         "- 🔧 Booster Instruction:\n"
-        "  - Define **hot/trending sectors**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
-        "  - For certain keywords, **boost to 'S' or 'A+' only if strong value is clear**:\n"
+        "  - Defined **HOT/TRENDING SECTOR**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
+        "  - For specific keywords, **apply a rank boost according to these guidelines**:\n"
         "    • 'TOB / MBO': Boost to S+ if offer has a large premium, from a notable acquirer, or leads to immediate price gap-up with strong volume.\n"
-        "    • '筆頭株主変更': Boost to S if new shareholder is a large institutional investor, foreign fund, or strategic partner.\n"
-        "    • '新市場参入': Boost to S only if into a **hot/trending sector** with exclusivity or growth potential.\n"
-        "    • '特許取得': Boost to S only if it enables a **monopoly or first-mover advantage in hot/trending fields**.\n"
-        "    • '新サービス発表': Boost to S only if it’s a **game-changer or disruptor in hot/trending sectors**.\n"
-        "    • '買収': Boost to S only if it’s **accretive, cross-border, or synergistic in hot/trending markets**.\n"
-        "    • '中期経営計画': Boost to A+ or S only if plan includes **aggressive growth, global expansion, or restructuring in promising areas**.\n"
-        "    • '特別利益': Boost to A+ only if it **significantly improves EPS or changes valuation metrics**.\n"
-        "    • '事業拡大': Boost to A+ or S only if it’s into **large-scale, strategic, or hot/trending sectors**.\n"
-        "    • '今期 業績予想 50%増益以上': Boost to A+ if forecast is **unexpected, from a low-float/small-cap stock, or paired with strong catalysts**\n"
-        "    • '独占契約': Boost to S only if partner is **top-tier or market scale is large**.\n"
-        "    • '大型受注': Boost to S only if it’s from a **major client or long-term contract**.\n"
-        "    • '黒字転換': Boost to S only if it leads to **sustained profitability or likely leads to strong market reaction**.\n"
-        "    • 'サプライズ決算': Boost to S only if it's confirmed that results **exceed expectations significantly**.\n"
-        "    • '四半期サプライズ決算': Boost to S only if it's confirmed that **quarterly results strongly surprise**.\n"
-        "    • '増益': Boost to S if **profit growth exceeds 50% and is unexpected**, A if **between 30–50% with positive sentiment or low float**.\n"
-        "    • '利益倍増': Boost to A if **2倍以上** and supported by **strong catalyst** (e.g. restructuring, new business, or entry into hot/trending sectors).\n"
-        "    • 'fisco注目': Boost to A+ if stock already trending or backed by strong catalyst.\n"
+
+        "    • '大型受注': Boost to S if it’s from a major client, long-term contract, or in a Defined **HOT/TRENDING SECTOR**.\n"
+        "    • '筆頭株主変更': Boost to S if new shareholder is a large institutional investor, foreign fund, strategic partner, or related to a Defined **HOT/TRENDING SECTOR**.\n"
+        "    • '新市場参入': Boost to S if the article clearly states entry into a Defined **HOT/TRENDING SECTOR** — no exception.\n"
+        "    • '新サービス発表': Boost to S if the new service is in a Defined **HOT/TRENDING SECTOR** — no exception.\n"
+        "    • '特許取得': Boost to S if the patent relates to a Defined **HOT/TRENDING SECTOR** — no exception.\n"
+        "    • '買収': Boost to S if it is in or enables entry into a Defined **HOT/TRENDING SECTOR** — no exception.\n"
+        "    • '事業拡大': Boost to S if it is in a Defined **HOT/TRENDING SECTOR** — no exception.\n"
+        "    • '黒字転換': Boost to A+ only if it leads to sustained profitability or strong market reaction.\n"
+        "    • '独占契約': Boost to A+ only if partner is top-tier or market scale is large.\n"
+
+        "    • '中期経営計画': Boost to A+ only if plan includes aggressive growth, global expansion, or restructuring in promising areas.\n"
+        "    • '特別利益': Boost to A only if it significantly improves EPS or changes valuation metrics.\n"
+        "    • '今期 業績予想 50%増益以上': Boost to A if forecast is unexpected, from a low-float/small-cap stock, or paired with strong catalysts.\n"
+        "    • 'サプライズ決算': Boost to A only if results exceed expectations significantly.\n"
+        "    • '四半期サプライズ決算': Boost to S only if quarterly results strongly surprise.\n"
+        "    • '増益': Boost to A+ if profit growth exceeds 50% and is unexpected, A if between 30–50% with positive sentiment or low float.\n"
+        "    • '利益倍増': Boost to S if 2倍以上 in a Defined **HOT/TRENDING SECTOR**, otherwise A if supported by a strong catalyst.\n"
+        "    • 'fisco注目': Boost to A if stock already trending or backed by strong catalyst.\n"
         "    • '大量保有報告書': Boost to A if new investor is a known activist fund, foreign investor, or signals strategic interest.\n"
 
-        "- 🚨 **KEY PATTERN: Re-Spike After Pullback**\n"
-        "- Detect this setup:\n"
-        "   - A **spike (one or multiple)** triggered by a **strong catalyst** (e.g. news/IR)\n"
-        "   - Followed by a **pullback** (price decline or consolidation)\n"
-        "   - Later, watch for a **second/third spike** — which may occur *without* new material news\n"
-        "- Always **highlight in the summary** and explain:\n"
-        "   - What is the current pattern stage? (e.g. initial spike → pullback → re-spike, or not spike yet)\n"
-        "   - Is it a **momentum reset**, **technical rebound**, or **speculative move**?\n"
-        "   - Is it **safe to re-enter**, or **too volatile/exhausted**?\n"
-        "   - Confirm whether the original spike was based on a **strong catalyst**\n"
-        "- Assign a keyword in headline evaluation:\n"
-        "   - **Keyword: Likely Re-spike — Rank: S**\n"
-        "- This is a **high-priority pattern** — always include it in the final recommendation if present.\n"
+        # "- 🚨 **KEY PATTERN: Re-Spike After Pullback**\n"
+        # "- Detect this setup:\n"
+        # "   - A **spike (one or multiple)** triggered by a **strong catalyst** (e.g. news/IR)\n"
+        # "   - Followed by a **pullback** (price decline or consolidation)\n"
+        # "   - Later, watch for a **second/third spike** — which may occur *without* new material news\n"
+        # "- Always **highlight in the summary** and explain:\n"
+        # "   - What is the current pattern stage? (e.g. initial spike → pullback → re-spike, or not spike yet)\n"
+        # "   - Is it a **momentum reset**, **technical rebound**, or **speculative move**?\n"
+        # "   - Is it **safe to re-enter**, or **too volatile/exhausted**?\n"
+        # "   - Confirm whether the original spike was based on a **strong catalyst**\n"
+        # "- Assign a keyword in headline evaluation:\n"
+        # "   - **Keyword: Likely Re-spike — Rank: A**\n"
+        # "- This is a **high-priority pattern** — always include it in the final recommendation if present.\n"
 
         "- If a move is likely, briefly describe:\n"
         "  - Expected gap direction\n"
@@ -643,7 +646,7 @@ def extract_highest_ranked_impact(text: str):
         "ゴールデンクロス",
         "±３σブレイク",
         "ボリンジャーバンド上抜け",
-        "fisco注目"
+        "fisco注目",
     }
 
     for keyword, rank in matches:
@@ -655,9 +658,11 @@ def extract_highest_ranked_impact(text: str):
         if keyword in skip_keywords:
             continue
 
-        # Prioritize high-confidence "re-spike"
+        # # Prioritize high-confidence "re-spike"
+        # Skip if keyword include "re-spike"
         if "re-spike" in keyword.lower() and current_rank_value <= rank_value("B"):
-            return keyword, rank  # return immediately
+        #     return keyword, rank  # return immediately
+            continue
 
         if best_rank is None or current_rank_value <= rank_value(best_rank):
             best_rank = rank

@@ -109,7 +109,8 @@ const keywordMap = [
   { word: "short-term", variant: "warning" },
   { word: "Yes", variant: "success" },
   { word: "3_bullish", variant: "success" },
-  { word: "3_bearish", variant: "danger" }
+  { word: "3_bearish", variant: "danger" },
+  { word: "likely re-spike", variant: "success" }
 ];
 
 const highlightKeywords = (text: string): JSX.Element => {
@@ -135,27 +136,35 @@ const highlightKeywords = (text: string): JSX.Element => {
 };
 
 const rankMap = [
-  // Rank values
   { word: "S+", variant: "danger" },
-  { word: "S", variant: "success" },
   { word: "A+", variant: "primary" },
-  { word: "A", variant: "warning" },
   { word: "A-", variant: "info" },
+  { word: "S", variant: "success" },
+  { word: "A", variant: "warning" },
   { word: "B", variant: "secondary" },
   { word: "C", variant: "dark" },
   { word: "D", variant: "dark" }
 ];
 
+// Escape regex special characters
+const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+
+// Sort by length so A+ / A- match before A
+const sortedRankMap = [...rankMap].sort((a, b) => b.word.length - a.word.length);
+
 const highlightRank = (text: string): JSX.Element => {
   if (!text) return <span>(No text)</span>;
   const cleanText = text.replace(/\*\*/g, "");
-  const keywordRegex = new RegExp(`(${rankMap.map((k) => k.word).join("|")})`, "gi");
+  const keywordRegex = new RegExp(
+    `(${sortedRankMap.map((k) => escapeRegex(k.word)).join("|")})`,
+    "gi"
+  );
   const parts = cleanText.split(keywordRegex);
 
   return (
     <>
       {parts.map((part, idx) => {
-        const match = rankMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
+        const match = sortedRankMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
         return match ? (
           <Badge key={idx} bg={match.variant} className="mx-1">
             {part}
@@ -478,7 +487,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
               className="border me-2"
               style={{ fontSize: "0.75rem" }}
             >
-              Spike: {stock.spiked}
+              Spiked: {stock.spiked}
             </Badge>
           )}
           {stock.spike_next !== undefined && (
@@ -835,7 +844,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
 
               <h5 className="mt-4">GPT Reasoning</h5>
               <p style={{ whiteSpace: "pre-wrap" }}>
-                {highlightKeywords(analysis.volume_info.reasoning || "(No reasoning provided)")}
+                {analysis.volume_info.reasoning || "(No reasoning provided)"}
               </p>
 
               {Array.isArray(analysis.volume_info.top_news) && analysis.volume_info.top_news.length > 0 && (
@@ -852,10 +861,10 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                           [{item.category}] {new Date(item.published_at).toLocaleString()}
                         </small>
                         <br />
-                        <strong>Keyword:</strong> {item.keyword}: {highlightRank(item.rank)}
+                        <strong>Keyword:</strong> {highlightKeywords(item.keyword)}: {highlightRank(item.rank)}
                         <br />
                         <em style={{ display: "block", marginTop: "0.25rem" }}>
-                          {highlightKeywords(item.impact_reason)}
+                          {item.impact_reason}
                         </em>
                       </li>
                     ))}
