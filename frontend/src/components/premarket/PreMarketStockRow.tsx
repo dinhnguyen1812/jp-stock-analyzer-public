@@ -1,10 +1,11 @@
 import React, { useState, useCallback, type JSX, useEffect } from "react";
-import { Button, Modal, Spinner, Badge, Row, Col } from "react-bootstrap";
+import { Button, Modal, Spinner, Badge, Row, Col, Tabs, Tab } from "react-bootstrap";
 import { formatDistance } from "date-fns";
 import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 import MiniCandleChart from "./MiniPriceChart";
 import IntradayAnalyzeButton from "./IntradayAnalyzeButton";
+import IntradayAnalyzeTab from "./IntradayAnalyzeTab";
 
 export interface DailyPrice {
   date: string;   // ISO date string, e.g. "2025-08-09"
@@ -613,9 +614,9 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
               </Button>
             </div>
           </div>
-          <div>
+          {/* <div>
             <IntradayAnalyzeButton ticker={stock.ticker} />
-          </div>
+          </div> */}
         </td>
         <td className="align-middle text-center">
           <span
@@ -637,280 +638,287 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           <Modal.Title>Analysis for {stock.ticker}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {error && <p className="text-danger">{error}</p>}
-          {!error && !analysis && <p>Loading analysis...</p>}
-          {analysis && (
-            <>
-              <Row>
-                <Col md={4}>
-                  <h5>Volume Info</h5>
-                  <ul>
-                    <li>Name: {analysis.volume_info.name}</li>
-                    <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
-                    <li>Price Change: {analysis.volume_info.price_change.toFixed(2)}</li>
-                    <li>Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}</li>
-                    <li>Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}</li>
-                    <li>Current Volume: {analysis.volume_info.current_volume.toLocaleString()}</li>
-                    <li>Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}</li>
-                    <li>
-                      Detected At:{" "}
-                      {formatDistance(new Date(analysis.volume_info.detected_at + "Z"), new Date(), {
-                        addSuffix: true,
-                      })}
-                    </li>
-                    <li>
-                      Drop From High (%): {analysis.volume_info.drop_from_high_pct?.toFixed(2) ?? "N/A"}
-                    </li>
-                    <li>
-                      Rebound From Low (%): {analysis.volume_info.rebound_from_low_pct?.toFixed(2) ?? "N/A"}
-                    </li>
-                    <li>Highest Price: {analysis.volume_info.highest_price ?? "N/A"}</li>
-                    <li>Lowest Price: {analysis.volume_info.lowest_price ?? "N/A"}</li>
-                  </ul>
-                </Col>
-
-                <Col md={4}>
-                  <h5>Analysis Signals</h5>
-                  {analysis.analysis_signal ? (
-                    <ul>
-                      <li>Candle Pattern: {highlightKeywords(analysis.analysis_signal.candle_pattern ?? "None")}</li>
-                      <li>
-                        Breakout: {highlightKeywords(analysis.analysis_signal.breakout_detected ? "Yes" : "No")},{" "}
-                        Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},{" "}
-                        Close: {analysis.analysis_signal.close_today ?? "N/A"}
-                      </li>
-                      <li>RSI: {analysis.analysis_signal.rsi ?? "N/A"}</li>
-                      <li>
-                        MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal={analysis.analysis_signal.macd_signal ?? "N/A"}, Hist={analysis.analysis_signal.macd_hist ?? "N/A"}
-                      </li>
-                      <li>
-                        BBands: Upper={analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"}, Middle={analysis.analysis_signal.bb_middle?.toFixed(2) ?? "N/A"}, Lower={analysis.analysis_signal.bb_lower?.toFixed(2) ?? "N/A"}, Price={analysis.analysis_signal.bb_current_price?.toFixed(2) ?? "N/A"}
-                      </li>
-                      <li>SMA50: {analysis.analysis_signal.sma_50 ?? "N/A"}</li>
-                      <li>SMA200: {analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20: {analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover: {analysis.analysis_signal.sma_crossover ?? "N/A"}</li>
-                      <li>
-                        Patterns: W-Shape={highlightKeywords(analysis.analysis_signal.w_shape ? "Yes" : "No")}, Flags/Pennants={highlightKeywords(analysis.analysis_signal.flags_pennants ? "Yes" : "No")}, Triangle={highlightKeywords(analysis.analysis_signal.triangle ? "Yes" : "No")}
-                      </li>
-                    </ul>
-                  ) : (
-                    <p className="text-muted">(No analysis signal available)</p>
-                  )}
-                </Col>
-
-                {/* Long-Term Indicator Column */}
-                {/* <Col md={3}>
-                  <h5>📊 Long-Term Indicators</h5>
-                  <ul>
-                    <li>
-                      PER: {analysis.longterm_info.stock_per} vs Industry Avg: {analysis.longterm_info.industry_per}{" "}
-                      {compareIndicator(analysis.longterm_info.stock_per, analysis.longterm_info.industry_per, "lower")}
-                    </li>
-                    <li>
-                      PBR: {analysis.longterm_info.stock_pbr} vs Industry Avg: {analysis.longterm_info.industry_pbr}{" "}
-                      {compareIndicator(analysis.longterm_info.stock_pbr, analysis.longterm_info.industry_pbr, "lower")}
-                    </li>
-                    <li>
-                      ROE: {analysis.longterm_info.stock_roe}% vs Industry Avg: {analysis.longterm_info.industry_roe}%{" "}
-                      {compareIndicator(analysis.longterm_info.stock_roe, analysis.longterm_info.industry_roe, "higher")}
-                    </li>
-                    <li>
-                      EPS: {analysis.longterm_info.eps} / BPS: {analysis.longterm_info.bps}
-                    </li>
-                    <li>
-                      Dividend Yield: {analysis.longterm_info.dividend_yield}%{" "}
-                      {compareIndicator(analysis.longterm_info.dividend_yield, 1, "higher")}
-                    </li>
-                    <li>
-                      Debt Ratio: {analysis.longterm_info.debt_ratio}%{" "}
-                      {compareIndicator(analysis.longterm_info.debt_ratio, 100, "lower")}
-                    </li>
-                    <li>Market Cap: ¥{analysis.longterm_info.market_cap}</li>
-                    <li>
-                      Industry: {analysis.longterm_info.industry_name || "N/A"}
-                    </li>
-                  </ul>
-                </Col> */}
-
-                <Col md={4}>
-                  {/* <h5>Recent Uptrend</h5>
-                  {analysis.volume_info.uptrend ? (
-                    <ul>
-                      <li>Had Uptrend: {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}</li>
-                      <li>Rise %: {analysis.volume_info.uptrend.rise_pct !== undefined ? analysis.volume_info.uptrend.rise_pct.toFixed(2) : "N/A"}</li>
-                      <li>From: {analysis.volume_info.uptrend.from_date ?? "N/A"} To: {analysis.volume_info.uptrend.to_date ?? "N/A"}</li>
-                    </ul>
-                  ) : (
-                    <p className="text-muted">(No uptrend data)</p>
-                  )}
-
-                  <h5>Recent Downtrend</h5>
-                  {analysis.volume_info.downtrend ? (
-                    <ul>
-                      <li>Had Downtrend: {highlightKeywords(analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No")}</li>
-                      <li>Drop %: {analysis.volume_info.downtrend.drop_pct !== undefined ? analysis.volume_info.downtrend.drop_pct.toFixed(2) : "N/A"}</li>
-                      <li>From: {analysis.volume_info.downtrend.from_date ?? "N/A"} To: {analysis.volume_info.downtrend.to_date ?? "N/A"}</li>
-                    </ul>
-                  ) : (
-                    <p className="text-muted">(No downtrend data)</p>
-                  )} */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                    <div style={{ flex: "1 1 300px", minWidth: 300 }}>
-                      <h5 className="mb-3">📉 15-Day Chart</h5>
-                      {analysis.volume_info.recent_prices && analysis.volume_info.recent_prices.length > 0 ? (
-                        <MiniCandleChart
-                          data={analysis.volume_info.recent_prices.map(p => ({
-                            date: p.date,
-                            open: p.open,
-                            high: p.high,
-                            low: p.low,
-                            close: p.close,
-                          }))}
-                        />
-                      ) : (
-                        <p className="text-muted">No price data</p>
-                      )}
-                    </div>
-
-                    <div style={{ flexShrink: 0, marginTop: "1.5rem" }}>
-                      <h5 style={{ marginBottom: "0.25rem" }}>
-                        📈{" "}
-                        <a
-                          href={analysis.volume_info.kabutan_chart_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ whiteSpace: "nowrap" }}
-                        >
-                          View Kabutan Chart
-                        </a>
-                      </h5>
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-
-              {/* NEW MOMENTUM SIGNALS SECTION */}
-              <Row className="mt-4">
-                <Col>
-                  <h5>Momentum Score: {analysis.volume_info.momentum_score ?? "N/A"}</h5>
-                  <p>Confidence: {analysis.volume_info.momentum_confidence ?? "N/A"}</p>
-                  <h5>Momentum Signals (🔑 must be satisfied)</h5>
-                  {analysis.volume_info.momentum_signals && analysis.volume_info.momentum_signals.length > 0 ? (
-                    <ul>
-                      {analysis.volume_info.momentum_signals.map((signal, idx) => {
-                        const isCritical =
-                          signal.label === "Volume Rate > 3 / 5 / 10" ||
-                          signal.label === "Price vs SMA50" ||
-                          signal.label === "MACD Bullish Crossover";
-
-                        const scoreColor =
-                          signal.score < 0
-                            ? { color: "red", fontWeight: "bold" }
-                            : signal.passed
-                            ? { color: "#0d6efd", fontWeight: "bold" }
-                            : {};
-
-                        return (
-                          <li key={idx}>
-                            <strong style={isCritical ? { color: "#8f2825" } : {}}>
-                              {isCritical ? "🔑 " : ""}
-                              {signal.label}
-                            </strong>
-                            :{" "}
-                            <span style={scoreColor}>
-                              {signal.passed ? "✅" : "❌"} {signal.score > 0 ? `+${signal.score}` : signal.score} — {signal.meaning}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="text-muted">(No momentum signals available)</p>
-                  )}
-                </Col>
-              </Row>
-
-              <h5 className="mt-4">Summary</h5>
-              <div className="mb-4">
-                {analysis.volume_info.recommendation && (
-                  <div className="mb-1">
-                    Recommendation: {highlightKeywords(analysis.volume_info.recommendation)}
-                  </div>
-                )}
-                <div className="mb-1">Promising Score: {analysis.volume_info.promising_score ?? "?"}</div>
-              </div>
-
-              <h5 className="mt-4">GPT Reasoning</h5>
-              <p style={{ whiteSpace: "pre-wrap" }}>
-                {analysis.volume_info.reasoning || "(No reasoning provided)"}
-              </p>
-
-              {Array.isArray(analysis.volume_info.top_news) && analysis.volume_info.top_news.length > 0 && (
+          <Tabs defaultActiveKey="volume" id="analysis-tabs" className="mb-3">
+            <Tab eventKey="volume" title="Pre-market">
+              {error && <p className="text-danger">{error}</p>}
+              {!error && !analysis && <p>Loading analysis...</p>}
+              {analysis && (
                 <>
-                  <h5 className="mt-4">Top News</h5>
-                  <ul className="list-unstyled">
-                    {analysis.volume_info.top_news.map((item, idx) => (
-                      <li key={idx} className="mb-3">
-                        <a href={item.url} target="_blank" rel="noopener noreferrer">
-                          {item.headline}
-                        </a>
-                        <br />
-                        <small className="text-muted">
-                          [{item.category}] {new Date(item.published_at).toLocaleString()}
-                        </small>
-                        <br />
-                        <strong>Keyword:</strong> {highlightKeywords(item.keyword)}: {highlightRank(item.rank)}
-                        <br />
-                        <em style={{ display: "block", marginTop: "0.25rem" }}>
-                          {item.impact_reason}
-                        </em>
-                      </li>
-                    ))}
-                  </ul>
+                  <Row>
+                    <Col md={4}>
+                      <h5>Volume Info</h5>
+                      <ul>
+                        <li>Name: {analysis.volume_info.name}</li>
+                        <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
+                        <li>Price Change: {analysis.volume_info.price_change.toFixed(2)}</li>
+                        <li>Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}</li>
+                        <li>Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}</li>
+                        <li>Current Volume: {analysis.volume_info.current_volume.toLocaleString()}</li>
+                        <li>Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}</li>
+                        <li>
+                          Detected At:{" "}
+                          {formatDistance(new Date(analysis.volume_info.detected_at + "Z"), new Date(), {
+                            addSuffix: true,
+                          })}
+                        </li>
+                        <li>
+                          Drop From High (%): {analysis.volume_info.drop_from_high_pct?.toFixed(2) ?? "N/A"}
+                        </li>
+                        <li>
+                          Rebound From Low (%): {analysis.volume_info.rebound_from_low_pct?.toFixed(2) ?? "N/A"}
+                        </li>
+                        <li>Highest Price: {analysis.volume_info.highest_price ?? "N/A"}</li>
+                        <li>Lowest Price: {analysis.volume_info.lowest_price ?? "N/A"}</li>
+                      </ul>
+                    </Col>
+
+                    <Col md={4}>
+                      <h5>Analysis Signals</h5>
+                      {analysis.analysis_signal ? (
+                        <ul>
+                          <li>Candle Pattern: {highlightKeywords(analysis.analysis_signal.candle_pattern ?? "None")}</li>
+                          <li>
+                            Breakout: {highlightKeywords(analysis.analysis_signal.breakout_detected ? "Yes" : "No")},{" "}
+                            Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},{" "}
+                            Close: {analysis.analysis_signal.close_today ?? "N/A"}
+                          </li>
+                          <li>RSI: {analysis.analysis_signal.rsi ?? "N/A"}</li>
+                          <li>
+                            MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal={analysis.analysis_signal.macd_signal ?? "N/A"}, Hist={analysis.analysis_signal.macd_hist ?? "N/A"}
+                          </li>
+                          <li>
+                            BBands: Upper={analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"}, Middle={analysis.analysis_signal.bb_middle?.toFixed(2) ?? "N/A"}, Lower={analysis.analysis_signal.bb_lower?.toFixed(2) ?? "N/A"}, Price={analysis.analysis_signal.bb_current_price?.toFixed(2) ?? "N/A"}
+                          </li>
+                          <li>SMA50: {analysis.analysis_signal.sma_50 ?? "N/A"}</li>
+                          <li>SMA200: {analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20: {analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover: {analysis.analysis_signal.sma_crossover ?? "N/A"}</li>
+                          <li>
+                            Patterns: W-Shape={highlightKeywords(analysis.analysis_signal.w_shape ? "Yes" : "No")}, Flags/Pennants={highlightKeywords(analysis.analysis_signal.flags_pennants ? "Yes" : "No")}, Triangle={highlightKeywords(analysis.analysis_signal.triangle ? "Yes" : "No")}
+                          </li>
+                        </ul>
+                      ) : (
+                        <p className="text-muted">(No analysis signal available)</p>
+                      )}
+                    </Col>
+
+                    {/* Long-Term Indicator Column */}
+                    {/* <Col md={3}>
+                      <h5>📊 Long-Term Indicators</h5>
+                      <ul>
+                        <li>
+                          PER: {analysis.longterm_info.stock_per} vs Industry Avg: {analysis.longterm_info.industry_per}{" "}
+                          {compareIndicator(analysis.longterm_info.stock_per, analysis.longterm_info.industry_per, "lower")}
+                        </li>
+                        <li>
+                          PBR: {analysis.longterm_info.stock_pbr} vs Industry Avg: {analysis.longterm_info.industry_pbr}{" "}
+                          {compareIndicator(analysis.longterm_info.stock_pbr, analysis.longterm_info.industry_pbr, "lower")}
+                        </li>
+                        <li>
+                          ROE: {analysis.longterm_info.stock_roe}% vs Industry Avg: {analysis.longterm_info.industry_roe}%{" "}
+                          {compareIndicator(analysis.longterm_info.stock_roe, analysis.longterm_info.industry_roe, "higher")}
+                        </li>
+                        <li>
+                          EPS: {analysis.longterm_info.eps} / BPS: {analysis.longterm_info.bps}
+                        </li>
+                        <li>
+                          Dividend Yield: {analysis.longterm_info.dividend_yield}%{" "}
+                          {compareIndicator(analysis.longterm_info.dividend_yield, 1, "higher")}
+                        </li>
+                        <li>
+                          Debt Ratio: {analysis.longterm_info.debt_ratio}%{" "}
+                          {compareIndicator(analysis.longterm_info.debt_ratio, 100, "lower")}
+                        </li>
+                        <li>Market Cap: ¥{analysis.longterm_info.market_cap}</li>
+                        <li>
+                          Industry: {analysis.longterm_info.industry_name || "N/A"}
+                        </li>
+                      </ul>
+                    </Col> */}
+
+                    <Col md={4}>
+                      {/* <h5>Recent Uptrend</h5>
+                      {analysis.volume_info.uptrend ? (
+                        <ul>
+                          <li>Had Uptrend: {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}</li>
+                          <li>Rise %: {analysis.volume_info.uptrend.rise_pct !== undefined ? analysis.volume_info.uptrend.rise_pct.toFixed(2) : "N/A"}</li>
+                          <li>From: {analysis.volume_info.uptrend.from_date ?? "N/A"} To: {analysis.volume_info.uptrend.to_date ?? "N/A"}</li>
+                        </ul>
+                      ) : (
+                        <p className="text-muted">(No uptrend data)</p>
+                      )}
+
+                      <h5>Recent Downtrend</h5>
+                      {analysis.volume_info.downtrend ? (
+                        <ul>
+                          <li>Had Downtrend: {highlightKeywords(analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No")}</li>
+                          <li>Drop %: {analysis.volume_info.downtrend.drop_pct !== undefined ? analysis.volume_info.downtrend.drop_pct.toFixed(2) : "N/A"}</li>
+                          <li>From: {analysis.volume_info.downtrend.from_date ?? "N/A"} To: {analysis.volume_info.downtrend.to_date ?? "N/A"}</li>
+                        </ul>
+                      ) : (
+                        <p className="text-muted">(No downtrend data)</p>
+                      )} */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 300px", minWidth: 300 }}>
+                          <h5 className="mb-3">📉 15-Day Chart</h5>
+                          {analysis.volume_info.recent_prices && analysis.volume_info.recent_prices.length > 0 ? (
+                            <MiniCandleChart
+                              data={analysis.volume_info.recent_prices.map(p => ({
+                                date: p.date,
+                                open: p.open,
+                                high: p.high,
+                                low: p.low,
+                                close: p.close,
+                              }))}
+                            />
+                          ) : (
+                            <p className="text-muted">No price data</p>
+                          )}
+                        </div>
+
+                        <div style={{ flexShrink: 0, marginTop: "1.5rem" }}>
+                          <h5 style={{ marginBottom: "0.25rem" }}>
+                            📈{" "}
+                            <a
+                              href={analysis.volume_info.kabutan_chart_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ whiteSpace: "nowrap" }}
+                            >
+                              View Kabutan Chart
+                            </a>
+                          </h5>
+                        </div>
+                      </div>
+                    </Col>
+                  </Row>
+
+                  {/* NEW MOMENTUM SIGNALS SECTION */}
+                  <Row className="mt-4">
+                    <Col>
+                      <h5>Momentum Score: {analysis.volume_info.momentum_score ?? "N/A"}</h5>
+                      <p>Confidence: {analysis.volume_info.momentum_confidence ?? "N/A"}</p>
+                      <h5>Momentum Signals (🔑 must be satisfied)</h5>
+                      {analysis.volume_info.momentum_signals && analysis.volume_info.momentum_signals.length > 0 ? (
+                        <ul>
+                          {analysis.volume_info.momentum_signals.map((signal, idx) => {
+                            const isCritical =
+                              signal.label === "Volume Rate > 3 / 5 / 10" ||
+                              signal.label === "Price vs SMA50" ||
+                              signal.label === "MACD Bullish Crossover";
+
+                            const scoreColor =
+                              signal.score < 0
+                                ? { color: "red", fontWeight: "bold" }
+                                : signal.passed
+                                ? { color: "#0d6efd", fontWeight: "bold" }
+                                : {};
+
+                            return (
+                              <li key={idx}>
+                                <strong style={isCritical ? { color: "#8f2825" } : {}}>
+                                  {isCritical ? "🔑 " : ""}
+                                  {signal.label}
+                                </strong>
+                                :{" "}
+                                <span style={scoreColor}>
+                                  {signal.passed ? "✅" : "❌"} {signal.score > 0 ? `+${signal.score}` : signal.score} — {signal.meaning}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="text-muted">(No momentum signals available)</p>
+                      )}
+                    </Col>
+                  </Row>
+
+                  <h5 className="mt-4">Summary</h5>
+                  <div className="mb-4">
+                    {analysis.volume_info.recommendation && (
+                      <div className="mb-1">
+                        Recommendation: {highlightKeywords(analysis.volume_info.recommendation)}
+                      </div>
+                    )}
+                    <div className="mb-1">Promising Score: {analysis.volume_info.promising_score ?? "?"}</div>
+                  </div>
+
+                  <h5 className="mt-4">GPT Reasoning</h5>
+                  <p style={{ whiteSpace: "pre-wrap" }}>
+                    {analysis.volume_info.reasoning || "(No reasoning provided)"}
+                  </p>
+
+                  {Array.isArray(analysis.volume_info.top_news) && analysis.volume_info.top_news.length > 0 && (
+                    <>
+                      <h5 className="mt-4">Top News</h5>
+                      <ul className="list-unstyled">
+                        {analysis.volume_info.top_news.map((item, idx) => (
+                          <li key={idx} className="mb-3">
+                            <a href={item.url} target="_blank" rel="noopener noreferrer">
+                              {item.headline}
+                            </a>
+                            <br />
+                            <small className="text-muted">
+                              [{item.category}] {new Date(item.published_at).toLocaleString()}
+                            </small>
+                            <br />
+                            <strong>Keyword:</strong> {highlightKeywords(item.keyword)}: {highlightRank(item.rank)}
+                            <br />
+                            <em style={{ display: "block", marginTop: "0.25rem" }}>
+                              {item.impact_reason}
+                            </em>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </>
               )}
-            </>
-          )}
 
-          {/* Sticky bottom-right note box */}
-          <div
-            style={{
-              position: "sticky",
-              bottom: 0,
-              display: "flex",
-              justifyContent: "flex-end",
-              background: "transparent",
-              zIndex: 2,
-            }}
-          >
-            <div
-              style={{
-                width: "35%",
-                background: "white",
-                padding: "8px",
-                borderTop: "1px solid #ddd",
-                boxShadow: "0 -2px 6px rgba(0,0,0,0.1)",
-              }}
-            >
-              <label htmlFor="stock-note" className="form-label fw-bold">
-                📝 Note
-              </label>
-              <textarea
-                id="stock-note"
-                className="form-control"
-                rows={3}
-                value={noteValue}
-                onChange={(e) => setNoteValue(e.target.value)}
-                disabled={isSaving}
-              />
-              <button
-                className="btn btn-primary btn-sm mt-2"
-                onClick={() => onNoteChange(stock.ticker, noteValue)}
-                disabled={isSaving}
+              {/* Sticky bottom-right note box */}
+              <div
+                style={{
+                  position: "sticky",
+                  bottom: 0,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  background: "transparent",
+                  zIndex: 2,
+                }}
               >
-                {isSaving ? "Saving..." : "Save Note"}
-              </button>
-            </div>
-          </div>
+                <div
+                  style={{
+                    width: "35%",
+                    background: "white",
+                    padding: "8px",
+                    borderTop: "1px solid #ddd",
+                    boxShadow: "0 -2px 6px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  <label htmlFor="stock-note" className="form-label fw-bold">
+                    📝 Note
+                  </label>
+                  <textarea
+                    id="stock-note"
+                    className="form-control"
+                    rows={3}
+                    value={noteValue}
+                    onChange={(e) => setNoteValue(e.target.value)}
+                    disabled={isSaving}
+                  />
+                  <button
+                    className="btn btn-primary btn-sm mt-2"
+                    onClick={() => onNoteChange(stock.ticker, noteValue)}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Saving..." : "Save Note"}
+                  </button>
+                </div>
+              </div>
+            </Tab>
+            <Tab eventKey="intraday" title="Intraday Analyze">
+              <IntradayAnalyzeTab ticker={stock.ticker} />
+            </Tab>
+          </Tabs>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowModal(false)}>

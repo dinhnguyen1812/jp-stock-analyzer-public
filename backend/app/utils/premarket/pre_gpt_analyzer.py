@@ -150,7 +150,7 @@ def premarket_analyze_with_gpt(
 
     if volume_info.reasoning is not None:
         detected_at = volume_info.detected_at
-        if detected_at is not None and (now - detected_at) < timedelta(hours=1):
+        if detected_at is not None and (now - detected_at) < timedelta(hours=2):
             # Skip processing
             print("Skipping because reasoning exists and detected_at < 1 hour ago")
             return
@@ -458,6 +458,7 @@ def premarket_analyze_with_gpt(
         "    'サプライズ決算': 'B',\n"
         "    '四半期サプライズ決算': 'B',\n"
         "    '増益': 'B',\n"
+        "    '赤字縮小': 'B',\n"
         "    '利益倍増': 'B',\n"
         "    '今期 業績予想 50%増益以上': 'B',\n"
         "    '業績予想 上方修正': 'B',\n"
@@ -468,7 +469,6 @@ def premarket_analyze_with_gpt(
         "    '運営終了': 'C',\n"
         "    '事業報告': 'C',\n"
         "    '株式発行': 'C',\n"
-        "    '赤字縮小': 'C',\n"
         "    '株主総会': 'C',\n"
         "    '一目均衡表・雲抜け': 'C',\n"
 

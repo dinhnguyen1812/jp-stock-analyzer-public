@@ -143,46 +143,105 @@ def analyze_live_ticker(
         for candle in intraday_data if candle['open'] is not None
     )
 
+#     gpt_prompt = f"""
+# You are a professional market analyst focused on intraday trading for the Japanese stock market.
+
+# Today’s market context for {ticker}:
+
+# Previous day summary:
+# Ticker: {vs.ticker}
+# Name: {vs.name}
+# Reasoning: {vs.reasoning}
+# Top news (recent highlights):
+# {formatted_top_news}
+
+# Recent daily prices (last {len(recent_prices)} days):
+# {price_history_str}
+
+# Recent daily volumes (last {len(daily_volumes)} days):
+# {volume_history_str}
+
+# Current intraday situation (interval={interval}):
+# {intraday_summary}
+
+# Please provide a focused, actionable analysis strictly about *today’s* market reaction and *immediate recommendations* for an investor considering this stock.
+
+# Use the markdown format below exactly, with concise, clear points suitable for quick decision-making:
+
+# ### Today’s Market Reaction
+# 1. **News and Sentiment Impact:** Briefly summarize how recent news and sentiment are affecting price and volume today.
+# 2. **Price and Volume Behavior:** Key observations on intraday price moves and volume spikes.
+# 3. **Overall Market Reaction:** What is the market signaling right now?
+
+# ### Immediate Investor Actions
+# 1. **Entry Worthiness (0-100):** Rate how favorable it is to enter or add to this position *today*, with clear reasoning.
+# 2. **Next Steps:** Specific, actionable advice (e.g., wait for pullback, set alerts, partial entry, move for other stocks).
+# 3. **Key Price Levels:** Important support, resistance, or pivot points to watch during today’s session.
+# 4. **Risk Management:** Highlight any potential risks or warning signs for today.
+
+# ### Summary
+# A concise 2-3 sentence summary focusing on what the investor should do today.
+
+# """
     gpt_prompt = f"""
-You are a professional market analyst focused on intraday trading for the Japanese stock market.
+    You are a professional intraday market analyst for the Japanese stock market. Focus especially on *today's* intraday data.
 
-Today’s market context for {ticker}:
+    Context for {ticker}:
 
-Previous day summary:
-Ticker: {vs.ticker}
-Name: {vs.name}
-Reasoning: {vs.reasoning}
-Top news (recent highlights):
-{formatted_top_news}
+    Previous day summary:
+    Ticker: {vs.ticker}
+    Name: {vs.name}
+    Reasoning: {vs.reasoning}
 
-Recent daily prices (last {len(recent_prices)} days):
-{price_history_str}
+    Top news (recent highlights):
+    {formatted_top_news}
 
-Recent daily volumes (last {len(daily_volumes)} days):
-{volume_history_str}
+    Recent daily prices (last {len(recent_prices)} days):
+    {price_history_str}
 
-Current intraday situation (interval={interval}):
-{intraday_summary}
+    Recent daily volumes (last {len(daily_volumes)} days):
+    {volume_history_str}
 
-Please provide a focused, actionable analysis strictly about *today’s* market reaction and *immediate recommendations* for an investor considering this stock.
+    Current intraday situation (interval={interval}):
+    {intraday_summary}
 
-Use the markdown format below exactly, with concise, clear points suitable for quick decision-making:
+    --- TASK (be concise and decisive) ---
+    The user wants to understand whether current intraday or upcoming price action is likely to be:
+    - Pre-spike setup (hasn’t spiked yet, but signs point to possible strong move today, e.g., at market open),
+    - Profit-taking (initial spike followed by selling pressure),
+    - Re-spike (second or follow-through spike after an earlier surge, triggered by fresh buying or news),
+    - Continuation (sustained buying trend, structural recovery, or strong uptrend resuming).
 
-### Today’s Market Reaction
-1. **News and Sentiment Impact:** Briefly summarize how recent news and sentiment are affecting price and volume today.
-2. **Price and Volume Behavior:** Key observations on intraday price moves and volume spikes.
-3. **Overall Market Reaction:** What is the market signaling right now?
+    Based on the intraday candles and volumes provided, do the following *in this exact order and format*:
 
-### Immediate Investor Actions
-1. **Entry Worthiness (0-100):** Rate how favorable it is to enter or add to this position *today*, with clear reasoning.
-2. **Next Steps:** Specific, actionable advice (e.g., wait for pullback, set alerts, partial entry, move for other stocks).
-3. **Key Price Levels:** Important support, resistance, or pivot points to watch during today’s session.
-4. **Risk Management:** Highlight any potential risks or warning signs for today.
+    #### 0) **Today’s Market Reaction**
+      - News and Sentiment Impact: Briefly summarize how recent news and sentiment are affecting price and volume today. Evaluate whether the news is a strong catalyst or not.
+      - Price and Volume Behavior: Note any key intraday price moves and volume spikes (including premarket if relevant).
+      - Overall Market Reaction: Conclude with what the market seems to be signaling right now (e.g., bullish follow-through, uncertainty, exhaustion, accumulation).  
 
-### Summary
-A concise 2-3 sentence summary focusing on what the investor should do today.
+    #### 1) **Spike Classification** — pick one label from:
+      - `profit_taking`
+      - `re-spike`
+      - `genuine_recovery`
+      - `uncertain`
+      Provide a short justification (1–2 sentences).
 
-"""
+    #### 2) **Is it likely to rise again soon?** — answer `yes` / `no` / `uncertain`. Give a one-sentence reason tied to intraday evidence (volume, higher highs/lows, follow-through, presence/absence of reversal candles).
+
+    #### 3) **Action Recommendation (single-line)** — choose one action:
+      - `enter_now` (explain position sizing and stop),
+      - `wait_for_pullback` (specify pullback target or confirmation),
+      - `partial_scale_in` (how much now, how much wait),
+      - `avoid` (reason).
+      Include a **confidence score (0-100)** and a 1-line reason.
+
+    #### 4) **Top 3 signals / checklist used** — bullet list (each 1 short line) of the most important signals you used from the intraday data (e.g., "volume spike 3x average at 10:20", "2 consecutive higher closes after spike", "long upper wick at 11:05").
+
+    #### 5) **Key price levels to watch** — list support and resistance (exact price levels) for today.
+
+    #### 6) **Minimal trade plan (if recommending entry)** — entry price / stop-loss / initial target / sizing note (or blank if not entering).
+    
+    """
 
     print(f"===prompt={gpt_prompt}")
 

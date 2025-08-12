@@ -164,7 +164,7 @@ def get_all_saved_volume_analyses(
     price_threshold: float = Query(0, ge=0),
     starred_only: bool = False,
     watched_only: bool = False,
-    detected_at_max_age_days: int = Query(1, ge=1),
+    detected_at_max_age_days: float = Query(1.0, ge=0.0),
     db: Session = Depends(get_db),
 ):
     query = (

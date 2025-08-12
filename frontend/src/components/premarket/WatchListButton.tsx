@@ -52,7 +52,7 @@ export function WatchListButton() {
 
   const handleRemoveTicker = async (ticker: string) => {
     try {
-      await removeFromWatchlist(ticker); // You’ll need this API call
+      await removeFromWatchlist(ticker);
       const updated = await getWatchlist();
       setTickers(updated);
       setSuccessMessage(`Removed: ${ticker}`);
@@ -63,12 +63,11 @@ export function WatchListButton() {
     }
   };
 
-
   return (
     <>
       <Button onClick={() => setShow(true)}>Manage Watchlist</Button>
 
-      <Modal show={show} onHide={() => setShow(false)}>
+      <Modal size="lg" show={show} onHide={() => setShow(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Watchlist</Modal.Title>
         </Modal.Header>
@@ -100,14 +99,23 @@ export function WatchListButton() {
             {tickers.map(({ ticker, name, current_price }, idx) => (
               <ListGroup.Item key={idx}>
                 <Row className="align-items-center">
-                  <Col xs={3} sm={2}>
+                  <Col xs={2} sm={1}>
                     <strong>{ticker}</strong>
                   </Col>
-                  <Col xs={5} sm={6}>
+                  <Col xs={4} sm={5}>
                     {name}
                   </Col>
                   <Col xs={2} sm={2}>
                     {current_price}円
+                  </Col>
+                  <Col xs={2} sm={2}>
+                    <a
+                      href={`https://kabutan.jp/stock/chart?code=${ticker}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Kabutan Chart
+                    </a>
                   </Col>
                   <Col xs={2} sm={2} className="text-end">
                     <Button

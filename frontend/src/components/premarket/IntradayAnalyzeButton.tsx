@@ -90,6 +90,14 @@ export default function IntradayAnalyzeButton({
             |{" "}
             <a href={url5} target="_blank" rel="noopener noreferrer">
               5m interval (1 day)
+            </a>{" "}
+            |{" "}
+            <a
+              href={`https://kabutan.jp/stock/chart?code=${ticker}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Kabutan chart
             </a>
           </p>
 
@@ -148,18 +156,26 @@ export default function IntradayAnalyzeButton({
               {result?.analysis_raw && !loading && (
                 <div
                   style={{
-                    maxHeight: "60vh",
+                    maxHeight: "80vh",
                     overflowY: "auto",
                     backgroundColor: "#f0f2f5",
-                    padding: 16,
-                    borderRadius: 6,
-                    fontSize: 14,
-                    whiteSpace: "pre-wrap",
-                    lineHeight: 1.5,
+                    padding: 10,
+                    borderRadius: 3,
+                    fontSize: 20,
+                    whiteSpace: "pre-line",
+                    lineHeight: 1.2,
                     userSelect: "text",
                   }}
                 >
-                  <ReactMarkdown>{result.analysis_raw}</ReactMarkdown>
+                  <ReactMarkdown
+                    components={{
+                      h3: ({node, ...props}) => (
+                        <h3 style={{ marginBottom: "0.2em", fontSize: "1.1em" }} {...props} />
+                      )
+                    }}
+                  >
+                    {result.analysis_raw}
+                  </ReactMarkdown>
                 </div>
               )}
 
