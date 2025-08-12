@@ -13,7 +13,7 @@ def parse_volume(text: str) -> int:
     return int(text.replace(",", "").replace("株", "").strip())
 
 
-def fetch_daily_volume_history(ticker: str, days: int = 5):
+def fetch_daily_volume_history(ticker: str, days: int = 15):
     """
     Fetch daily volume data from Yahoo Finance JP.
     Returns list of dicts with ticker, date, volume.

@@ -21,7 +21,7 @@ def get_latest_date_in_db(db: Session, ticker: str) -> Optional[date]:
     )
     return latest.date if latest else None
 
-def fetch_price_history(ticker: str, from_date: date, to_date: date, max_days: int = 150) -> list[dict]:
+def fetch_price_history(ticker: str, from_date: date, to_date: date, max_days: int = 30) -> list[dict]:
     """
     Fetch OHLC price data from Yahoo Finance JP between from_date and to_date.
     Returns list of dicts: {ticker, date, open, high, low, close}.

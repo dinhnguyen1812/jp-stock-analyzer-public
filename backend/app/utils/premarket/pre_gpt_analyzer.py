@@ -22,6 +22,8 @@ from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
 from app.models import AverageMoneyFlow, AverageVolume, DailyPrice, VolumeSnapshot, ShortTermAnalysisSignal, DailyVolume
+from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker
+from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -843,3 +845,36 @@ def check_market_hours(db):
     except Exception as e:
         print(f"⚠️ Error while scraping 7203: {e}")
         return False
+
+def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", is_market_hours = False) -> Dict:
+    # Step 1: Get news
+    news = scrape_kabutan_news(ticker, limit=30)
+    if not news:
+        raise ValueError(f"No news found for ticker {ticker}")
+
+    # Step 2: Generate & save snapshot
+    snapshot = analyze_and_snapshot_ticker(
+        db=db,
+        ticker=ticker,
+        surge_threshold=0.0,
+        price_threshold=0,
+    )
+    if not snapshot:
+        raise ValueError(f"{ticker} does not meet surge/price criteria.")
+
+    # Step 3: Retrieve VolumeSnapshot from DB
+    volume_info = get_volume_info(db, ticker=ticker)
+    if not volume_info:
+        raise ValueError(f"No volume data found for {ticker}")
+
+    # Step 4: Analyze with GPT
+    premarket_analyze_with_gpt(
+        db=db,
+        ticker=ticker,
+        news_items=news,
+        volume_info=volume_info,
+        is_market_hours=is_market_hours,
+        top_n=top_n,
+        model=model,
+    )
+    return {"message": f"Analyzing complete. {ticker} analyzed."}

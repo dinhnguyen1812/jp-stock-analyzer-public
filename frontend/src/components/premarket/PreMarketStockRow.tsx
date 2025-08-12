@@ -4,6 +4,7 @@ import { formatDistance } from "date-fns";
 import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 import MiniCandleChart from "./MiniPriceChart";
+import IntradayAnalyzeButton from "./IntradayAnalyzeButton";
 
 export interface DailyPrice {
   date: string;   // ISO date string, e.g. "2025-08-09"
@@ -302,20 +303,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     return map[label] || label.slice(0, 10);
   };
 
-  const [localNote, setLocalNote] = useState<string>(stock.note ?? "");
   const [isSaving, setIsSaving] = useState(false);
-
-  const handleNoteSave = async () => {
-    setIsSaving(true);
-    try {
-      await fetchSetNote(stock.ticker, localNote);
-      console.log(`✅ Note updated for ${stock.ticker}`);
-    } catch (err) {
-      console.error(`❌ Failed to update note:`, err);
-      alert("Note update failed");
-    }
-    setIsSaving(false);
-  };
 
   // const compareIndicator = (
   //   stockValue: string | number | null | undefined,
@@ -624,6 +612,9 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
               </Button>
             </div>
+          </div>
+          <div>
+            <IntradayAnalyzeButton ticker={stock.ticker} />
           </div>
         </td>
         <td className="align-middle text-center">

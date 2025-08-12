@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from threading import Event
 from app.schemas import ScanParams
 
@@ -17,10 +17,11 @@ from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize
 from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
-from app.utils.premarket.pre_gpt_analyzer import get_latest_trading_day, premarket_analyze_with_gpt, check_market_hours
+from app.utils.premarket.pre_gpt_analyzer import analyze_ticker_by_steps, get_latest_trading_day, premarket_analyze_with_gpt, check_market_hours
 from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 from app.utils.premarket.watchlist import append_batch_to_watchlist, read_watchlist, remove_from_watchlist_csv, add_to_watchlist_csv
+from app.utils.premarket.intraday_analyzer import analyze_live_ticker, parse_yahoo_intraday
 
 router = APIRouter()
 
@@ -419,39 +420,6 @@ def set_note(
     db.commit()
     return {"status": "ok", "ticker": ticker, "note": request.note}
 
-def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", is_market_hours = False) -> Dict:
-    # Step 1: Get news
-    news = scrape_kabutan_news(ticker, limit=30)
-    if not news:
-        raise ValueError(f"No news found for ticker {ticker}")
-
-    # Step 2: Generate & save snapshot
-    snapshot = analyze_and_snapshot_ticker(
-        db=db,
-        ticker=ticker,
-        surge_threshold=0.0,
-        price_threshold=0,
-    )
-    if not snapshot:
-        raise ValueError(f"{ticker} does not meet surge/price criteria.")
-
-    # Step 3: Retrieve VolumeSnapshot from DB
-    volume_info = get_volume_info(db, ticker=ticker)
-    if not volume_info:
-        raise ValueError(f"No volume data found for {ticker}")
-
-    # Step 4: Analyze with GPT
-    premarket_analyze_with_gpt(
-        db=db,
-        ticker=ticker,
-        news_items=news,
-        volume_info=volume_info,
-        is_market_hours=is_market_hours,
-        top_n=top_n,
-        model=model,
-    )
-    return {"message": f"Analyzing complete. {ticker} analyzed."}
-
 @router.post("/analyze/{ticker}", response_model=Dict)
 def analyze_single_ticker(
     ticker: str,
@@ -717,3 +685,36 @@ def unstar_stock(ticker: str, db: Session = Depends(get_db)):
         db.delete(existing)
         db.commit()
     return {"status": "watched"}
+
+@router.post("/analyze_live/{ticker}", response_model=Dict)
+def analyze_live_stock(
+    ticker: str,
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    raw_yahoo_json: Optional[dict] = Body(None),
+    db: Session = Depends(get_db)
+):
+    result = analyze_live_ticker(
+        db=db,
+        ticker=ticker,
+        top_n=top_n,
+        model=model,
+        raw_yahoo_json=raw_yahoo_json
+    )
+    return result
+
+@router.post("/test_parse_intraday/{ticker}", response_model=Dict)
+def test_parse_intraday(
+    ticker: str,
+    raw_yahoo_json: Optional[dict] = Body(None),
+    db: Session = Depends(get_db)
+):
+    if raw_yahoo_json is None:
+        return {"error": "raw_yahoo_json body is required"}
+
+    parsed_data = parse_yahoo_intraday(raw_yahoo_json)
+    print(f"====parsed_data={parsed_data}")
+    return {
+        "ticker": ticker,
+        "parsed_intraday": parsed_data,
+    }

@@ -184,7 +184,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               Most Impact
             </th>
             <th
-              style={{ width: "360px" }}
+              style={{ width: "370px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("action_column")}
             >

@@ -435,3 +435,24 @@ export async function unwatchStock(ticker: string) {
   if (!res.ok) throw new Error("Failed to unwatch stock");
   return await res.json();
 }
+
+export async function analyzeLiveStock(
+  ticker: string,
+  rawYahooJson: object,
+  top_n = 3,
+  model = "gpt-4o"
+): Promise<any> {
+  const res = await fetch(`${BASE_URL}/premarket/analyze_live/${ticker}?top_n=${top_n}&model=${model}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ raw_yahoo_json: rawYahooJson }),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Analyze live failed: ${res.status} ${errorText}`);
+  }
+  return await res.json();
+}
