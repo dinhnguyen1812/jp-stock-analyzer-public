@@ -95,6 +95,7 @@ def trigger_volume_scan(
     db: Session = Depends(get_db)
 ):
     is_market_hours = check_market_hours(db)
+
     # Step 1: Scan and save volume surge data (pre-market)
     tickers = scan_and_save_pre_market_volume_surges(
         db=db,
@@ -104,22 +105,12 @@ def trigger_volume_scan(
         to_page=params.to_page,
     )
 
-    # Step 2: Run initial GPT-3.5-turbo analysis on all detected tickers
+    # Step 2: First pass — GPT-3.5 analysis
     for ticker in tickers:
-        news = scrape_kabutan_news(ticker, limit=30)
-        if not news:
-            continue
-
-        volume_info = get_volume_info(db, ticker=ticker)
-        if not volume_info:
-            continue
-
         try:
-            premarket_analyze_with_gpt(
+            analyze_ticker_by_steps(
                 db=db,
                 ticker=ticker,
-                news_items=news,
-                volume_info=volume_info,
                 top_n=3,
                 model="gpt-3.5-turbo",
                 is_market_hours=is_market_hours
@@ -127,18 +118,21 @@ def trigger_volume_scan(
         except Exception as e:
             print(f"⚠️ GPT-3.5 analysis failed for {ticker}: {e}")
 
-    # Step 3: Re-analyze promising tickers (promising_score >= 60) with GPT-4o
+    # Step 3: Second pass — GPT-4o for promising tickers
     for ticker in tickers:
-        news = scrape_kabutan_news(ticker, limit=30)
-        if not news:
-            continue
         volume_info = get_volume_info(db, ticker=ticker)
         if not volume_info:
             continue
-        if volume_info.promising_score is not None and volume_info.promising_score >= 60:
+        if volume_info.promising_score is not None and volume_info.promising_score >= 50:
             try:
                 print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
-                premarket_analyze_with_gpt(db=db, ticker=ticker, news_items=news, volume_info=volume_info, top_n=3, model="gpt-4o", is_market_hours=is_market_hours)
+                analyze_ticker_by_steps(
+                    db=db,
+                    ticker=ticker,
+                    top_n=3,
+                    model="gpt-4o",
+                    is_market_hours=is_market_hours
+                )
             except Exception as e:
                 print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
@@ -466,27 +460,69 @@ def analyze_single_ticker(
     db: Session = Depends(get_db)
 ):
     is_market_hours = check_market_hours(db)
-    try:
-        result = analyze_ticker_by_steps(db, ticker, top_n, model, is_market_hours=is_market_hours)
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+
+    # Run analysis with GPT-3.5 first
+    analyze_ticker_by_steps(
+        db=db,
+        ticker=ticker,
+        top_n=top_n,
+        model="gpt-3.5-turbo",
+        is_market_hours=is_market_hours,
+    )
+
+    # Reanalyze with GPT-4o if promising
+    volume_info = get_volume_info(db, ticker=ticker)
+    if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+        try:
+            analyze_ticker_by_steps(
+                db=db,
+                ticker=ticker,
+                top_n=top_n,
+                model="gpt-4o",
+                is_market_hours=is_market_hours,
+            )
+        except Exception as e:
+            print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+
+    # Return confirmation message
+    return {"message": f"Analysis complete for {ticker}"}
 
 @router.post("/analyze_starred", response_model=List[Dict])
 def analyze_starred_tickers(
     top_n: int = 3,
-    model: str = "gpt-4o",
     db: Session = Depends(get_db)
 ):
     is_market_hours = check_market_hours(db)
-    starred_tickers = db.query(StarredStock.ticker).all()
-    ticker_list = [t[0] for t in starred_tickers]  # convert list of tuples to list of strings
+    starred_tickers = [t[0] for t in db.query(StarredStock.ticker).all()]
     results = []
 
-    for ticker in ticker_list:
+    for ticker in starred_tickers:
         try:
-            result = analyze_ticker_by_steps(db, ticker, top_n, model, is_market_hours=is_market_hours)
-            results.append(result)
+            # First pass: GPT-3.5-turbo
+            analyze_ticker_by_steps(
+                db=db,
+                ticker=ticker,
+                top_n=top_n,
+                model="gpt-3.5-turbo",
+                is_market_hours=is_market_hours,
+            )
+
+            # Check if promising for reanalysis
+            volume_info = get_volume_info(db, ticker=ticker)
+            if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+                try:
+                    analyze_ticker_by_steps(
+                        db=db,
+                        ticker=ticker,
+                        top_n=top_n,
+                        model="gpt-4o",
+                        is_market_hours=is_market_hours,
+                    )
+                except Exception as e:
+                    print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+
+            results.append({"message": f"Analysis complete for {ticker}"})
+
         except ValueError as e:
             print(f"Skipping {ticker}: {e}")
             continue
@@ -496,19 +532,42 @@ def analyze_starred_tickers(
 @router.post("/analyze_watch_list", response_model=List[Dict])
 def analyze_watch_list(
     top_n: int = 3,
-    model: str = "gpt-4o",
     db: Session = Depends(get_db)
 ):
-    extra_guidance = "### FOCUS ON **POSSBLE RE-SPIKE**. If there is possible re-spike, provide more details about **HOW TO ENTRY**"
+    extra_guidance = "### FOCUS ON **POSSIBLE RE-SPIKE**. If there is possible re-spike, provide more details about **HOW TO ENTRY**"
     is_market_hours = check_market_hours(db)
-    watchlist_tickers = db.query(WatchList.ticker).all()
-    ticker_list = [t[0] for t in watchlist_tickers]  # convert list of tuples to list of strings
+    watchlist_tickers = [t[0] for t in db.query(WatchList.ticker).all()]
     results = []
 
-    for ticker in ticker_list:
+    for ticker in watchlist_tickers:
         try:
-            result = analyze_ticker_by_steps(db, ticker, top_n, model, is_market_hours=is_market_hours, extra_guidance=extra_guidance)
-            results.append(result)
+            # First pass: GPT-3.5-turbo with extra guidance
+            analyze_ticker_by_steps(
+                db=db,
+                ticker=ticker,
+                top_n=top_n,
+                model="gpt-3.5-turbo",
+                is_market_hours=is_market_hours,
+                extra_guidance=extra_guidance,
+            )
+
+            # Check if promising for reanalysis
+            volume_info = get_volume_info(db, ticker=ticker)
+            if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+                try:
+                    analyze_ticker_by_steps(
+                        db=db,
+                        ticker=ticker,
+                        top_n=top_n,
+                        model="gpt-4o",
+                        is_market_hours=is_market_hours,
+                        extra_guidance=extra_guidance,
+                    )
+                except Exception as e:
+                    print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+
+            results.append({"message": f"Analysis complete for {ticker}"})
+
         except ValueError as e:
             print(f"Skipping {ticker}: {e}")
             continue

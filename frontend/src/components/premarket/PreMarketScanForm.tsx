@@ -218,7 +218,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
               </Button>
             </Col>
 
-            <Col style={{ flexGrow: 0.1, minWidth: 60 }}>
+            <Col style={{ flexGrow: 0.1, minWidth: 60, marginLeft: "20px" }}>
               <div
                 onClick={() => onStarredOnlyChange(!starredOnly)}
                 style={{
@@ -227,7 +227,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                   color: starredOnly ? "#ffc107" : "#6c757d",
                   textShadow: starredOnly ? "0 0 2px #ffc107, 0 0 4px #ffc107" : "none",
                   opacity: loading ? 0.5 : 1,
-                  userSelect: "none",
+                  userSelect: "none"
                 }}
                 title="Filter starred stocks"
               >

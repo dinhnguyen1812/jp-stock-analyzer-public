@@ -459,6 +459,7 @@ def premarket_analyze_with_gpt(
         "    '利益倍増': 'B',\n"
         "    '今期 業績予想 50%増益以上': 'B',\n"
         "    '業績予想 上方修正': 'B',\n"
+        "    '月次売上・業績データ': 'B',\n"
 
         # C rank - negative or neutral
         "    '施設閉鎖': 'C',\n"
@@ -466,10 +467,13 @@ def premarket_analyze_with_gpt(
         "    '事業報告': 'C',\n"
         "    '株式発行': 'C',\n"
         "    '赤字縮小': 'C',\n"
+        "    '株主総会': 'C',\n"
+        "    '一目均衡表・雲抜け': 'C',\n"
 
         # D rank - negative
         "    '減益': 'D',\n"
         "    '赤字転落': 'D',\n"
+        "    '赤字拡大': 'D'\n"
         "    '資本金変更': 'D',\n"
         "    '再掲IR': 'D',\n"
         "    '過去の材料再加熱': 'D'\n"
@@ -492,9 +496,10 @@ def premarket_analyze_with_gpt(
 
         "    • '中期経営計画': Boost to A+ only if plan includes aggressive growth, global expansion, or restructuring in promising areas.\n"
         "    • '特別利益': Boost to A only if it significantly improves EPS or changes valuation metrics.\n"
-        "    • '今期 業績予想 50%増益以上': Boost to A if forecast is unexpected, from a low-float/small-cap stock, or paired with strong catalysts.\n"
+        "    • '今期 業績予想 50%増益以上': Boost to A if forecast is unexpected, or paired with strong catalysts.\n"
+        "    • '業績予想 上方修正': Boost to A if forecast is unexpected, or paired with strong catalysts.\n"
         "    • 'サプライズ決算': Boost to A only if results exceed expectations significantly.\n"
-        "    • '四半期サプライズ決算': Boost to S only if quarterly results strongly surprise.\n"
+        "    • '四半期サプライズ決算': Boost to A only if quarterly results strongly surprise.\n"
         "    • '増益': Boost to A+ if profit growth exceeds 50% and is unexpected, A if between 30–50% with positive sentiment or low float.\n"
         "    • '利益倍増': Boost to S if 2倍以上 in a Defined **HOT/TRENDING SECTOR**, otherwise A if supported by a strong catalyst.\n"
         "    • 'fisco注目': Boost to A if stock already trending or backed by strong catalyst.\n"
@@ -560,8 +565,15 @@ def premarket_analyze_with_gpt(
 
         impacts = extract_headline_impacts(reply)
         # print(f"====impacts={impacts}")
-        summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
+        # summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
+        # summary = summary_match.group(1).strip() if summary_match else ""
+        summary_match = re.search(
+            r"##+ Summary:\s*(.*?)(?=\n##+|\Z)",
+            reply,
+            re.DOTALL
+        )
         summary = summary_match.group(1).strip() if summary_match else ""
+
 
         highest_impact_keyword = None
         highest_impact_rank = None

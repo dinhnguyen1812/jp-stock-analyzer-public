@@ -8,7 +8,6 @@ import {
   Bar,
   Line,
 } from "recharts";
-import type { BarProps } from "recharts";
 
 type PriceData = {
   date: string;
@@ -25,8 +24,8 @@ export default function MiniPriceChart({ data }: { data: PriceData[] }) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" aspect={3 / 2}>
-      <ComposedChart data={chartData}>
+    <ResponsiveContainer width="100%" aspect={3 / 2} style={{ marginBottom: 0 }}>
+      <ComposedChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
         <XAxis dataKey="date" hide />
         <YAxis domain={["dataMin", "dataMax"]} hide />
         <Tooltip
@@ -57,18 +56,16 @@ export default function MiniPriceChart({ data }: { data: PriceData[] }) {
           dataKey="close"
           barSize={6}
           shape={(props: any) => {
-            // use any here to access payload safely
-            const { x, width, payload, y, yAxis } = props;
+            const { x, width, payload, yAxis } = props;
 
             if (!payload) return <g />;
 
             const yScale = yAxis?.scale;
-
             if (!yScale) {
               return (
                 <rect
                   x={x}
-                  y={y}
+                  y={props.y}
                   width={width}
                   height={5}
                   fill={payload.close >= payload.open ? "#28a745" : "#dc3545"}

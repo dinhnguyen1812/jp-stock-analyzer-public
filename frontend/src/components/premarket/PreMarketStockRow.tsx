@@ -582,10 +582,9 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   verdict === "A" ? "warning" :
                   verdict === "A-" ? "info" :
                   verdict === "B" ? "secondary" :
-                  verdict === "C" || verdict === "D" ? "dark" :
-                  "light";
+                  verdict === "C" || verdict === "D" ? "dark" : "light";
 
-                const textColor = verdict === "C" || verdict === "D" ? "dark" : "light";
+                const textColor = verdict === "C" || verdict === "D" ? "light" : "light";
 
                 const publishedAt = new Date(bestNews.published_at);
                 const thresholdDate = new Date(
@@ -763,31 +762,38 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   ) : (
                     <p className="text-muted">(No downtrend data)</p>
                   )} */}
-                  <h5 className="mb-3">📉 15-Day Chart</h5>
-                  {analysis.volume_info.recent_prices &&
-                  analysis.volume_info.recent_prices.length > 0 ? (
-                    <MiniCandleChart
-                      data={analysis.volume_info.recent_prices.map(p => ({
-                        date: p.date,
-                        open: p.open,
-                        high: p.high,
-                        low: p.low,
-                        close: p.close,
-                      }))}
-                    />
-                  ) : (
-                    <p className="text-muted">No price data</p>
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 300px", minWidth: 300 }}>
+                      <h5 className="mb-3">📉 15-Day Chart</h5>
+                      {analysis.volume_info.recent_prices && analysis.volume_info.recent_prices.length > 0 ? (
+                        <MiniCandleChart
+                          data={analysis.volume_info.recent_prices.map(p => ({
+                            date: p.date,
+                            open: p.open,
+                            high: p.high,
+                            low: p.low,
+                            close: p.close,
+                          }))}
+                        />
+                      ) : (
+                        <p className="text-muted">No price data</p>
+                      )}
+                    </div>
 
-                  <h5 className="mt-4">📈{" "}
-                    <a
-                      href={analysis.volume_info.kabutan_chart_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      View Kabutan Chart
-                    </a>
-                  </h5>
+                    <div style={{ flexShrink: 0, marginTop: "1.5rem" }}>
+                      <h5 style={{ marginBottom: "0.25rem" }}>
+                        📈{" "}
+                        <a
+                          href={analysis.volume_info.kabutan_chart_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ whiteSpace: "nowrap" }}
+                        >
+                          View Kabutan Chart
+                        </a>
+                      </h5>
+                    </div>
+                  </div>
                 </Col>
               </Row>
 
