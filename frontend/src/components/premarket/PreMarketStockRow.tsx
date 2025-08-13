@@ -4,7 +4,7 @@ import { formatDistance } from "date-fns";
 import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
 import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 import MiniCandleChart from "./MiniPriceChart";
-import IntradayAnalyzeButton from "./IntradayAnalyzeButton";
+// import IntradayAnalyzeButton from "./IntradayAnalyzeButton";
 import IntradayAnalyzeTab from "./IntradayAnalyzeTab";
 
 export interface DailyPrice {
@@ -15,13 +15,22 @@ export interface DailyPrice {
   close: number;
 }
 
+export interface SpikeInfo {
+  spike_date: string;
+  first_spike_close_near_high: boolean;
+  number_of_respikes: number;
+  drop_from_high_pct: number;
+  last_day_close_near_low: boolean;
+}
+
 export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
   recent_prices?: DailyPrice[];
+  spike_info?: SpikeInfo[];
   reasoning?: string;
   recommendation?: "Buy" | "Hold" | "Sell" | null;
   promising_score?: number;
-  spiked?: string;
-  spike_next?: number;
+  // spiked?: string;
+  // spike_next?: number;
   top_news?: {
     published_at: string;
     category: string;
@@ -75,11 +84,12 @@ export interface SavedAnalysis {
 interface PreMarketStockRowProps {
   stock: VolumeSurgeStock & {
     recent_prices?: DailyPrice[];
+    spike_info?: SpikeInfo[];
     highest_impact_keyword?: string;
     highest_impact_rank?: string;
     promising_score?: number;
-    spiked?: string;
-    spike_next?: number;
+    // spiked?: string;
+    // spike_next?: number;
     recommendation?: string | null;
     starred?: boolean;
     watched?: boolean;
@@ -417,11 +427,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           <div>{stock.current_volume.toLocaleString()}</div>
           <div>{stock.avg_volume_5d.toLocaleString()}</div>
         </td>
-
-        {/* 🔑 Key Signals column */}
-        <td className="align-middle text-start">
-          {renderKeySignals()}
-        </td>
         {/* 🔑 MiniChart */}
         <td
           className="align-middle text-start"
@@ -439,6 +444,36 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             />
           ) : (
             <small className="text-muted">No price data</small>
+          )}
+        </td>
+        {/* Spike pattern column */}
+        <td>
+          {stock.spike_info && stock.spike_info.length > 0 ? (
+            <>
+              <div>
+                1st Spike: {stock.spike_info[0].spike_date}
+              </div>
+              <div>
+                1st Close↑High:{" "}
+                <span style={{ color: stock.spike_info[0].first_spike_close_near_high ? "green" : "red" }}>
+                  {stock.spike_info[0].first_spike_close_near_high ? "Yes" : "No"}
+                </span>
+              </div>
+              <div>
+                Respikes: {stock.spike_info[0].number_of_respikes}
+              </div>
+              <div>
+                Current Drop↓High: {stock.spike_info[0].drop_from_high_pct}%
+              </div>
+              <div>
+                Current Close↓Low:{" "}
+                <span style={{ color: stock.spike_info[0].last_day_close_near_low ? "green" : "red" }}>
+                  {stock.spike_info[0].last_day_close_near_low ? "Yes" : "No"}
+                </span>
+              </div>
+            </>
+          ) : (
+            "-"
           )}
         </td>
 
@@ -470,7 +505,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             </Badge>
           )}
           <div style={{ height: 8 }} /> {/* Space between rows */}
-          {stock.spiked !== undefined && (
+          {/* {stock.spiked !== undefined && (
             <Badge
               bg={stock.spiked.toLowerCase() === "yes" ? "success" : "danger"}
               className="border me-2"
@@ -495,7 +530,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             >
               Spike next: {stock.spike_next}
             </Badge>
-          )}
+          )} */}
         </td>
 
         {/* Action/GPT column */}
@@ -618,6 +653,11 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             <IntradayAnalyzeButton ticker={stock.ticker} />
           </div> */}
         </td>
+
+        {/* 🔑 Key Signals column */}
+        <td className="align-middle text-start">
+          {renderKeySignals()}
+        </td>
         <td className="align-middle text-center">
           <span
             style={{
@@ -661,14 +701,29 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                             addSuffix: true,
                           })}
                         </li>
-                        <li>
+                        {/* <li>
                           Drop From High (%): {analysis.volume_info.drop_from_high_pct?.toFixed(2) ?? "N/A"}
                         </li>
                         <li>
                           Rebound From Low (%): {analysis.volume_info.rebound_from_low_pct?.toFixed(2) ?? "N/A"}
                         </li>
                         <li>Highest Price: {analysis.volume_info.highest_price ?? "N/A"}</li>
-                        <li>Lowest Price: {analysis.volume_info.lowest_price ?? "N/A"}</li>
+                        <li>Lowest Price: {analysis.volume_info.lowest_price ?? "N/A"}</li> */}
+                        <li>
+                          1st Spike Date: {analysis.volume_info.spike_info?.[0]?.spike_date ?? "N/A"}
+                        </li>
+                        <li>
+                          1st Close↑High: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.first_spike_close_near_high ? "Yes" : "No")}
+                        </li>
+                        <li>
+                          Respikes: {analysis.volume_info.spike_info?.[0]?.number_of_respikes ?? "N/A"}
+                        </li>
+                        <li>
+                          Drop↓High (%): {analysis.volume_info.spike_info?.[0]?.drop_from_high_pct?.toFixed(2) ?? "N/A"}
+                        </li>
+                        <li>
+                          Close↓Low: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.last_day_close_near_low ? "Yes" : "No")}
+                        </li>
                       </ul>
                     </Col>
 

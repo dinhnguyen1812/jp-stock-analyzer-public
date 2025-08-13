@@ -174,11 +174,11 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               <div>Current {renderSortIndicator("current_volume")}</div>
               <div>Avg 5d</div>
             </th>
-            <th style={{ width: "100px" }} className="align-top text-center">
-              Key Signals
-            </th>
-            <th style={{ width: "100px" }} className="align-top text-center">
+            <th style={{ width: "140px" }} className="align-top text-center">
               Mini Chart
+            </th>
+            <th style={{ width: "190px" }} className="align-top text-center">
+              Spike pattern
             </th>
             <th style={{ width: "220px" }} className="align-top text-center">
               Most Impact
@@ -214,6 +214,9 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
                   Signal
                 </span>
               </div>
+            </th>
+            <th style={{ width: "100px" }} className="align-top text-center">
+              Key Signals
             </th>
             <th
               style={{ width: "90px" }}

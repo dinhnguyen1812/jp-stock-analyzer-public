@@ -228,11 +228,14 @@ export async function fetchAllAnalyses(
       "Content-Type": "application/json",
     },
   });
-  console.log(res.json)
 
   if (!res.ok) throw new Error("Failed to fetch analyzed volume surges");
-  return await res.json();
+
+  const data = await res.json();
+  // console.log(data); // <-- prints the JSON result
+  return data;
 }
+
 
 export async function analyzeAllStarredTickers() {
   const res = await fetch(`${BASE_URL}/premarket/analyze_starred`, {

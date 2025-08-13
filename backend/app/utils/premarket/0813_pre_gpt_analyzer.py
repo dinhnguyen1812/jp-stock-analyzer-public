@@ -25,7 +25,6 @@ from app.models import AverageMoneyFlow, AverageVolume, DailyPrice, VolumeSnapsh
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker
 from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
 from app.api.shortterm_apis import get_latest_analysis_signal_data
-from app.utils.premarket.spike_pattern import get_spike_analysis, normalize_spike_for_json
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -104,18 +103,35 @@ def extract_headline_impacts(text: str) -> list[dict]:
 
     return results
 
-# def extract_spiked_and_spike_next(text: str):
-#     cleaned = re.sub(r"[*#•\-–—●★▶◆]", "", text)
-#     cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+# def extract_spike_info(text: str) -> Optional[Dict[str, str]]:
+#     pattern = re.compile(
+#         r"\*\*Spiked\*\*:\s*\[?(Yes|No)\]?\s*—\s*\*\*Spike next\*\*:\s*\(?(\d{1,3})\)?",
+#         re.IGNORECASE
+#     )
 
-#     spiked_match = re.search(r"\bspiked\s*[:\-]?\s*(yes|no)", cleaned)
-#     spiked = spiked_match.group(1).capitalize() if spiked_match else "Unknown"
+#     for line in text.splitlines():
+#         line = line.strip()
+#         m = pattern.search(line)
+#         if m:
+#             return {
+#                 "spiked": m.group(1).capitalize(),
+#                 "spike_next": m.group(2)
+#             }
 
-#     spike_next_match = re.search(r"\bspike next\s*[:\-]?\s*(\d{1,3})", cleaned)
-#     spike_next = int(spike_next_match.group(1)) if spike_next_match else -1
-#     spike_next = max(0, min(spike_next, 100))
+#     return None
 
-#     return spiked, spike_next
+def extract_spiked_and_spike_next(text: str):
+    cleaned = re.sub(r"[*#•\-–—●★▶◆]", "", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+
+    spiked_match = re.search(r"\bspiked\s*[:\-]?\s*(yes|no)", cleaned)
+    spiked = spiked_match.group(1).capitalize() if spiked_match else "Unknown"
+
+    spike_next_match = re.search(r"\bspike next\s*[:\-]?\s*(\d{1,3})", cleaned)
+    spike_next = int(spike_next_match.group(1)) if spike_next_match else -1
+    spike_next = max(0, min(spike_next, 100))
+
+    return spiked, spike_next
 
 def premarket_analyze_with_gpt(
     db: Session,
@@ -123,10 +139,9 @@ def premarket_analyze_with_gpt(
     news_items: List[Dict],
     volume_info: VolumeSnapshot,
     is_market_hours: False,
-    analyze_intraday: False,
     extra_guidance: str = "",
     top_n: int = 3,
-    model: str = "gpt-4o",
+    model: str = "gpt-4o"
 ) -> Dict:
     fetch_and_save_price_history(db, ticker)
     update_avg_volume_for_ticker(db, ticker)
@@ -140,19 +155,16 @@ def premarket_analyze_with_gpt(
             print("Skipping because reasoning exists and detected_at < 1 hour ago")
             return
 
-    seven_days_ago = datetime.now() - timedelta(days=7)
-
     low_score_exists = (
         db.query(VolumeSnapshot)
         .filter(
             VolumeSnapshot.ticker == volume_info.ticker,
-            VolumeSnapshot.promising_score <= 40,  # or <= 50 if you want to match the print
-            VolumeSnapshot.detected_at >= seven_days_ago
+            VolumeSnapshot.promising_score <= 30
         )
         .first()
     )
     if low_score_exists:
-        print("⏩ Skipping: found previous snapshot with promising_score <= 40")
+        print("⏩ Skipping: found previous snapshot with promising_score <= 50")
         return
 
     # Long-term data
@@ -199,16 +211,6 @@ def premarket_analyze_with_gpt(
 
     # uptrend_info = normalize_uptrend_for_json(get_uptrend_analysis(db, ticker))
     # downtrend_info = normalize_downtrend_for_json(get_downtrend_analysis(db, ticker))
-    spike_summary = ""
-    spike_info = normalize_spike_for_json(get_spike_analysis(db, ticker))
-    if spike_info['spike_date']:
-        spike_summary = (
-            f"First spike: {spike_info['spike_date']}, "
-            f"Closed near high: {'Yes' if spike_info['first_spike_close_near_high'] else 'No'}, "
-            f"Number of respikes: {spike_info['number_of_respikes']}, "
-            f"Drop from high: {spike_info['drop_from_high_pct']}%, "
-            f"Last day close near low: {'Yes' if spike_info['last_day_close_near_low'] else 'No'}"
-        )
 
     # # Extract key trend data
     # drop_pct = downtrend_info.get("drop_pct", 0)
@@ -277,7 +279,7 @@ def premarket_analyze_with_gpt(
     now_jst = now.astimezone(jst)
     date_str = now_jst.date().isoformat()
     latest_trading_day = get_latest_trading_day(db)
-    if is_market_hours and analyze_intraday:
+    if is_market_hours:
         intraday_info = get_intraday_volume_info_for_ticker(db, ticker)
         intraday_summary = (
             f"Current Price: {intraday_info['current_price']} JPY\n"
@@ -365,8 +367,7 @@ def premarket_analyze_with_gpt(
         f"Today is {date_str}, time: {now_jst}. Latest completed trading day: {latest_trading_day}, time: 15:30:00.\n"
         # f"### Fundamental Snapshot (for context only):\n{longterm_summary}\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
-        f"### Spike pattern:\n{spike_summary}\n"
-        f"### Intraday: {is_market_hours}. Intraday summary:\n{intraday_summary if is_market_hours and analyze_intraday else None}\n"
+        f"### Intraday: {is_market_hours}. Intraday summary:\n{intraday_summary if is_market_hours else None}\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
         # f"### Trend Summary (Up/Down Movements):\n{trend_summary}\n"
         f"### Momentum Signals Summary:\n{momentum_summary}\n"
@@ -377,7 +378,6 @@ def premarket_analyze_with_gpt(
 
         "### Instructions:\n"
         f"{extra_guidance}"
-        "- Important: If the spike pattern shows that the stock **spiked recently and closed near high**, is **now in a pullback phase**, or **last day closed near low**, or **spiked last day and closed near high**, assign a **high promising score** and highlight the potential continuation.\n"
         # "- Only use **fundamental data** if it clearly explains the price move (e.g. PER far from industry avg, ROE strong, speculative excess).\n"
         # "- Do **not** perform full valuation; use it only to support short-term momentum/sentiment judgment.\n"
         "- Focus primarily on **recent impactful news**, especially **today** and within the **past 7 days**.\n"
@@ -542,8 +542,8 @@ def premarket_analyze_with_gpt(
         "- Final Comment: [Your overall sentiment for tomorrow's trade setup]\n\n"
         "- Investment Recommendation: Buy / Hold / Sell\n"
         "- Promising Score: (0–100) [estimates how likely the stock will spike in the coming days, based on **how strong and recent the news are**, the **most impactful keyword**, its **ranking**, and any **supporting signals**]\n"
-        # "- **Spiked**: [Yes / No] — indicates whether a recent spike has occurred.\n"
-        # "- **Spike next**: (0–100) — estimates the likelihood of a near-term spike or re-spike, based on recent price action, volume patterns, and catalyst strength.\n"
+        "- **Spiked**: [Yes / No] — indicates whether a recent spike has occurred.\n"
+        "- **Spike next**: (0–100) — estimates the likelihood of a near-term spike or re-spike, based on recent price action, volume patterns, and catalyst strength.\n"
         "- News Rank Summary: [Overall impact levels of top news]\n"
         "- 📅 **Tomorrow's Action Expectation**: Gap direction, morning behavior, and closing tendency\n"
         "- 📊 **Wave Stage**: [Wave 1 / Wave 2 / Wave 3 / Overextended / Not started]\n"
@@ -563,7 +563,7 @@ def premarket_analyze_with_gpt(
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
 
-        # spiked, spike_next = extract_spiked_and_spike_next(reply)
+        spiked, spike_next = extract_spiked_and_spike_next(reply)
 
         impacts = extract_headline_impacts(reply)
         # print(f"====impacts={impacts}")
@@ -609,8 +609,8 @@ def premarket_analyze_with_gpt(
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.promising_score = promising_score
-        # volume_info.spiked = spiked
-        # volume_info.spike_next = spike_next
+        volume_info.spiked = spiked
+        volume_info.spike_next = spike_next
         volume_info.highest_impact_keyword = highest_impact_keyword
         volume_info.highest_impact_rank = highest_impact_rank
         volume_info.top_news = json.dumps(top_enriched_news, ensure_ascii=False)
@@ -874,7 +874,6 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         news_items=news,
         volume_info=volume_info,
         is_market_hours=is_market_hours,
-        analyze_intraday=False,
         top_n=top_n,
         model=model,
     )

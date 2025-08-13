@@ -6,7 +6,7 @@ from app.models import DailyPrice, StockDownTrendAnalysis, StockUpTrendAnalysis
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
 
 def compute_downtrend_analysis(db: Session, ticker: str, days: int = 30) -> StockDownTrendAnalysis:
-    fetch_and_save_price_history(db, ticker, max_days=150)
+    fetch_and_save_price_history(db, ticker, max_days=30)
 
     today = datetime.date.today()
     start_date = today - datetime.timedelta(days=days + 10)

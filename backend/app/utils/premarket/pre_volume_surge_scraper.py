@@ -123,7 +123,7 @@ def analyze_and_snapshot_ticker(
             return None
 
         current_price = price.close
-        # price_change = round((current_price - price.open) / price.open, 1)
+        price_change = round((current_price - price.open) / price.open * 100, 1)
         if price_threshold > 0 and current_price > price_threshold:
             return None
 
@@ -148,8 +148,8 @@ def analyze_and_snapshot_ticker(
             money_flow_rate = round(raw_money_flow / avg_money.avg_5d_money_flow, 2)
 
         # Get name
-        # name, _ = fetch_name_and_price_change_from_yahoo(ticker)
-        name, price_change = fetch_name_and_price_change_from_yahoo(ticker)
+        name, _ = fetch_name_and_price_change_from_yahoo(ticker)
+        # name, price_change = fetch_name_and_price_change_from_yahoo(ticker)
 
         snapshot = VolumeSnapshot(
             ticker=ticker,

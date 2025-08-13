@@ -121,3 +121,45 @@ You can track new listings on the JPX New Listings page, which includes market s
 - Add PER/PBR... indicators to analyzer
 - Add technical scanner:
 - Add watchlist table
+
+Package           Version
+----------------- -----------
+annotated-types   0.7.0
+anyio             4.10.0
+beautifulsoup4    4.13.4
+certifi           2025.8.3
+click             8.1.8
+distro            1.9.0
+et_xmlfile        2.0.0
+exceptiongroup    1.3.0
+fastapi           0.116.1
+greenlet          3.2.4
+h11               0.16.0
+httpcore          1.0.9
+httpx             0.28.1
+idna              3.10
+jiter             0.10.0
+numpy             1.24.4
+openai            1.99.9
+openpyxl          3.1.5
+pandas            2.3.1
+pandas-ta         0.3.14b0
+pip               23.0.1
+psycopg2-binary   2.9.10
+pydantic          2.11.7
+pydantic_core     2.33.2
+python-dateutil   2.9.0.post0
+python-dotenv     1.1.1
+pytz              2025.2
+setuptools        58.1.0
+six               1.17.0
+sniffio           1.3.1
+soupsieve         2.7
+SQLAlchemy        2.0.43
+starlette         0.47.2
+tqdm              4.67.1
+typing_extensions 4.14.1
+typing-inspection 0.4.1
+tzdata            2025.2
+uvicorn           0.35.0
+wheel             0.45.1

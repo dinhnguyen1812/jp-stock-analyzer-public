@@ -1,14 +1,14 @@
-fastapi
-uvicorn
-sqlalchemy
-psycopg2-binary
-python-dotenv
-httpx
-beautifulsoup4
-openai
-playwright
-pandas
-openpyxl
-pandas-ta
+fastapi==0.116.1
+uvicorn==0.35.0
+sqlalchemy==2.0.43
+psycopg2-binary==2.9.10
+python-dotenv==1.1.1
+httpx==0.28.1
+beautifulsoup4==4.13.4
+openai==1.99.9
+# playwright==1.52.0  ← still commented out
+pandas==2.3.1
+openpyxl==3.1.5
+pandas-ta==0.3.14b0
 numpy==1.24.4
-requests
+

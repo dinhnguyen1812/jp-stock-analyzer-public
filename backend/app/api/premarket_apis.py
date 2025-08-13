@@ -22,6 +22,7 @@ from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positiv
 from app.api.shortterm_apis import get_latest_analysis_signal_data
 from app.utils.premarket.watchlist import append_batch_to_watchlist, read_watchlist, remove_from_watchlist_csv, add_to_watchlist_csv
 from app.utils.premarket.intraday_analyzer import analyze_live_ticker, parse_yahoo_intraday
+from app.utils.premarket.spike_pattern import get_spike_analysis, normalize_spike_for_json
 
 router = APIRouter()
 
@@ -225,6 +226,7 @@ def get_all_saved_volume_analyses(
 
         # downtrend_model = get_downtrend_analysis(db, vs.ticker)
         # downtrend_info = normalize_downtrend_for_json(downtrend_model)
+        spike_info = [normalize_spike_for_json(get_spike_analysis(db, vs.ticker))]
 
         # uptrend_model = get_uptrend_analysis(db, vs.ticker)
         # uptrend_info = normalize_uptrend_for_json(uptrend_model)
@@ -252,8 +254,8 @@ def get_all_saved_volume_analyses(
                 "reasoning": vs.reasoning,
                 "recommendation": vs.recommendation,
                 "promising_score": vs.promising_score,
-                "spiked": vs.spiked,
-                "spike_next": vs.spike_next,
+                # "spiked": vs.spiked,
+                # "spike_next": vs.spike_next,
                 "top_news": top_news,
                 "highest_impact_keyword": vs.highest_impact_keyword,
                 "highest_impact_rank": vs.highest_impact_rank,
@@ -270,6 +272,7 @@ def get_all_saved_volume_analyses(
                 "momentum_signals": vs.momentum_signals,
                 "note": vs.note,
                 "recent_prices": recent_prices,
+                "spike_info": spike_info,
             },
             "analysis_signal": analysis_signal_data,
         })
@@ -359,6 +362,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
     # longterm_info = ""
 
     recent_prices = get_recent_price_data(db, ticker)
+    spike_info = [normalize_spike_for_json(get_spike_analysis(db, ticker))]
 
     return {
         "volume_info": {
@@ -374,8 +378,8 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "reasoning": vs.reasoning,
             "recommendation": vs.recommendation,
             "promising_score": vs.promising_score,
-            "spiked": vs.spiked,
-            "spike_next": vs.spike_next,
+            # "spiked": vs.spiked,
+            # "spike_next": vs.spike_next,
             "top_news": top_news,
             "highest_impact_keyword": vs.highest_impact_keyword,
             "highest_impact_rank": vs.highest_impact_rank,
@@ -392,6 +396,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "watched": bool(db.query(WatchList).filter_by(ticker=ticker).first()),
             "kabutan_chart_url": f"https://kabutan.jp/stock/chart?code={ticker}",
             "recent_prices": recent_prices,
+            "spike_info": spike_info,
         },
         "analysis_signal": analysis_signal_data,
         # "longterm_info": longterm_info,

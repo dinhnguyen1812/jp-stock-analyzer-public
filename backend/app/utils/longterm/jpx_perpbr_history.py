@@ -1,6 +1,6 @@
 from typing import Optional
 from bs4 import BeautifulSoup
-from playwright.sync_api import sync_playwright
+# from playwright.sync_api import sync_playwright
 import datetime
 import os
 import csv
@@ -47,28 +47,29 @@ def reduce_to_one_per_month(per_data: dict, pbr_data: dict) -> list[dict]:
     return list(monthly_data.values())
 
 def fetch_historical_indicators_irbank(ticker: str) -> list[dict]:
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+    pass
+    # try:
+    #     with sync_playwright() as p:
+    #         browser = p.chromium.launch(headless=True)
+    #         page = browser.new_page()
 
-            # PER
-            page.goto(f"https://irbank.net/{ticker}/per", timeout=15000)
-            soup_per = BeautifulSoup(page.content(), "html.parser")
-            per_data = parse_indicator_table(soup_per, "グラフ内のデータを表形式で表しています。")
+    #         # PER
+    #         page.goto(f"https://irbank.net/{ticker}/per", timeout=15000)
+    #         soup_per = BeautifulSoup(page.content(), "html.parser")
+    #         per_data = parse_indicator_table(soup_per, "グラフ内のデータを表形式で表しています。")
 
-            # PBR
-            page.goto(f"https://irbank.net/{ticker}/pbr", timeout=15000)
-            soup_pbr = BeautifulSoup(page.content(), "html.parser")
-            pbr_data = parse_indicator_table(soup_pbr, "グラフ内のデータを表形式で表しています。")
+    #         # PBR
+    #         page.goto(f"https://irbank.net/{ticker}/pbr", timeout=15000)
+    #         soup_pbr = BeautifulSoup(page.content(), "html.parser")
+    #         pbr_data = parse_indicator_table(soup_pbr, "グラフ内のデータを表形式で表しています。")
 
-            browser.close()
+    #         browser.close()
 
-            return reduce_to_one_per_month(per_data, pbr_data)
+    #         return reduce_to_one_per_month(per_data, pbr_data)
 
-    except Exception as e:
-        print(f"❌ Error scraping IRBank historical indicators for {ticker}: {e}")
-        return []
+    # except Exception as e:
+    #     print(f"❌ Error scraping IRBank historical indicators for {ticker}: {e}")
+    #     return []
 
     
 def save_historical_to_csv(ticker: str, records: list[dict]):

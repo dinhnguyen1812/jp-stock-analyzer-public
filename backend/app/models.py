@@ -55,8 +55,8 @@ class VolumeSnapshot(Base):
     top_news = Column(Text, nullable=True)  # JSON-encoded news with GPT verdict
     highest_impact_keyword = Column(String, nullable=True)
     highest_impact_rank = Column(String, nullable=True)
-    spiked = Column(String, nullable=True)
-    spike_next = Column(Integer, nullable=True)
+    # spiked = Column(String, nullable=True)
+    # spike_next = Column(Integer, nullable=True)
 
     # Technical momentum fields
     momentum_score = Column(Integer, nullable=True)
@@ -243,3 +243,15 @@ class StockUpTrendAnalysis(Base):
     lowest_price = Column(Float)
     drop_from_high_pct = Column(Float)
     rebound_from_low_pct = Column(Float)
+
+class StockSpikeAnalysis(Base):
+    __tablename__ = "stock_spike_analysis"
+
+    ticker = Column(String, primary_key=True, index=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    spike_date = Column(Date)  # first spike date
+    first_spike_close_near_high = Column(Boolean)  # True if close near high
+    number_of_respikes = Column(Float)  # count of respikes (>= respike_threshold)
+    drop_from_high_pct = Column(Float)  # drop from highest after spike
+    last_day_close_near_low = Column(Boolean)  # True if last day close near low
