@@ -32,7 +32,7 @@ def detect_breakout(db: Session, ticker: str, lookback_days: int = 20) -> Dict:
     resistance = max(day["high"] for day in price_list)
 
     # ✅ Fetch current intraday price
-    current_price, _, _ = fetch_intraday_prices(ticker)
+    current_price, _, _, _ = fetch_intraday_prices(ticker)
     if current_price is None:
         return {"breakout_detected": False, "reason": "Failed to fetch current price"}
 

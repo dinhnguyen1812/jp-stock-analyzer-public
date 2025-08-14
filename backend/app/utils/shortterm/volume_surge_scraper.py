@@ -53,7 +53,7 @@ def analyze_intraday_activity(db: Session, ticker: str, current_volume: int) -> 
     volume_rate = current_volume / expected_volume_by_now if expected_volume_by_now > 0 else 0
 
     # Get intraday price stats
-    current_price, high, low = fetch_intraday_prices(ticker)
+    current_price, _, high, low = fetch_intraday_prices(ticker)
     if not all([current_price, high, low]):
         print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
         return None
@@ -332,14 +332,15 @@ def fetch_intraday_prices(ticker: str):
             return None
 
         current = get_current_price()
+        open = get_value_by_label("始値")
         high = get_value_by_label("高値")
         low = get_value_by_label("安値")
 
-        return current, high, low
+        return current, open, high, low
 
     except Exception as e:
         print(f"❌ Failed to fetch quote info for {ticker}: {e}")
-        return None, None, None
+        return None, None, None, None
 
 def get_latest_volume_surges(
     db: Session,

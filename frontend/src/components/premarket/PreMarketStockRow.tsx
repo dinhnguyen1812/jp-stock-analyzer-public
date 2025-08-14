@@ -155,7 +155,7 @@ const rankMap = [
   { word: "A", variant: "warning" },
   { word: "B", variant: "secondary" },
   { word: "C", variant: "dark" },
-  { word: "D", variant: "dark" }
+  { word: "D", variant: "danger" }
 ];
 
 // Escape regex special characters
@@ -342,7 +342,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             value={noteValue}
             onChange={(e) => setNoteValue(e.target.value)}
             onBlur={handleBlur}
-            rows={2}
+            rows={5}
             style={{ width: "100%", fontSize: "0.75rem" }}
           />
         </td>
@@ -451,11 +451,23 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           {stock.spike_info && stock.spike_info.length > 0 ? (
             <>
               <div>
-                1st Spike: {stock.spike_info[0].spike_date}
+                1st Spike:{" "}
+                {stock.spike_info[0].spike_date ? (
+                  <span style={{ backgroundColor: "#ffff99", fontWeight: "bold" }}>
+                    {stock.spike_info[0].spike_date}
+                  </span>
+                ) : (
+                  "-"
+                )}
               </div>
               <div>
                 1st Close↑High:{" "}
-                <span style={{ color: stock.spike_info[0].first_spike_close_near_high ? "green" : "red" }}>
+                <span
+                  style={{
+                    color: stock.spike_info[0].first_spike_close_near_high ? "green" : "red",
+                    fontWeight: stock.spike_info[0].first_spike_close_near_high ? "bold" : "normal",
+                  }}
+                >
                   {stock.spike_info[0].first_spike_close_near_high ? "Yes" : "No"}
                 </span>
               </div>
@@ -467,7 +479,12 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
               </div>
               <div>
                 Current Close↓Low:{" "}
-                <span style={{ color: stock.spike_info[0].last_day_close_near_low ? "green" : "red" }}>
+                <span
+                  style={{
+                    color: stock.spike_info[0].last_day_close_near_low ? "green" : "red",
+                    fontWeight: stock.spike_info[0].last_day_close_near_low ? "bold" : "normal",
+                  }}
+                >
                   {stock.spike_info[0].last_day_close_near_low ? "Yes" : "No"}
                 </span>
               </div>
@@ -606,7 +623,8 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   verdict === "A" ? "warning" :
                   verdict === "A-" ? "info" :
                   verdict === "B" ? "secondary" :
-                  verdict === "C" || verdict === "D" ? "dark" : "light";
+                  verdict === "C" ? "dark" :
+                  verdict === "D" ? "danger" : "light";
 
                 const textColor = verdict === "C" || verdict === "D" ? "light" : "light";
 

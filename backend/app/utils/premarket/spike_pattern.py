@@ -1,5 +1,6 @@
 import datetime
 from typing import Optional, Dict
+from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices
 from sqlalchemy.orm import Session
 from app.models import DailyPrice, StockSpikeAnalysis
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
@@ -8,6 +9,7 @@ from app.utils.shortterm.price_updater import fetch_and_save_price_history
 def compute_spike_analysis(
     db: Session,
     ticker: str,
+    analyze_intraday: False,
     spike_threshold: float = 20.0,
     respike_threshold: float = 10.0,
     close_near_high_pct: float = 10.0,
@@ -48,6 +50,15 @@ def compute_spike_analysis(
     closes = [r.close for r in rows]
     highs = [r.high for r in rows]
     lows = [r.low for r in rows]
+
+    if analyze_intraday:
+        intraday_close, _, intraday_high, intraday_low = fetch_intraday_prices(ticker)
+        intraday_date = datetime.now().strftime("%Y-%m-%d")
+
+        dates.append(intraday_date)
+        closes.append(intraday_close)
+        highs.append(intraday_high)
+        lows.append(intraday_low)
 
     spike_index = None
     spike_date = None
@@ -114,7 +125,7 @@ def compute_spike_analysis(
     )
 
 
-def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60) -> StockSpikeAnalysis:
+def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60, analyze_intraday=False) -> StockSpikeAnalysis:
     """Retrieve spike analysis from DB, or recompute if stale."""
     record = db.query(StockSpikeAnalysis).filter_by(ticker=ticker).first()
     now = datetime.datetime.now()
@@ -122,7 +133,7 @@ def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60) -> StockSpi
     if record and record.updated_at and (now - record.updated_at).total_seconds() < max_age_minutes * 60:
         return record
 
-    new_record = compute_spike_analysis(db, ticker)
+    new_record = compute_spike_analysis(db, ticker, analyze_intraday=False)
     if record:
         for attr, value in vars(new_record).items():
             if attr != "_sa_instance_state":

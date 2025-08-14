@@ -23,7 +23,7 @@ interface PreMarketScanFormProps {
   onWatchedOnlyChange: (checked: boolean) => void;
   onScan: () => void;
   onFetchNewsSignals: () => void;
-  onScanSpike: () => void;
+  onSpikeScan: () => void;
   onFetchAnalyzed: () => void;
   onAnalyzeStarred: () => void;
   onAnalyzeWatchList: () => void;
@@ -44,6 +44,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   starredOnly,
   watchedOnly,
   loading,
+  loadingSpikeScan,
   onSurgeThresholdChange,
   onPriceThresholdChange,
   onDetectedAtMaxDayChange,
@@ -52,6 +53,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onStarredOnlyChange,
   onWatchedOnlyChange,
   onScan,
+  onSpikeScan,
   onFetchAnalyzed,
   onAnalyzeStarred,
   onAnalyzeWatchList,
@@ -74,6 +76,19 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
           <Row className="align-items-center mb-3">
             <Col>
               <h5 className="mb-0">📈 Analyzer</h5>
+            </Col>
+
+            {/* NEW Scan Spike button */}
+            <Col style={{ minWidth: 110 }}>
+              <Button
+                variant="danger"
+                className="w-100"
+                onClick={onSpikeScan}
+                disabled={loadingSpikeScan}
+              >
+                {loadingSpikeScan && <Spinner animation="border" size="sm" className="me-2" />}
+                Scan Spiked
+              </Button>
             </Col>
 
             <Col xs="auto" className="ms-auto">

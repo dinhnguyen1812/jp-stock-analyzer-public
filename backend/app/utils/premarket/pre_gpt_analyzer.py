@@ -109,7 +109,6 @@ def premarket_analyze_with_gpt(
     ticker: str,
     news_items: List[Dict],
     volume_info: VolumeSnapshot,
-    is_market_hours: False,
     analyze_intraday: False,
     extra_guidance: str = "",
     top_n: int = 3,
@@ -120,12 +119,12 @@ def premarket_analyze_with_gpt(
     update_avg_money_flow_for_ticker(db, ticker)
     now = datetime.now(timezone.utc)
 
-    if volume_info.reasoning is not None:
-        detected_at = volume_info.detected_at
-        if detected_at is not None and (now - detected_at) < timedelta(hours=2):
-            # Skip processing
-            print("Skipping because reasoning exists and detected_at < 1 hour ago")
-            return
+    # if volume_info.reasoning is not None:
+    #     detected_at = volume_info.detected_at
+    #     if detected_at is not None and (now - detected_at) < timedelta(hours=2):
+    #         # Skip processing
+    #         print("Skipping because reasoning exists and detected_at < 1 hour ago")
+    #         return
 
     seven_days_ago = datetime.now() - timedelta(days=7)
 
@@ -133,13 +132,13 @@ def premarket_analyze_with_gpt(
         db.query(VolumeSnapshot)
         .filter(
             VolumeSnapshot.ticker == volume_info.ticker,
-            VolumeSnapshot.promising_score <= 40,  # or <= 50 if you want to match the print
+            VolumeSnapshot.promising_score <= 50,  # or <= 50 if you want to match the print
             VolumeSnapshot.detected_at >= seven_days_ago
         )
         .first()
     )
     if low_score_exists:
-        print("⏩ Skipping: found previous snapshot with promising_score <= 40")
+        print("⏩ Skipping: found previous snapshot with promising_score <= 50")
         return
 
     # Short term data
@@ -168,7 +167,7 @@ def premarket_analyze_with_gpt(
     now_jst = now.astimezone(jst)
     date_str = now_jst.date().isoformat()
     latest_trading_day = get_latest_trading_day(db)
-    if is_market_hours and analyze_intraday:
+    if analyze_intraday:
         intraday_info = get_intraday_volume_info_for_ticker(db, ticker)
         intraday_summary = (
             f"Current Price: {intraday_info['current_price']} JPY\n"
@@ -242,7 +241,6 @@ def premarket_analyze_with_gpt(
         f"[{item['category']}] {item['headline']} (🕒 {item['published_at']})"
         for item in scored_news
     ]
-    # print(f"====headlines={headlines}")
 
     price_history_str = "\n".join(
         [
@@ -256,7 +254,7 @@ def premarket_analyze_with_gpt(
         f"Today is {date_str}, time: {now_jst}. Latest completed trading day: {latest_trading_day}, time: 15:30:00.\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"### Spike pattern:\n{spike_summary}\n"
-        f"### Intraday: {is_market_hours}. Intraday summary:\n{intraday_summary if is_market_hours and analyze_intraday else None}\n"
+        f"### Intraday: {analyze_intraday}. Intraday summary:\n{intraday_summary if analyze_intraday else None}\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
         f"### Momentum Signals Summary:\n{momentum_summary}\n"
         f"### Technical Indicators (for reference only):\n{tech_summary}\n"
@@ -267,14 +265,18 @@ def premarket_analyze_with_gpt(
         "### Instructions:\n"
         f"{extra_guidance}"
         "- **Main Goal:** Evaluate if the stock is in **spike continuation** or **re-spike phase**. Secondary: detect strong **new spikes**.\n"
-        # "- Use price action, spike pattern, and impactful news to assign a **Promising Score** (0–100).\n"
         "- Spike pattern setups: A-S+ ranked news, first spike closed near high, might pullback after spike, last close near low.\n"
         "- Always identify **wave stage**: first spike, re-spike, pullback, continuation, or exhausted.\n"
-        # "- For news: Focus on relevance, timing, and sector heat. Flag if move is already **priced in**.\n"
-        # "- Check for hot themes: AI, Web3, semiconductors, quantum, biotech, EV, hydrogen, etc.\n"
         "- Support view with RSI, MACD, moving averages, candlesticks, and volume trends.\n"
-        # "- Comment on likely gap, morning move, and closing bias for tomorrow.\n"
         "- Include historical price table for trend/resistance/support context.\n"
+
+        "- 📌 **Promising Score Guidance**:\n"
+        "  - Base score primarily on:\n"
+        "    1. **News Strength & Recency** — Stronger news ranks (A to S+) and more recent events → higher score.\n"
+        "    2. **Spike Confirmation** — If already spiked and first spike closed near high → indicates strong market interest → higher score.\n"
+        "    3. **Re-spike Potential** — If spike_date is recent and number_of_respikes is low → higher likelihood of continuation → higher score.\n"
+        "  - Deduct points if news is weak/old, spike was far in the past, first spike closed near low, or number_of_respikes is already high.\n"
+        "  - Use all available data (news rank, spike pattern info, spike_date, first_spike_close_near_high, number_of_respikes) to assign a final score between 0–100.\n"
 
         "- 🧠 News Impact Ranking:\n"
         "- For each top headline, assign a keyword and rank based on this table:\n"
@@ -393,14 +395,12 @@ def premarket_analyze_with_gpt(
             temperature=0.3,
         )
         reply = response.choices[0].message.content.strip()
-        print(f"====ticker={ticker}, reply={reply}")
 
         recommendation, promising_score = extract_recommendation_and_score(reply)
 
         # spiked, spike_next = extract_spiked_and_spike_next(reply)
 
         impacts = extract_headline_impacts(reply)
-        # print(f"====impacts={impacts}")
         # summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
         # summary = summary_match.group(1).strip() if summary_match else ""
         summary_match = re.search(
@@ -414,7 +414,6 @@ def premarket_analyze_with_gpt(
         highest_impact_keyword = None
         highest_impact_rank = None
         highest_impact_keyword, highest_impact_rank = extract_highest_ranked_impact(reply)
-        # print(f"====highest_impact_keyword, highest_impact_rank={highest_impact_keyword, highest_impact_rank}")
 
         # Match GPT-picked top N headlines to original news, and keep only those
         headline_texts = [imp["headline"] for imp in impacts]
@@ -438,7 +437,6 @@ def premarket_analyze_with_gpt(
                 item["keyword"] = matched.get("keyword") if matched else None
                 item["rank"] = matched.get("rank") if matched else None
                 top_enriched_news.append(item)
-        # print(f"====top_enriched_news={top_enriched_news}")
 
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
@@ -553,7 +551,7 @@ def get_intraday_volume_info_for_ticker(db: Session, ticker: str) -> Optional[di
             return None
 
         # 3. Price info
-        current_price, high, low = fetch_intraday_prices(ticker)
+        current_price, _, high, low = fetch_intraday_prices(ticker)
         if not all([current_price, high, low]):
             print(f"⚠️ Skipping {ticker}: could not get high/low/current prices.")
             return None
@@ -680,7 +678,7 @@ def check_market_hours(db):
         print(f"⚠️ Error while scraping 7203: {e}")
         return False
 
-def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", is_market_hours = False) -> Dict:
+def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", analyze_intraday = False) -> Dict:
     # Step 1: Get news
     news = scrape_kabutan_news(ticker, limit=30)
     if not news:
@@ -707,8 +705,7 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         ticker=ticker,
         news_items=news,
         volume_info=volume_info,
-        is_market_hours=is_market_hours,
-        analyze_intraday=False,
+        analyze_intraday=analyze_intraday,
         top_n=top_n,
         model=model,
     )

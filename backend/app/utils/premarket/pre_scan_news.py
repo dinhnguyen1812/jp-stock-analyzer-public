@@ -39,7 +39,7 @@ def fetch_low_cap_tickers(from_page: int = 1, to_page: int = 10, price_threshold
 
     for ticker in tickers:
         try:
-            current_price, _, _ = fetch_intraday_prices(ticker)
+            current_price, _, _, _ = fetch_intraday_prices(ticker)
             if current_price <= price_threshold:
                 low_cap_tickers.append(ticker)
         except Exception as e:

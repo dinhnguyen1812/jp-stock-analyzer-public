@@ -11,6 +11,7 @@ import {
   analyzeAllStarredTickers,
   analyzeWatchList,
   analyzeSingleTicker,
+  scanSpikedStocks,
 } from "../api";
 
 const PreMarketPage: React.FC = () => {
@@ -20,6 +21,7 @@ const PreMarketPage: React.FC = () => {
   const [fromPage, setFromPage] = useState<number>(1);
   const [toPage, setToPage] = useState<number>(5);
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadingSpikeScan, setLoadingSpikeScan] = useState<boolean>(false);
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
   const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState<boolean>(false);
   const [loadingAnalyzeWatchList, setLoadingAnalyzeWatchList] = useState<boolean>(false);
@@ -65,6 +67,23 @@ const PreMarketPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+const handleSpikeScan = async () => {
+  setLoadingSpikeScan(true);
+  setAnalyzedResults([]);
+  try {
+    const result = await scanSpikedStocks(
+      priceThreshold,
+      fromPage,
+      toPage
+    );
+    setStocks(result);
+  } catch (err) {
+    console.error("Failed to scan spiked stocks", err);
+  } finally {
+    setLoadingSpikeScan(false);
+  }
+};
 
   const handleFetchAnalyzed = async () => {
     setLoadingFetchAnalyzed(true);
@@ -166,7 +185,7 @@ const PreMarketPage: React.FC = () => {
         toPage={toPage}
         loading={loading}
         loadingNewsSignals={false}
-        loadingSpikeScan={false}
+        loadingSpikeScan={loadingSpikeScan}
         autoScanEnabled={false}
         starredOnly={starredOnly}
         watchedOnly={watchedOnly}
@@ -182,7 +201,7 @@ const PreMarketPage: React.FC = () => {
         onWatchedOnlyChange={setWatchedOnly}
         onScan={handleScan}
         onFetchNewsSignals={() => { } }
-        onScanSpike={() => { } }
+        onSpikeScan={handleSpikeScan}
         onFetchAnalyzed={handleFetchAnalyzed}
         onAnalyzeStarred={handleAnalyzeStarred}
         onAnalyzeWatchList={handleAnalyzeWatchList}

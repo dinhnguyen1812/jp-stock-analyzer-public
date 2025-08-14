@@ -122,8 +122,19 @@ def analyze_and_snapshot_ticker(
         if not price:
             return None
 
+        # Get previous day's close
+        previous_price = (
+            db.query(DailyPrice)
+            .filter(DailyPrice.ticker == ticker, DailyPrice.date < last_day)
+            .order_by(DailyPrice.date.desc())
+            .first()
+        )
+        if not previous_price:
+            return None
+
         current_price = price.close
-        price_change = round((current_price - price.open) / price.open * 100, 1)
+        price_change = round((current_price - previous_price.close) / previous_price.close * 100, 1)
+
         if price_threshold > 0 and current_price > price_threshold:
             return None
 

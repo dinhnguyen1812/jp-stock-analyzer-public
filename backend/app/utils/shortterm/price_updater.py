@@ -132,8 +132,8 @@ def fetch_and_save_price_history(db: Session, ticker: str, max_days: int = 150):
     latest_db_date = get_latest_date_in_db(db, ticker)
 
     if latest_db_date is None:
-        # No data in DB yet, fetch from 1 year ago
-        from_date = today - timedelta(days=365)
+        # No data in DB yet, fetch from 50 days ago
+        from_date = today - timedelta(days=50)
     else:
         # Fetch only data newer than the latest in DB
         from_date = latest_db_date + timedelta(days=1)

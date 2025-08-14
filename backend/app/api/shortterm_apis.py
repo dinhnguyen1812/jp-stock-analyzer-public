@@ -80,7 +80,7 @@ def update_money_flow_average(ticker: str, db: Session = Depends(get_db)):
 # For testing
 @router.post("/{ticker}/intraday")
 def get_intraday_prices(ticker: str):
-    last, high, low = fetch_intraday_prices(ticker)
+    last, _, high, low = fetch_intraday_prices(ticker)
     return {"message": f"Intraday price for {ticker}: {last, high, low}"}
 
 # For Use

@@ -11,15 +11,19 @@ from app.schemas import ScanParams
 
 from app.db.db import SessionLocal
 from app.models import VolumeSnapshot, StarredStock, WatchList, DailyPrice
+
 from app.utils.longterm.jpx_perpbr_industry import update_and_get_industry_indicators
 from app.utils.longterm.yahoo_indicators import fetch_current_indicators
+
+from app.utils.shortterm.volume_surge_scraper import fetch_intraday_prices
+from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
+from app.api.shortterm_apis import get_latest_analysis_signal_data
+
 from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
 from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
-from app.utils.shortterm.kabutan_news_ticker import get_volume_info, scrape_kabutan_news
 from app.utils.premarket.pre_gpt_analyzer import analyze_ticker_by_steps, get_latest_trading_day, premarket_analyze_with_gpt, check_market_hours
 from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
-from app.api.shortterm_apis import get_latest_analysis_signal_data
 from app.utils.premarket.watchlist import append_batch_to_watchlist, read_watchlist, remove_from_watchlist_csv, add_to_watchlist_csv
 from app.utils.premarket.intraday_analyzer import analyze_live_ticker, parse_yahoo_intraday
 from app.utils.premarket.spike_pattern import get_spike_analysis, normalize_spike_for_json
@@ -96,7 +100,7 @@ def trigger_volume_scan(
     params: ScanParams,
     db: Session = Depends(get_db)
 ):
-    is_market_hours = check_market_hours(db)
+    # is_market_hours = check_market_hours(db)
 
     # Step 1: Scan and save volume surge data (pre-market)
     tickers = scan_and_save_pre_market_volume_surges(
@@ -115,7 +119,7 @@ def trigger_volume_scan(
                 ticker=ticker,
                 top_n=3,
                 model="gpt-3.5-turbo",
-                is_market_hours=is_market_hours
+                # is_market_hours=is_market_hours
             )
         except Exception as e:
             print(f"⚠️ GPT-3.5 analysis failed for {ticker}: {e}")
@@ -133,14 +137,16 @@ def trigger_volume_scan(
                     ticker=ticker,
                     top_n=3,
                     model="gpt-4o",
-                    is_market_hours=is_market_hours
+                    # is_market_hours=is_market_hours
                 )
             except Exception as e:
                 print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
 
-def get_recent_price_data(db: Session, ticker: str, limit: int = 15) -> List[Dict]:
+def get_recent_price_data(
+    db: Session, ticker: str, limit: int = 15, analyze_intraday=False
+) -> List[Dict]:
     recent_prices_query = (
         db.query(DailyPrice)
         .filter(DailyPrice.ticker == ticker)
@@ -148,7 +154,8 @@ def get_recent_price_data(db: Session, ticker: str, limit: int = 15) -> List[Dic
         .limit(limit)
         .all()
     )
-    return [
+
+    prices = [
         {
             "date": p.date.isoformat(),
             "open": p.open,
@@ -159,6 +166,18 @@ def get_recent_price_data(db: Session, ticker: str, limit: int = 15) -> List[Dic
         for p in reversed(recent_prices_query)  # oldest to newest
     ]
 
+    if analyze_intraday:
+        intraday_close, intraday_open, intraday_high, intraday_low = fetch_intraday_prices(ticker)
+        prices.append({
+            "date": datetime.datetime.now().date().isoformat(),
+            "open": intraday_open,
+            "high": intraday_high,
+            "low": intraday_low,
+            "close": intraday_close,
+        })
+
+    return prices
+
 @router.get("/get_saved_vs", response_model=List[Dict])
 def get_all_saved_volume_analyses(
     surge_threshold: float = Query(0, ge=0),
@@ -168,6 +187,8 @@ def get_all_saved_volume_analyses(
     detected_at_max_age_days: float = Query(1.0, ge=0.0),
     db: Session = Depends(get_db),
 ):
+    analyze_intraday = check_market_hours(db)
+
     query = (
         db.query(
             VolumeSnapshot.ticker,
@@ -238,7 +259,7 @@ def get_all_saved_volume_analyses(
         #     "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
         # }
 
-        recent_prices = get_recent_price_data(db, vs.ticker)
+        recent_prices = get_recent_price_data(db, vs.ticker, analyze_intraday=analyze_intraday)
 
         results.append({
             "volume_info": {
@@ -432,7 +453,7 @@ def analyze_single_ticker(
     model: str = "gpt-4o",
     db: Session = Depends(get_db)
 ):
-    is_market_hours = check_market_hours(db)
+    # is_market_hours = check_market_hours(db)
 
     # Run analysis with GPT-3.5 first
     analyze_ticker_by_steps(
@@ -440,7 +461,7 @@ def analyze_single_ticker(
         ticker=ticker,
         top_n=top_n,
         model="gpt-3.5-turbo",
-        is_market_hours=is_market_hours,
+        # is_market_hours=is_market_hours,
     )
 
     # Reanalyze with GPT-4o if promising
@@ -452,7 +473,7 @@ def analyze_single_ticker(
                 ticker=ticker,
                 top_n=top_n,
                 model="gpt-4o",
-                is_market_hours=is_market_hours,
+                # is_market_hours=is_market_hours,
             )
         except Exception as e:
             print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
@@ -460,13 +481,60 @@ def analyze_single_ticker(
     # Return confirmation message
     return {"message": f"Analysis complete for {ticker}"}
 
+@router.post("/analyze_tickers", response_model=Dict)
+def analyze_multiple_tickers(
+    tickers: str,  # Comma-separated string
+    top_n: int = 3,
+    model: str = "gpt-4o",
+    db: Session = Depends(get_db)
+):
+    tickers_list = [t.strip() for t in tickers.split(",") if t.strip()]
+    results = []
+
+    for ticker in tickers_list:
+        # Run analysis with GPT-3.5 first
+        analyze_ticker_by_steps(
+            db=db,
+            ticker=ticker,
+            top_n=top_n,
+            model="gpt-3.5-turbo",
+        )
+
+        # Reanalyze with GPT-4o if promising
+        volume_info = get_volume_info(db, ticker=ticker)
+        if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+            try:
+                analyze_ticker_by_steps(
+                    db=db,
+                    ticker=ticker,
+                    top_n=top_n,
+                    model="gpt-4o",
+                )
+            except Exception as e:
+                print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+
+        results.append({"ticker": ticker, "status": "Analysis complete"})
+
+    return {"results": results}
+
 @router.post("/analyze_starred", response_model=List[Dict])
 def analyze_starred_tickers(
     top_n: int = 3,
     db: Session = Depends(get_db)
 ):
-    is_market_hours = check_market_hours(db)
-    starred_tickers = [t[0] for t in db.query(StarredStock.ticker).all()]
+    # is_market_hours = check_market_hours(db)
+
+    # Get all tickers in WatchList
+    watchlist_tickers = [t[0] for t in db.query(WatchList.ticker).all()]
+
+    # Get starred tickers excluding those in watchlist
+    starred_tickers = [
+        t[0]
+        for t in db.query(StarredStock.ticker)
+        .filter(~StarredStock.ticker.in_(watchlist_tickers))
+        .all()
+    ]
+
     results = []
 
     for ticker in starred_tickers:
@@ -477,7 +545,7 @@ def analyze_starred_tickers(
                 ticker=ticker,
                 top_n=top_n,
                 model="gpt-3.5-turbo",
-                is_market_hours=is_market_hours,
+                # is_market_hours=is_market_hours,
             )
 
             # Check if promising for reanalysis
@@ -489,7 +557,7 @@ def analyze_starred_tickers(
                         ticker=ticker,
                         top_n=top_n,
                         model="gpt-4o",
-                        is_market_hours=is_market_hours,
+                        # is_market_hours=is_market_hours,
                     )
                 except Exception as e:
                     print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
@@ -508,7 +576,7 @@ def analyze_watch_list(
     db: Session = Depends(get_db)
 ):
     extra_guidance = "### FOCUS ON **POSSIBLE RE-SPIKE**. If there is possible re-spike, provide more details about **HOW TO ENTRY**"
-    is_market_hours = check_market_hours(db)
+    # is_market_hours = check_market_hours(db)
     watchlist_tickers = [t[0] for t in db.query(WatchList.ticker).all()]
     results = []
 
@@ -520,7 +588,7 @@ def analyze_watch_list(
                 ticker=ticker,
                 top_n=top_n,
                 model="gpt-3.5-turbo",
-                is_market_hours=is_market_hours,
+                # is_market_hours=is_market_hours,
                 extra_guidance=extra_guidance,
             )
 
@@ -533,7 +601,7 @@ def analyze_watch_list(
                         ticker=ticker,
                         top_n=top_n,
                         model="gpt-4o",
-                        is_market_hours=is_market_hours,
+                        # is_market_hours=is_market_hours,
                         extra_guidance=extra_guidance,
                     )
                 except Exception as e:
@@ -718,8 +786,103 @@ def test_parse_intraday(
         return {"error": "raw_yahoo_json body is required"}
 
     parsed_data = parse_yahoo_intraday(raw_yahoo_json)
-    print(f"====parsed_data={parsed_data}")
     return {
         "ticker": ticker,
         "parsed_intraday": parsed_data,
     }
+
+@router.post("/spiked_scan")
+def spiked_scan(
+    params: ScanParams,
+    db: Session = Depends(get_db),
+    analyze_intraday = False
+):
+    """
+    Scan pages for spiked stocks (spike_date exists and first_spike_close_near_high=True)
+    and analyze them with GPT.
+    """
+    # is_market_hours = check_market_hours(db)
+    analyze_intraday = check_market_hours(db)
+
+    # Step 1: Scan pages to get tickers
+    tickers = scan_and_save_pre_market_volume_surges(
+        db=db,
+        surge_threshold=0,
+        price_threshold=params.price_threshold,
+        from_page=params.from_page,
+        to_page=params.to_page,
+    )
+
+    # Step 2: Filter only spiked stocks
+    spiked_tickers = []
+    for ticker in tickers:
+        spike_info = normalize_spike_for_json(get_spike_analysis(db, ticker, analyze_intraday=analyze_intraday))
+        if spike_info.get("spike_date") and spike_info.get("first_spike_close_near_high"):
+            spiked_tickers.append(ticker)
+
+    print(f"Found {len(spiked_tickers)} spiked tickers: {spiked_tickers}")
+
+    # Step 3: GPT-3.5 analysis
+    for ticker in spiked_tickers:
+        try:
+            analyze_ticker_by_steps(
+                db=db,
+                ticker=ticker,
+                top_n=3,
+                model="gpt-3.5-turbo",
+                analyze_intraday=analyze_intraday
+            )
+        except Exception as e:
+            print(f"⚠️ GPT-3.5 analysis failed for {ticker}: {e}")
+
+    # Step 4: Re-analyze promising stocks with GPT-4o
+    for ticker in spiked_tickers:
+        volume_info = get_volume_info(db, ticker=ticker)
+        if volume_info and volume_info.promising_score and volume_info.promising_score >= 50:
+            try:
+                print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
+                analyze_ticker_by_steps(
+                    db=db,
+                    ticker=ticker,
+                    top_n=3,
+                    model="gpt-4o",
+                    analyze_intraday=analyze_intraday
+                )
+            except Exception as e:
+                print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+
+    return {"spiked_tickers": spiked_tickers, "count": len(spiked_tickers)}
+
+@router.post("/test_spiked_scan")
+def spiked_scan(
+    params: ScanParams,
+    db: Session = Depends(get_db),
+    analyze_intraday = False
+):
+    """
+    Scan pages for spiked stocks (spike_date exists and first_spike_close_near_high=True)
+    and analyze them with GPT.
+    """
+    # is_market_hours = check_market_hours(db)
+    analyze_intraday = check_market_hours(db)
+
+    # Step 1: Scan pages to get tickers
+    tickers = scan_and_save_pre_market_volume_surges(
+        db=db,
+        surge_threshold=0,
+        price_threshold=params.price_threshold,
+        from_page=params.from_page,
+        to_page=params.to_page,
+    )
+
+    # Step 2: Filter only spiked stocks
+    spiked_tickers = []
+    for ticker in tickers:
+        spike_info = normalize_spike_for_json(get_spike_analysis(db, ticker, analyze_intraday=analyze_intraday))
+        if ticker == '7615':
+            print(f"====ticker={ticker}, spike_date={spike_info.get('spike_date')}, first_spike_close_near_high={spike_info.get('first_spike_close_near_high')}")
+        if spike_info.get("spike_date") and spike_info.get("first_spike_close_near_high"):
+            spiked_tickers.append(ticker)
+
+    print(f"Found {len(spiked_tickers)} spiked tickers: {spiked_tickers}")
+    return spiked_tickers
