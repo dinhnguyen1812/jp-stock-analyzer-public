@@ -18,9 +18,12 @@ export interface DailyPrice {
 export interface SpikeInfo {
   spike_date: string;
   first_spike_close_near_high: boolean;
+  first_spike_pct: number;
+  days_since_spike: number;
   number_of_respikes: number;
   drop_from_high_pct: number;
   last_day_close_near_low: boolean;
+  score: number;
 }
 
 export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
@@ -29,6 +32,7 @@ export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
   reasoning?: string;
   recommendation?: "Buy" | "Hold" | "Sell" | null;
   promising_score?: number;
+  news_score?: number;
   // spiked?: string;
   // spike_next?: number;
   top_news?: {
@@ -88,6 +92,7 @@ interface PreMarketStockRowProps {
     highest_impact_keyword?: string;
     highest_impact_rank?: string;
     promising_score?: number;
+    news_score?: number;
     // spiked?: string;
     // spike_next?: number;
     recommendation?: string | null;
@@ -298,6 +303,13 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
     );
   };
 
+  const getScoreColor = (score: number): string => {
+    if (score >= 80) return "success";
+    if (score >= 60) return "info";
+    if (score >= 40) return "warning";
+    return "danger";
+  };
+
   // Helper to shorten the signal label
   const shortenLabel = (label: string): string => {
     const map: Record<string, string> = {
@@ -333,6 +345,90 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
 
   //   return "➖";
   // };
+  const renderSpikeScoreBreakdown = () => {
+    const spike = stock.spike_info?.[0];
+    if (!spike) return null;
+
+    const breakdown: { label: string; points: number; value?: any }[] = [];
+
+    // 1. Days since spike
+    let recencyPts = 0;
+    if (spike.days_since_spike !== undefined) {
+      if (spike.days_since_spike <= 5) recencyPts = 35;
+      else if (spike.days_since_spike <= 10) recencyPts = 25;
+      else if (spike.days_since_spike <= 15) recencyPts = 15;
+      breakdown.push({ label: "Days since spike", value: spike.days_since_spike, points: recencyPts });
+    }
+
+    // 2. Drop from high
+    let dropPts = 0;
+    if (spike.drop_from_high_pct != null) {
+      if (spike.drop_from_high_pct >= 40) dropPts = 25;
+      else if (spike.drop_from_high_pct >= 20) dropPts = 18;
+      else if (spike.drop_from_high_pct >= 10) dropPts = 10;
+      else dropPts = 5;
+      breakdown.push({ label: "Current Drop↓High", value: spike.drop_from_high_pct + "%", points: dropPts });
+    }
+
+    // 3. First spike pct
+    let firstSpikePts = 0;
+    if (spike.first_spike_pct != null) {
+      if (spike.first_spike_pct >= 100) firstSpikePts = 20;
+      else if (spike.first_spike_pct >= 40) firstSpikePts = 10;
+      else if (spike.first_spike_pct >= 20) firstSpikePts = 5;
+      breakdown.push({ label: "First spike pct", value: spike.first_spike_pct + "%", points: firstSpikePts });
+    }
+
+    // 4. Last day close near low
+    const lowPts = spike.last_day_close_near_low ? 15 : 0;
+    breakdown.push({
+      label: "Current Close↓Low",
+      value: spike.last_day_close_near_low ? "Yes" : "No",
+      points: lowPts,
+    });
+
+    // 5. Respikes
+    const respikePts = Math.min(spike.number_of_respikes ?? 0, 1) * 5;
+    breakdown.push({ label: "Respikes", value: spike.number_of_respikes, points: respikePts });
+
+    return (
+      <div className="d-flex flex-column gap-1">
+        {/* Spike date and total score */}
+        <div style={{ fontSize: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          Spike Day: 
+          <span style={{ fontWeight: spike.spike_date ? "bold" : "normal", color: spike.spike_date ? "green" : "gray" }}>
+            {spike.spike_date || "-"}
+          </span>
+          {spike.score != null && (
+            <Badge
+              bg={getScoreColor(spike.score)}
+              className="border"
+              style={{ fontSize: "0.75rem" }}
+            >
+              {spike.score}
+            </Badge>
+          )}
+        </div>
+
+        {/* Per-metric breakdown */}
+        {breakdown.map((item, idx) => {
+          const highlight = item.value !== null && item.value !== undefined && item.value !== "No" && item.value !== 0;
+          return (
+            <div
+              key={idx}
+              style={{ fontSize: "0.75rem", display: "flex", gap: "0.25rem", alignItems: "center" }}
+            >
+              <span>{item.label}:</span>
+              <span style={{ fontWeight: highlight ? "bold" : "normal", color: highlight ? "green" : "black" }}>
+                {item.value}
+              </span>
+              {item.points > 0 && <span style={{ color: "red" }}> +{item.points}</span>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -448,50 +544,9 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         </td>
         {/* Spike pattern column */}
         <td>
-          {stock.spike_info && stock.spike_info.length > 0 ? (
-            <>
-              <div>
-                1st Spike:{" "}
-                {stock.spike_info[0].spike_date ? (
-                  <span style={{ backgroundColor: "#ffff99", fontWeight: "bold" }}>
-                    {stock.spike_info[0].spike_date}
-                  </span>
-                ) : (
-                  "-"
-                )}
-              </div>
-              <div>
-                1st Close↑High:{" "}
-                <span
-                  style={{
-                    color: stock.spike_info[0].first_spike_close_near_high ? "green" : "red",
-                    fontWeight: stock.spike_info[0].first_spike_close_near_high ? "bold" : "normal",
-                  }}
-                >
-                  {stock.spike_info[0].first_spike_close_near_high ? "Yes" : "No"}
-                </span>
-              </div>
-              <div>
-                Respikes: {stock.spike_info[0].number_of_respikes}
-              </div>
-              <div>
-                Current Drop↓High: {stock.spike_info[0].drop_from_high_pct}%
-              </div>
-              <div>
-                Current Close↓Low:{" "}
-                <span
-                  style={{
-                    color: stock.spike_info[0].last_day_close_near_low ? "green" : "red",
-                    fontWeight: stock.spike_info[0].last_day_close_near_low ? "bold" : "normal",
-                  }}
-                >
-                  {stock.spike_info[0].last_day_close_near_low ? "Yes" : "No"}
-                </span>
-              </div>
-            </>
-          ) : (
-            "-"
-          )}
+          <div>
+            {renderSpikeScoreBreakdown()}
+          </div>
         </td>
 
         {/* Most impact column */}
@@ -504,21 +559,33 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 fontSize: "1rem",
                 backgroundColor: "white",
                 color: {
-                  "S+": "#dc3545",         // Red - strong impact
-                  "S": "#e5533d",          // Between red and orange
-                  "A+": "#fd7e14",         // Orange - high impact
-                  "A": "#0d6efd",          // Bootstrap primary blue
-                  "A-": "#f0ad4e",         // Lighter orange
-                  "B": "#0dcaf0",          // Bootstrap info (cyan)
-                  "C": "#6c757d",          // Bootstrap secondary (gray)
-                  "D": "#212529"           // Bootstrap dark
+                  "S+": "#dc3545",         
+                  "S": "#e5533d",          
+                  "A+": "#fd7e14",         
+                  "A": "#0d6efd",          
+                  "A-": "#f0ad4e",         
+                  "B": "#0dcaf0",          
+                  "C": "#6c757d",          
+                  "D": "#212529"           
                 }[stock.highest_impact_rank] ?? "#000000",
+                maxWidth: "120px",         // set your max width
+                whiteSpace: "normal",      // allow wrapping
+                overflowWrap: "break-word" // break long words if needed
               }}
             >
               <span style={{ fontSize: "0.75rem", color: "gray", marginRight: 4 }}>
                 {stock.highest_impact_keyword}:
               </span>
               {stock.highest_impact_rank.replace(/\*/g, "").trim()}
+            </Badge>
+          )}
+          {stock.news_score !== undefined && (
+            <Badge
+              bg={getScoreColor(stock.news_score)}
+              className="border"
+              style={{ fontSize: "0.75rem" }}
+            >
+              {stock.news_score}
             </Badge>
           )}
           <div style={{ height: 8 }} /> {/* Space between rows */}
@@ -568,15 +635,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
 
               {stock.promising_score !== undefined && (
                 <Badge
-                  bg={
-                    stock.promising_score >= 80
-                      ? "success"
-                      : stock.promising_score >= 60
-                      ? "info"
-                      : stock.promising_score >= 40
-                      ? "warning"
-                      : "danger"
-                  }
+                  bg={getScoreColor(stock.promising_score)}
                   className="border"
                   style={{ fontSize: "0.75rem" }}
                 >

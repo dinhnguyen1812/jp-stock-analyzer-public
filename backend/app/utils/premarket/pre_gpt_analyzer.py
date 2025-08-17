@@ -34,10 +34,10 @@ def extract_recommendation_and_score(text: str):
     cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
     rec_match = re.search(r"investment recommendation\s*[:\-]?\s*(buy|sell|hold|short)", cleaned, re.I)
     recommendation = rec_match.group(1).capitalize() if rec_match else "Unknown"
-    score_match = re.search(r"promising score\s*[:\-]?\s*(\d{1,3})", cleaned)
-    promising_score = int(score_match.group(1)) if score_match else -1
-    promising_score = max(0, min(promising_score, 100))
-    return recommendation, promising_score
+    score_match = re.search(r"news score\s*[:\-]?\s*(\d{1,3})", cleaned)
+    news_score = int(score_match.group(1)) if score_match else -1
+    news_score = max(0, min(news_score, 100))
+    return recommendation, news_score
 
 
 def extract_headline_impacts(text: str) -> list[dict]:
@@ -132,13 +132,13 @@ def premarket_analyze_with_gpt(
         db.query(VolumeSnapshot)
         .filter(
             VolumeSnapshot.ticker == volume_info.ticker,
-            VolumeSnapshot.promising_score <= 50,  # or <= 50 if you want to match the print
+            VolumeSnapshot.news_score <= 50,  # or <= 50 if you want to match the print
             VolumeSnapshot.detected_at >= seven_days_ago
         )
         .first()
     )
     if low_score_exists:
-        print("⏩ Skipping: found previous snapshot with promising_score <= 50")
+        print("⏩ Skipping: found previous snapshot with news_score <= 50")
         return
 
     # Short term data
@@ -157,10 +157,11 @@ def premarket_analyze_with_gpt(
     if spike_info['spike_date']:
         spike_summary = (
             f"First spike: {spike_info['spike_date']}, "
-            f"Closed near high: {'Yes' if spike_info['first_spike_close_near_high'] else 'No'}, "
+            f"Closed near high: {'Yes' if spike_info['first_day_close_near_high'] else 'No'}, "
             f"Number of respikes: {spike_info['number_of_respikes']}, "
             f"Drop from high: {spike_info['drop_from_high_pct']}%, "
             f"Last day close near low: {'Yes' if spike_info['last_day_close_near_low'] else 'No'}"
+            f"Score for spike pattern: {spike_info['score']}"
         )
 
     jst = timezone(timedelta(hours=9))
@@ -249,12 +250,57 @@ def premarket_analyze_with_gpt(
         ]
     )
 
+    # Fetch the two most recent snapshots for this ticker
+    vs_list = (
+        db.query(VolumeSnapshot)
+        .filter(VolumeSnapshot.ticker == ticker)
+        .order_by(VolumeSnapshot.detected_at.desc())
+        .limit(2)
+        .all()
+    )
+
+    latest_vs = vs_list[1] if len(vs_list) == 2 else None
+
+    # Extract latest news headline from Kabutan scrape
+    latest_news_headline = news_items[0]["headline"] if news_items else None
+
+    if latest_vs and latest_news_headline == latest_vs.latest_news and latest_vs.model == "gpt-4o":
+        print(f"Skip gpt analyze because no new news")
+
+        # Reuse GPT analysis since news hasn't changed
+        volume_info.reasoning = latest_vs.reasoning
+        volume_info.recommendation = latest_vs.recommendation
+        volume_info.news_score = latest_vs.news_score
+        volume_info.highest_impact_keyword = latest_vs.highest_impact_keyword
+        volume_info.highest_impact_rank = latest_vs.highest_impact_rank
+        volume_info.top_news = latest_vs.top_news
+
+        volume_info.momentum_score = momentum_result["momentum_score"]
+        volume_info.momentum_confidence = momentum_result["momentum_confidence"]
+        volume_info.momentum_signals = momentum_result["momentum_signals"]
+
+        volume_info.latest_news = latest_news_headline
+        volume_info.model = "gpt-4o"
+
+        db.commit()
+
+        return {
+            "ticker": ticker,
+            "recommendation": latest_vs.recommendation,
+            "news_score": latest_vs.news_score,
+            "headline_impacts": json.loads(latest_vs.top_news) if latest_vs.top_news else [],
+            "summary": latest_vs.reasoning,
+            "momentum_score": momentum_result["momentum_score"],
+            "momentum_confidence": momentum_result["momentum_confidence"],
+            "momentum_signals": momentum_result["momentum_signals"],
+        }
+
     prompt = (
         f"You are a Japanese market expert AI providing a **pre-market outlook for stock {ticker}** — to support a trade decision for **tomorrow's trading session**.\n\n"
         f"Today is {date_str}, time: {now_jst}. Latest completed trading day: {latest_trading_day}, time: 15:30:00.\n"
         f"### Volume and Price Activity:\n{volume_summary}\n"
         f"### Spike pattern:\n{spike_summary}\n"
-        f"### Intraday: {analyze_intraday}. Intraday summary:\n{intraday_summary if analyze_intraday else None}\n"
+        f"### Intraday: {analyze_intraday}." + f" Summary:\n{intraday_summary}\n" if analyze_intraday else "\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
         f"### Momentum Signals Summary:\n{momentum_summary}\n"
         f"### Technical Indicators (for reference only):\n{tech_summary}\n"
@@ -265,18 +311,14 @@ def premarket_analyze_with_gpt(
         "### Instructions:\n"
         f"{extra_guidance}"
         "- **Main Goal:** Evaluate if the stock is in **spike continuation** or **re-spike phase**. Secondary: detect strong **new spikes**.\n"
-        "- Spike pattern setups: A-S+ ranked news, first spike closed near high, might pullback after spike, last close near low.\n"
-        "- Always identify **wave stage**: first spike, re-spike, pullback, continuation, or exhausted.\n"
+        "- Always identify **wave stage**: haven't spiked yet, first spike, re-spike, pullback, continuation, or exhausted.\n"
         "- Support view with RSI, MACD, moving averages, candlesticks, and volume trends.\n"
         "- Include historical price table for trend/resistance/support context.\n"
 
-        "- 📌 **Promising Score Guidance**:\n"
-        "  - Base score primarily on:\n"
-        "    1. **News Strength & Recency** — Stronger news ranks (A to S+) and more recent events → higher score.\n"
-        "    2. **Spike Confirmation** — If already spiked and first spike closed near high → indicates strong market interest → higher score.\n"
-        "    3. **Re-spike Potential** — If spike_date is recent and number_of_respikes is low → higher likelihood of continuation → higher score.\n"
-        "  - Deduct points if news is weak/old, spike was far in the past, first spike closed near low, or number_of_respikes is already high.\n"
-        "  - Use all available data (news rank, spike pattern info, spike_date, first_spike_close_near_high, number_of_respikes) to assign a final score between 0–100.\n"
+        "- News Scoring Guidance:\n"
+        "   - Weighting: **News (90%) + Technical/Momentum (10%)**\n"
+        "   - News strength & recency. More recent events → higher score.\n"
+        "   - Technical/momentum only adjusts score slightly.\n\n"
 
         "- 🧠 News Impact Ranking:\n"
         "- For each top headline, assign a keyword and rank based on this table:\n"
@@ -376,10 +418,11 @@ def premarket_analyze_with_gpt(
         "Summary:\n"
         "- 📰 **News Evaluation**: [Short reasoning about which headlines matter and how price responded]\n"
         "- 📊 **Signal/Technical Analysis**: [Do indicators support continuation or exhaustion?]\n"
-        "- 📈 **Trend & Rebound Context**: [Explain any pullbacks, potential rebound zones, or exhaustion. Also state if re-spike pattern was detected — and if not, why not (e.g. no prior strong spike, new news exists, weak volume, etc).]\n"
+        "- 📈 **Spike pattern**: [Explain any spikes, pullbacks, potential rebound zones, or exhaustion. Also state if re-spike pattern was detected — and if not, why not (e.g. no prior strong spike, new news exists, weak volume, etc).]\n"
+        "  [Spike pattern setups: A-S+ ranked news, first spike closed near high, might pullback after spike, last close near low.]\n"
         "- Final Comment: [Conclude with a **concise summary and forecast for tomorrow**]\n\n"
         "- Investment Recommendation: Buy / Hold / Sell\n"
-        "- Promising Score: (0–100) [Use price action, spike pattern, and impactful news]\n"
+        "- News Score: (0–100)\n"
         "- News Rank Summary: [Overall impact levels of top news]\n"
         "- 📅 **Tomorrow's Action Expectation**: Gap direction, morning behavior, and closing tendency\n"
         "- 📊 **Wave Stage**: [Wave 1 / Wave 2 / Wave 3 / Overextended / Not started]\n"
@@ -396,7 +439,7 @@ def premarket_analyze_with_gpt(
         )
         reply = response.choices[0].message.content.strip()
 
-        recommendation, promising_score = extract_recommendation_and_score(reply)
+        recommendation, news_score = extract_recommendation_and_score(reply)
 
         # spiked, spike_next = extract_spiked_and_spike_next(reply)
 
@@ -440,7 +483,7 @@ def premarket_analyze_with_gpt(
 
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
-        volume_info.promising_score = promising_score
+        volume_info.news_score = news_score
         # volume_info.spiked = spiked
         # volume_info.spike_next = spike_next
         volume_info.highest_impact_keyword = highest_impact_keyword
@@ -450,12 +493,15 @@ def premarket_analyze_with_gpt(
         volume_info.momentum_confidence = momentum_result["momentum_confidence"]
         volume_info.momentum_signals = momentum_result["momentum_signals"]
 
+        volume_info.latest_news = latest_news_headline
+        volume_info.model = model
+
         db.commit()
 
         return {
             "ticker": ticker,
             "recommendation": recommendation,
-            "score": promising_score,
+            "news_score": news_score,
             "headline_impacts": impacts,
             "summary": summary,
             "gpt_raw_response": reply,

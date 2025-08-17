@@ -18,6 +18,8 @@ const handleNoteChange = async (ticker: string, newNote: string) => {
 
 type EnrichedStock = VolumeSurgeStock & {
   promising_score?: number;
+  news_score?: number;
+  spike_score?: number;
   momentum_score?: number;
   recommendation?: string | null;
   highest_impact_keyword?: string;
@@ -50,6 +52,8 @@ type SortKey = keyof Pick<
   | "avg_volume_5d"
   | "detected_at"
   | "promising_score"
+  | "news_score"
+  | "spike_score"
 >;
 
 const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onStarToggle, onWatchToggle }) => {
@@ -177,11 +181,19 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
             <th style={{ width: "140px" }} className="align-top text-center">
               Mini Chart
             </th>
-            <th style={{ width: "190px" }} className="align-top text-center">
-              Spike pattern
+            <th
+              style={{ width: "225px" }}
+              className="align-top text-center clickable"
+              onClick={() => handleSort("spike_score")}
+            >
+              Spike pattern {renderSortIndicator("spike_score")}
             </th>
-            <th style={{ width: "220px" }} className="align-top text-center">
-              Most Impact
+            <th
+              style={{ width: "220px" }}
+              className="align-top text-center clickable"
+              onClick={() => handleSort("news_score")}
+            >
+              Most Impact {renderSortIndicator("news_score")}
             </th>
             <th
               style={{ width: "370px" }}

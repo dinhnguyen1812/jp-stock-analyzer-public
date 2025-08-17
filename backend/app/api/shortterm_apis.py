@@ -299,7 +299,7 @@ async def get_kabutan_news_analysis(
 
 # For testing
 @router.post("/fetch_and_save/{ticker}")
-def fetch_and_save_daily_prices(ticker: str, days: int = 150, db: Session = Depends(get_db)):
+def fetch_and_save_daily_prices(ticker: str, days: int = 50, db: Session = Depends(get_db)):
     """
     Fetch and save daily price data for a given ticker from Yahoo Finance.
     Saves up to `days` records (default = 30).

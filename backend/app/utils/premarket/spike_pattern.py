@@ -9,23 +9,21 @@ from app.utils.shortterm.price_updater import fetch_and_save_price_history
 def compute_spike_analysis(
     db: Session,
     ticker: str,
-    analyze_intraday: False,
+    analyze_intraday: bool = False,
     spike_threshold: float = 20.0,
     respike_threshold: float = 10.0,
     close_near_high_pct: float = 10.0,
     close_near_low_pct: float = 10.0,
-    limit_days: int = 15
+    limit_days: int = 50
 ) -> StockSpikeAnalysis:
     """
     Detect first spike (> spike_threshold) in the last `limit_days` (including today),
-    check if first spike closed near high, count respikes, 
-    calculate drop from highest, and whether last day closed near low.
+    check if first spike closed near high, count respikes (ignoring continuation),
+    calculate first_spike_pct, drop from highest, and whether last day closed near low.
     """
 
-    # Optional: Ensure latest prices are up-to-date
     fetch_and_save_price_history(db, ticker, max_days=limit_days)
 
-    # Fetch last N days of prices
     rows = (
         db.query(DailyPrice)
         .filter(DailyPrice.ticker == ticker)
@@ -38,13 +36,16 @@ def compute_spike_analysis(
             ticker=ticker,
             updated_at=datetime.datetime.now(),
             spike_date=None,
-            first_spike_close_near_high=None,
+            first_day_close_near_high=None,
+            first_spike_pct=None,
+            days_since_spike=None,
             number_of_respikes=0,
             drop_from_high_pct=None,
-            last_day_close_near_low=None
+            last_day_close_near_low=None,
+            score=0,
         )
 
-    # Reverse to chronological
+    # Chronological order
     rows = rows[::-1]
     dates = [r.date for r in rows]
     closes = [r.close for r in rows]
@@ -62,17 +63,16 @@ def compute_spike_analysis(
 
     spike_index = None
     spike_date = None
-    first_spike_close_near_high = None
+    first_day_close_near_high = None
 
-    # Find first spike: high_today vs close_yesterday
+    # Find first spike
     for i in range(1, len(rows)):
         pct_rise = (highs[i] - closes[i - 1]) / closes[i - 1] * 100
         if pct_rise >= spike_threshold:
             spike_index = i
             spike_date = dates[i]
-            # Check if close near high
             high_close_threshold = highs[i] * (1 - close_near_high_pct / 100)
-            first_spike_close_near_high = closes[i] >= high_close_threshold
+            first_day_close_near_high = closes[i] >= high_close_threshold
             break
 
     if spike_index is None:
@@ -80,49 +80,74 @@ def compute_spike_analysis(
             ticker=ticker,
             updated_at=datetime.datetime.now(),
             spike_date=None,
-            first_spike_close_near_high=None,
+            first_day_close_near_high=None,
+            first_spike_pct=None,
+            days_since_spike=None,
             number_of_respikes=0,
             drop_from_high_pct=None,
-            last_day_close_near_low=None
+            last_day_close_near_low=None,
+            score=0,
         )
 
-    # Count respikes & track highest price after initial spike
-    respike_count = 0
-    highest_price = highs[spike_index]
+    # --- Compute first_spike_pct (continuation) ---
+    first_spike_close = closes[spike_index - 1]  # close before spike
+    highest_in_first_spike = highs[spike_index]
 
-    for i in range(spike_index + 1, len(rows)):
+    i = spike_index + 1
+    while i < len(rows):
+        # If next day close >= previous close, continuation
+        if closes[i] >= closes[i - 1]:
+            highest_in_first_spike = max(highest_in_first_spike, highs[i])
+            i += 1
+        else:
+            break
+
+    first_spike_pct = (highest_in_first_spike - first_spike_close) / first_spike_close * 100
+
+    # --- Count respikes (ignore continuation) ---
+    respike_count = 0
+    highest_price = highest_in_first_spike
+
+    while i < len(rows):
         pct_rise = (highs[i] - closes[i - 1]) / closes[i - 1] * 100
         if pct_rise >= respike_threshold:
             respike_count += 1
             highest_price = max(highest_price, highs[i])
+        i += 1
 
-    # Drop from highest spike
+    # Drop from highest
     last_close = closes[-1]
     drop_from_high = (highest_price - last_close) / highest_price * 100 if highest_price else None
 
     # Last day close near low
     last_low = lows[-1]
     last_high = highs[-1]
-    last_close = closes[-1]
-
-    # Compare to low
     near_low_threshold = last_low * (1 + close_near_low_pct / 100)
     last_day_close_near_to_low = last_close <= near_low_threshold
-
-    # Compare distances: if close is much closer to low than to high
     last_day_close_near_low_than_high = (last_close - last_low) < 0.5 * (last_high - last_close)
-
     last_day_close_near_low = last_day_close_near_to_low and last_day_close_near_low_than_high
 
-    return StockSpikeAnalysis(
+    analysis = StockSpikeAnalysis(
         ticker=ticker,
         updated_at=datetime.datetime.now(),
         spike_date=spike_date,
-        first_spike_close_near_high=first_spike_close_near_high,
+        first_day_close_near_high=first_day_close_near_high,
+        first_spike_pct=round(first_spike_pct, 2),
         number_of_respikes=respike_count,
         drop_from_high_pct=round(drop_from_high, 2) if drop_from_high else None,
-        last_day_close_near_low=last_day_close_near_low
+        last_day_close_near_low=last_day_close_near_low,
     )
+
+    # rows are already reversed to chronological
+    dates = [r.date for r in rows]
+    if spike_index is not None:
+        days_since_spike = len(dates) - 1 - spike_index
+    else:
+        days_since_spike = None  # or 0
+    analysis.days_since_spike = days_since_spike
+    analysis.score = compute_spike_score(analysis, limit_days=limit_days)
+
+    return analysis
 
 
 def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60, analyze_intraday=False) -> StockSpikeAnalysis:
@@ -133,7 +158,7 @@ def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60, analyze_int
     if record and record.updated_at and (now - record.updated_at).total_seconds() < max_age_minutes * 60:
         return record
 
-    new_record = compute_spike_analysis(db, ticker, analyze_intraday=False)
+    new_record = compute_spike_analysis(db, ticker, analyze_intraday=analyze_intraday)
     if record:
         for attr, value in vars(new_record).items():
             if attr != "_sa_instance_state":
@@ -149,9 +174,57 @@ def normalize_spike_for_json(spike: StockSpikeAnalysis) -> dict:
     return {
         "ticker": spike.ticker,
         "spike_date": spike.spike_date.isoformat() if spike.spike_date else None,
-        "first_spike_close_near_high": spike.first_spike_close_near_high,
+        "first_day_close_near_high": spike.first_day_close_near_high,
+        "first_spike_pct": spike.first_spike_pct,
+        "days_since_spike": spike.days_since_spike,
         "number_of_respikes": spike.number_of_respikes,
         "drop_from_high_pct": spike.drop_from_high_pct,
         "last_day_close_near_low": spike.last_day_close_near_low,
+        "score": spike.score,  # ✅ include new field
         "updated_at": spike.updated_at.isoformat() if spike.updated_at else None,
     }
+
+
+def compute_spike_score(spike: StockSpikeAnalysis, limit_days: int = 15) -> int:
+    """Compute a 0–100 score for the spike pattern."""
+    if not spike.spike_date or not spike.first_day_close_near_high:
+        return 0
+
+    score = 0
+
+    # 1. Recency of spike (35 pts)
+    if spike.days_since_spike <= 5:
+        score += 35
+    elif spike.days_since_spike <= 10:
+        score += 25
+    elif spike.days_since_spike <= limit_days:
+        score += 15
+
+    # 2. Drop from high (25 pts)
+    if spike.drop_from_high_pct is not None:
+        if spike.drop_from_high_pct >= 40:
+            score += 25
+        elif spike.drop_from_high_pct >= 20:
+            score += 18
+        elif spike.drop_from_high_pct >= 10:
+            score += 10
+        else:
+            score += 5
+
+    # 3. First spike pct (20 pts)
+    if spike.first_spike_pct is not None:
+        if spike.first_spike_pct >= 100:
+            score += 20
+        elif spike.first_spike_pct >= 40:
+            score += 10
+        elif spike.first_spike_pct >= 20:
+            score += 5
+
+    # 4. Last day close near low (15 pts)
+    if spike.last_day_close_near_low:
+        score += 15
+
+    # 5. Respikes (5 pts max)
+    score += min(spike.number_of_respikes, 1) * 5
+
+    return score

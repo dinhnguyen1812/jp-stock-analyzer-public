@@ -22,7 +22,7 @@ def normalize_downtrend_for_json(downtrend: dict) -> dict:
 
 
 def detect_recent_downtrend(db: Session, ticker: str, days: int = 30) -> dict:
-    fetch_and_save_price_history(db, ticker, max_days=150)
+    fetch_and_save_price_history(db, ticker, max_days=50)
     today = datetime.date.today()
     start_date = today - datetime.timedelta(days=days + 5)
 

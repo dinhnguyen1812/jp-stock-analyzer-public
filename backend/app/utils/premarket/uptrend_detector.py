@@ -7,7 +7,7 @@ from app.utils.shortterm.price_updater import fetch_and_save_price_history
 
 
 def compute_uptrend_analysis(db: Session, ticker: str, days: int = 10) -> StockUpTrendAnalysis:
-    fetch_and_save_price_history(db, ticker, max_days=30)
+    fetch_and_save_price_history(db, ticker, max_days=50)
 
     today = datetime.date.today()
     start_date = today - datetime.timedelta(days=days + 5)

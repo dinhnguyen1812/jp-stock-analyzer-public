@@ -21,7 +21,7 @@ def get_latest_date_in_db(db: Session, ticker: str) -> Optional[date]:
     )
     return latest.date if latest else None
 
-def fetch_price_history(ticker: str, from_date: date, to_date: date, max_days: int = 30) -> list[dict]:
+def fetch_price_history(ticker: str, from_date: date, to_date: date, max_days: int = 50) -> list[dict]:
     """
     Fetch OHLC price data from Yahoo Finance JP between from_date and to_date.
     Returns list of dicts: {ticker, date, open, high, low, close}.
@@ -124,7 +124,7 @@ def save_price_data(db: Session, price_data: list[dict]):
         ))
     db.commit()
 
-def fetch_and_save_price_history(db: Session, ticker: str, max_days: int = 150):
+def fetch_and_save_price_history(db: Session, ticker: str, max_days: int = 50):
     """
     Wrapper to fetch and store only NEW daily price data.
     """
@@ -133,7 +133,7 @@ def fetch_and_save_price_history(db: Session, ticker: str, max_days: int = 150):
 
     if latest_db_date is None:
         # No data in DB yet, fetch from 50 days ago
-        from_date = today - timedelta(days=50)
+        from_date = today - timedelta(days=100)
     else:
         # Fetch only data newer than the latest in DB
         from_date = latest_db_date + timedelta(days=1)

@@ -23,7 +23,7 @@ def save_shortterm_analysis_signal(db: Session, ticker: str) -> dict:
         signal = existing
     else:
         signal = ShortTermAnalysisSignal(ticker=ticker)
-        fetch_and_save_price_history(db, ticker, max_days=150)
+        fetch_and_save_price_history(db, ticker, max_days=50)
 
     signal.date = date.today()
     signal.updated_at = datetime.utcnow()  # ✅ ensure freshness check works

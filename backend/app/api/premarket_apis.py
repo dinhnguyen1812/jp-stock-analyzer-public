@@ -129,7 +129,7 @@ def trigger_volume_scan(
         volume_info = get_volume_info(db, ticker=ticker)
         if not volume_info:
             continue
-        if volume_info.promising_score is not None and volume_info.promising_score >= 50:
+        if volume_info.news_score is not None and volume_info.news_score >= 50:
             try:
                 print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
                 analyze_ticker_by_steps(
@@ -194,7 +194,7 @@ def get_all_saved_volume_analyses(
             VolumeSnapshot.ticker,
             func.max(VolumeSnapshot.detected_at).label("latest_detected_at"),
         )
-        .filter(VolumeSnapshot.promising_score > 0)
+        .filter(VolumeSnapshot.news_score > 0)
     )
 
     if detected_at_max_age_days:
@@ -261,6 +261,9 @@ def get_all_saved_volume_analyses(
 
         recent_prices = get_recent_price_data(db, vs.ticker, analyze_intraday=analyze_intraday)
 
+        print(f"====vs.news_score={vs.news_score}")
+        print(f"spike_info={spike_info}")
+
         results.append({
             "volume_info": {
                 "ticker": vs.ticker,
@@ -274,7 +277,8 @@ def get_all_saved_volume_analyses(
                 "detected_at": vs.detected_at.isoformat(),
                 "reasoning": vs.reasoning,
                 "recommendation": vs.recommendation,
-                "promising_score": vs.promising_score,
+                "promising_score": round(0.7 * vs.news_score + 0.3 * spike_info[0]['score'], 1),
+                "news_score": vs.news_score,
                 # "spiked": vs.spiked,
                 # "spike_next": vs.spike_next,
                 "top_news": top_news,
@@ -305,7 +309,7 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
     vs = (
         db.query(VolumeSnapshot)
         .filter(VolumeSnapshot.ticker == ticker)
-        .filter(VolumeSnapshot.promising_score > 0)
+        .filter(VolumeSnapshot.news_score > 0)
         .order_by(VolumeSnapshot.detected_at.desc())
         .first()
     )
@@ -398,7 +402,8 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
             "detected_at": vs.detected_at.isoformat(),
             "reasoning": vs.reasoning,
             "recommendation": vs.recommendation,
-            "promising_score": vs.promising_score,
+            "promising_score": round(0.7 * vs.news_score + 0.3 * spike_info[0]['score'], 1),
+            "news_score": vs.news_score,
             # "spiked": vs.spiked,
             # "spike_next": vs.spike_next,
             "top_news": top_news,
@@ -466,7 +471,7 @@ def analyze_single_ticker(
 
     # Reanalyze with GPT-4o if promising
     volume_info = get_volume_info(db, ticker=ticker)
-    if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+    if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
         try:
             analyze_ticker_by_steps(
                 db=db,
@@ -502,7 +507,7 @@ def analyze_multiple_tickers(
 
         # Reanalyze with GPT-4o if promising
         volume_info = get_volume_info(db, ticker=ticker)
-        if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+        if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
             try:
                 analyze_ticker_by_steps(
                     db=db,
@@ -550,7 +555,7 @@ def analyze_starred_tickers(
 
             # Check if promising for reanalysis
             volume_info = get_volume_info(db, ticker=ticker)
-            if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+            if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
                 try:
                     analyze_ticker_by_steps(
                         db=db,
@@ -594,7 +599,7 @@ def analyze_watch_list(
 
             # Check if promising for reanalysis
             volume_info = get_volume_info(db, ticker=ticker)
-            if volume_info and volume_info.promising_score is not None and volume_info.promising_score >= 50:
+            if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
                 try:
                     analyze_ticker_by_steps(
                         db=db,
@@ -798,7 +803,7 @@ def spiked_scan(
     analyze_intraday = False
 ):
     """
-    Scan pages for spiked stocks (spike_date exists and first_spike_close_near_high=True)
+    Scan pages for spiked stocks (spike_date exists and first_day_close_near_high=True)
     and analyze them with GPT.
     """
     # is_market_hours = check_market_hours(db)
@@ -817,7 +822,7 @@ def spiked_scan(
     spiked_tickers = []
     for ticker in tickers:
         spike_info = normalize_spike_for_json(get_spike_analysis(db, ticker, analyze_intraday=analyze_intraday))
-        if spike_info.get("spike_date") and spike_info.get("first_spike_close_near_high"):
+        if spike_info.get("spike_date") and spike_info.get("first_day_close_near_high"):
             spiked_tickers.append(ticker)
 
     print(f"Found {len(spiked_tickers)} spiked tickers: {spiked_tickers}")
@@ -838,7 +843,7 @@ def spiked_scan(
     # Step 4: Re-analyze promising stocks with GPT-4o
     for ticker in spiked_tickers:
         volume_info = get_volume_info(db, ticker=ticker)
-        if volume_info and volume_info.promising_score and volume_info.promising_score >= 50:
+        if volume_info and volume_info.news_score and volume_info.news_score >= 50:
             try:
                 print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
                 analyze_ticker_by_steps(
@@ -860,7 +865,7 @@ def spiked_scan(
     analyze_intraday = False
 ):
     """
-    Scan pages for spiked stocks (spike_date exists and first_spike_close_near_high=True)
+    Scan pages for spiked stocks (spike_date exists and first_day_close_near_high=True)
     and analyze them with GPT.
     """
     # is_market_hours = check_market_hours(db)
@@ -879,9 +884,7 @@ def spiked_scan(
     spiked_tickers = []
     for ticker in tickers:
         spike_info = normalize_spike_for_json(get_spike_analysis(db, ticker, analyze_intraday=analyze_intraday))
-        if ticker == '7615':
-            print(f"====ticker={ticker}, spike_date={spike_info.get('spike_date')}, first_spike_close_near_high={spike_info.get('first_spike_close_near_high')}")
-        if spike_info.get("spike_date") and spike_info.get("first_spike_close_near_high"):
+        if spike_info.get("spike_date") and spike_info.get("first_day_close_near_high"):
             spiked_tickers.append(ticker)
 
     print(f"Found {len(spiked_tickers)} spiked tickers: {spiked_tickers}")

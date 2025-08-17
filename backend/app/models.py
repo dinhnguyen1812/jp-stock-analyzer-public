@@ -51,7 +51,7 @@ class VolumeSnapshot(Base):
     # GPT-related fields
     reasoning = Column(Text, nullable=True)
     recommendation = Column(String, nullable=True)  # e.g., "Buy", "Hold", "Sell", "Short"
-    promising_score = Column(Integer, nullable=True)  # 0–100 score
+    news_score = Column(Integer, nullable=True)  # 0–100 score
     top_news = Column(Text, nullable=True)  # JSON-encoded news with GPT verdict
     highest_impact_keyword = Column(String, nullable=True)
     highest_impact_rank = Column(String, nullable=True)
@@ -64,6 +64,9 @@ class VolumeSnapshot(Base):
     momentum_signals = Column(JSON, nullable=True)  # List[Dict[str, Any]]
 
     note = Column(Text, nullable=True)
+
+    latest_news = Column(Text, nullable=True)
+    model = Column(Text, nullable=True)
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),
@@ -249,9 +252,14 @@ class StockSpikeAnalysis(Base):
 
     ticker = Column(String, primary_key=True, index=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
-    
+
     spike_date = Column(Date)  # first spike date
-    first_spike_close_near_high = Column(Boolean)  # True if close near high
+    first_day_close_near_high = Column(Boolean)  # True if close near high
+    first_spike_pct = Column(Float)
+    days_since_spike = Column(Float)
     number_of_respikes = Column(Float)  # count of respikes (>= respike_threshold)
     drop_from_high_pct = Column(Float)  # drop from highest after spike
     last_day_close_near_low = Column(Boolean)  # True if last day close near low
+
+    # ✅ New column
+    score = Column(Integer, default=0)  # 0–100 spike strength score
