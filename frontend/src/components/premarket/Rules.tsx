@@ -128,38 +128,46 @@ const WAVE_RULES = `
 - Ride the second wave if it forms.
 `;
 
-const ALLIN_GUIDANCE = `
-🚀 All-In Stock Criteria & Guidance
-
-🧠 Ideal All-In Setup:
-- 🔻 Stock has been down / quiet for some time (no recent hype).
-- 💰 黒字転換 (Turn to Profit): from big loss to solid profit.
-  • Example: -8億 → +0.6億 modest, -7億 → +2億 = strong.
-- 📈 業績上方修正 (Earnings Forecast Raised): large %, record level.
-- 🆕 Good news is FRESH and not yet priced in (IR release after 15:30).
-- 💹 High trading volume early, confirming market reaction.
-- 📊 Clean chart: breakout from resistance or long base.
-- 🔍 No dilution risk (no CB, 増資, or toxic debt).
-- ⚡ Sector theme is hot or related news moving similar stocks.
-
-🎯 Checklist Before Going All-In:
-1. ✅ Strong surprise news (S/A+ rank).
-2. ✅ No heavy resistance above.
-3. ✅ No dilution risk.
-4. ✅ Clean IR timing (not recycled).
-5. ✅ Volume confirmation on spike.
-6. ✅ Similar stocks moved (sector sympathy).
-7. ✅ News + chart + volume = alignment.
-
-❌ Don’t All-In If:
-- 🚨 Already up 50%+ on low volume.
-- ❓ Dilution risk / CB noted in docs.
-- 📉 Weak breakout / fake spike pattern.
-- 🧊 Market sentiment weak (broad drop).
-- 😵 Overcrowded stock with FOMO jump-ins.
-
-💡 Tip:
-Use GPT to validate news freshness, technical strength, and dilution risks.
+const REFERENCES = `
+3541: 農業総合研究所 x2: Buy the rumor, sell the news. Rised 90% before the actual news (actually quite good: Q3 earnings showing profit up 2.4–2.5x)
+2134: 北浜ＣＰ x5: Funding usage, Multiple technical signals, reduction in stakes
+6731: Pixela x3: 主要株主及び主要株主である筆頭株主の異動に関するお知らせpdf
+6029: Artra group x1.5
+3823: Why how do company
+7603: Mac house x6: 暗号資産
+5985: Suncall x2.5: Data center
+7111: INEST x2: new mid-term business plan + technical
+3664: mobcast x2: technical
+5255: monstarlab x3.5: strong fundamental: AI
+8105: Horita Marusho x9: foreign investor entry
+7615: 京都友禅ＨＤ x2: technical
+2743: pixel x2: technical, after that data center news did not affect because priced in?
+2586: fruta fruta x2.5: new products
+3777: 環境フレンド x2: new products + partnership
+5721: S Science x4: 
+6573: Agail x2.5: business expansion Tiktok + bitcoin
+3624: Axel M x2: technical
+7571: Yamano holding x2: technical
+9973: Kozo HD x2.5: UK franchise partnership
+2330: Forside x2: 今期経常を2.4倍上方修正
+3845: アイフリークモバイルx1.5: 黒字浮上+technical
+8746: unbanked x2: Acquisition 子会社
+3350: メタプラネット x4.5: Bitcoin
+2158: Fronteo x2.5: Cancer drug research
+3936: Globalway x3: technical
+2321: ソフトフロン x2.5: AI data center
+6659: Medialinks x2: technical
+4586: メドレックス x2: technical (赤字拡大？)
+4594: ブライトパス・バイオ x2: orphan drug
+6993: 大黒屋ホールディングス x4.5: technical
+3671: ソフトマックス x2: AI
+6786: RVH x2: technical
+1844: 大盛工業 x2: technical
+288A: ラクサス x2: technical
+7694: いつも x2.5: Tiktok shop
+3077: ホリイフードサービス x3: 黒字浮上 + 業務連携
+5618: ナイル x2: technical
+155A: 情報戦略テクノロジー x2: AI
 `;
 
 const NewsImpactRankingTable = () => {
@@ -341,7 +349,7 @@ const Rules: React.FC<RulesProps> = ({
             </Tab>
             <Tab eventKey="allin" title="🚀 All-In Guidance">
               <pre style={{ whiteSpace: "pre-wrap", padding: "1rem", margin: 0 }}>
-                {ALLIN_GUIDANCE}
+                {REFERENCES}
               </pre>
             </Tab>
           </Tabs>

@@ -158,6 +158,55 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               <div>Current (円)</div>
               <div>Change (%) {renderSortIndicator("current_price")}</div>
             </th>
+            <th style={{ width: "140px" }} className="align-top text-center">
+              Mini Chart
+            </th>
+            <th
+              style={{ width: "225px" }}
+              className="align-top text-center clickable"
+              onClick={() => handleSort("spike_score")}
+            >
+              Spike pattern {renderSortIndicator("spike_score")}
+            </th>
+            <th
+              style={{ width: "170px" }}
+              className="align-top text-center clickable"
+              onClick={() => handleSort("news_score")}
+            >
+              Most Impact {renderSortIndicator("news_score")}
+            </th>
+            <th
+              style={{ width: "300px" }}
+              className="align-top text-center clickable"
+              onClick={() => handleSort("action_column")}
+            >
+              Action / GPT {renderSortIndicator("promising_score")}
+              <div style={{ fontSize: "0.75rem", marginTop: "4px" }}>
+                <span
+                  className={`me-2 ${actionSortKey === "promising_score" ? "fw-bold text-primary" : "text-muted"}`}
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionSortKey("promising_score");
+                    if (sortKey === "promising_score") setSortOrder("desc");
+                  }}
+                >
+                  Score
+                </span>
+                {/* |
+                <span
+                  className={`ms-2 ${actionSortKey === "momentum_score" ? "fw-bold text-primary" : "text-muted"}`}
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionSortKey("momentum_score");
+                    if (sortKey === "promising_score") setSortOrder("desc");
+                  }}
+                >
+                  Signal
+                </span> */}
+              </div>
+            </th>
             <th
               style={{ width: "80px" }}
               className="align-top text-center clickable"
@@ -178,58 +227,9 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               <div>Current {renderSortIndicator("current_volume")}</div>
               <div>Avg 5d</div>
             </th>
-            <th style={{ width: "140px" }} className="align-top text-center">
-              Mini Chart
-            </th>
-            <th
-              style={{ width: "225px" }}
-              className="align-top text-center clickable"
-              onClick={() => handleSort("spike_score")}
-            >
-              Spike pattern {renderSortIndicator("spike_score")}
-            </th>
-            <th
-              style={{ width: "220px" }}
-              className="align-top text-center clickable"
-              onClick={() => handleSort("news_score")}
-            >
-              Most Impact {renderSortIndicator("news_score")}
-            </th>
-            <th
-              style={{ width: "370px" }}
-              className="align-top text-center clickable"
-              onClick={() => handleSort("action_column")}
-            >
-              Action / GPT {renderSortIndicator("promising_score")}
-              <div style={{ fontSize: "0.75rem", marginTop: "4px" }}>
-                <span
-                  className={`me-2 ${actionSortKey === "promising_score" ? "fw-bold text-primary" : "text-muted"}`}
-                  style={{ cursor: "pointer" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActionSortKey("promising_score");
-                    if (sortKey === "promising_score") setSortOrder("desc");
-                  }}
-                >
-                  Score
-                </span>
-                |
-                <span
-                  className={`ms-2 ${actionSortKey === "momentum_score" ? "fw-bold text-primary" : "text-muted"}`}
-                  style={{ cursor: "pointer" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActionSortKey("momentum_score");
-                    if (sortKey === "promising_score") setSortOrder("desc");
-                  }}
-                >
-                  Signal
-                </span>
-              </div>
-            </th>
-            <th style={{ width: "100px" }} className="align-top text-center">
+            {/* <th style={{ width: "100px" }} className="align-top text-center">
               Key Signals
-            </th>
+            </th> */}
             <th
               style={{ width: "90px" }}
               className="align-top text-center clickable"

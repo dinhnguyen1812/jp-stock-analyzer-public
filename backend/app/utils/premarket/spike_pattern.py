@@ -10,11 +10,11 @@ def compute_spike_analysis(
     db: Session,
     ticker: str,
     analyze_intraday: bool = False,
-    spike_threshold: float = 20.0,
+    spike_threshold: float = 15.0,
     respike_threshold: float = 10.0,
     close_near_high_pct: float = 10.0,
     close_near_low_pct: float = 10.0,
-    limit_days: int = 50
+    limit_days: int = 20
 ) -> StockSpikeAnalysis:
     """
     Detect first spike (> spike_threshold) in the last `limit_days` (including today),
@@ -145,12 +145,12 @@ def compute_spike_analysis(
     else:
         days_since_spike = None  # or 0
     analysis.days_since_spike = days_since_spike
-    analysis.score = compute_spike_score(analysis, limit_days=limit_days)
+    analysis.score = compute_spike_score(analysis)
 
     return analysis
 
 
-def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60, analyze_intraday=False) -> StockSpikeAnalysis:
+def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60, analyze_intraday=False, limit_days=20, spike_threshold=15.0) -> StockSpikeAnalysis:
     """Retrieve spike analysis from DB, or recompute if stale."""
     record = db.query(StockSpikeAnalysis).filter_by(ticker=ticker).first()
     now = datetime.datetime.now()
@@ -158,7 +158,7 @@ def get_spike_analysis(db: Session, ticker: str, max_age_minutes=60, analyze_int
     if record and record.updated_at and (now - record.updated_at).total_seconds() < max_age_minutes * 60:
         return record
 
-    new_record = compute_spike_analysis(db, ticker, analyze_intraday=analyze_intraday)
+    new_record = compute_spike_analysis(db, ticker, analyze_intraday=analyze_intraday, limit_days=limit_days, spike_threshold=spike_threshold)
     if record:
         for attr, value in vars(new_record).items():
             if attr != "_sa_instance_state":
@@ -185,20 +185,23 @@ def normalize_spike_for_json(spike: StockSpikeAnalysis) -> dict:
     }
 
 
-def compute_spike_score(spike: StockSpikeAnalysis, limit_days: int = 15) -> int:
+def compute_spike_score(spike: StockSpikeAnalysis) -> int:
     """Compute a 0–100 score for the spike pattern."""
-    if not spike.spike_date or not spike.first_day_close_near_high:
+    if not spike.spike_date:
         return 0
 
     score = 0
 
+    if spike.first_day_close_near_high:
+        score += 10
+
     # 1. Recency of spike (35 pts)
     if spike.days_since_spike <= 5:
-        score += 35
-    elif spike.days_since_spike <= 10:
         score += 25
-    elif spike.days_since_spike <= limit_days:
+    elif spike.days_since_spike <= 10:
         score += 15
+    elif spike.days_since_spike <= 15:
+        score += 5
 
     # 2. Drop from high (25 pts)
     if spike.drop_from_high_pct is not None:
@@ -228,3 +231,33 @@ def compute_spike_score(spike: StockSpikeAnalysis, limit_days: int = 15) -> int:
     score += min(spike.number_of_respikes, 1) * 5
 
     return score
+
+
+def compute_spike_analysis_100(
+    db: Session,
+    ticker: str,
+    limit_days: int = 50
+):
+    fetch_and_save_price_history(db, ticker, max_days=limit_days)
+
+    rows = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.ticker == ticker)
+        .order_by(DailyPrice.date.desc())
+        .limit(limit_days)
+        .all()
+    )
+    if not rows or len(rows) < 2:
+        return "No"
+
+    # Chronological order
+    rows = rows[::-1]
+    highs = [r.high for r in rows]
+    lows = [r.low for r in rows]
+
+    highest = max(highs)
+    lowest = min(lows)
+
+    if highest > lowest * 2:
+        return True
+    return False

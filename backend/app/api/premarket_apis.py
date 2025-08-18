@@ -26,7 +26,7 @@ from app.utils.premarket.pre_gpt_analyzer import analyze_ticker_by_steps, get_la
 from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
 from app.utils.premarket.watchlist import append_batch_to_watchlist, read_watchlist, remove_from_watchlist_csv, add_to_watchlist_csv
 from app.utils.premarket.intraday_analyzer import analyze_live_ticker, parse_yahoo_intraday
-from app.utils.premarket.spike_pattern import get_spike_analysis, normalize_spike_for_json
+from app.utils.premarket.spike_pattern import compute_spike_analysis_100, get_spike_analysis, normalize_spike_for_json
 
 router = APIRouter()
 
@@ -247,6 +247,7 @@ def get_all_saved_volume_analyses(
 
         # downtrend_model = get_downtrend_analysis(db, vs.ticker)
         # downtrend_info = normalize_downtrend_for_json(downtrend_model)
+
         spike_info = [normalize_spike_for_json(get_spike_analysis(db, vs.ticker))]
 
         # uptrend_model = get_uptrend_analysis(db, vs.ticker)
@@ -260,9 +261,6 @@ def get_all_saved_volume_analyses(
         # }
 
         recent_prices = get_recent_price_data(db, vs.ticker, analyze_intraday=analyze_intraday)
-
-        print(f"====vs.news_score={vs.news_score}")
-        print(f"spike_info={spike_info}")
 
         results.append({
             "volume_info": {
@@ -822,7 +820,7 @@ def spiked_scan(
     spiked_tickers = []
     for ticker in tickers:
         spike_info = normalize_spike_for_json(get_spike_analysis(db, ticker, analyze_intraday=analyze_intraday))
-        if spike_info.get("spike_date") and spike_info.get("first_day_close_near_high"):
+        if spike_info.get("spike_date") or (spike_info.get("first_day_close_near_high") and spike_info.get("first_spike_pct") >= 25):
             spiked_tickers.append(ticker)
 
     print(f"Found {len(spiked_tickers)} spiked tickers: {spiked_tickers}")
@@ -888,4 +886,32 @@ def spiked_scan(
             spiked_tickers.append(ticker)
 
     print(f"Found {len(spiked_tickers)} spiked tickers: {spiked_tickers}")
+    return spiked_tickers
+
+@router.post("/scan_first_spike_over_100")
+def scan_first_spike_over_100(
+    params: ScanParams = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Scan multiple pages for stocks with first_spike_pct >= 100% in the last month.
+    """
+
+    # Step 1: Scan pages to get tickers
+    tickers = scan_and_save_pre_market_volume_surges(
+        db=db,
+        surge_threshold=0,
+        price_threshold=params.price_threshold,
+        from_page=params.from_page,
+        to_page=params.to_page,
+    )
+
+    # Step 2: Filter tickers with first_spike_pct >= 100% in last 30 days
+    spiked_tickers = []
+    for ticker in tickers:
+        if compute_spike_analysis_100(db, ticker):
+            spiked_tickers.append(ticker)
+
+    print(f"====spiked_tickers={spiked_tickers}")
+    print(f"Found {len(spiked_tickers)} tickers with first_spike_pct >= 100%: {spiked_tickers}")
     return spiked_tickers

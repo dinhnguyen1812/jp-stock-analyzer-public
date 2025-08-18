@@ -304,6 +304,8 @@ def premarket_analyze_with_gpt(
         f"### Spike pattern:\n{spike_summary}\n"
         f"### Intraday: {analyze_intraday}." + f" Summary:\n{intraday_summary}\n" if analyze_intraday else "\n"
         f"### Price History (Past Days):\n{price_history_str}\n"
+        # f"### Momentum Signals Summary:\n{momentum_summary}\n"
+        # f"### Technical Indicators (for reference only):\n{tech_summary}\n"
         f"### Recent News Headlines (past 7 days, timestamp included):\n"
         + "\n".join([f"{i+1}. {hl}" for i, hl in enumerate(headlines)]) +
         "\n\n"
@@ -312,6 +314,7 @@ def premarket_analyze_with_gpt(
         f"{extra_guidance}"
         "- **Main Goal:** Evaluate if the stock is in **spike continuation** or **re-spike phase**. Secondary: detect strong **new spikes**.\n"
         "- Always identify **wave stage**: haven't spiked yet, first spike, re-spike, pullback, continuation, or exhausted.\n"
+        # "- Support view with RSI, MACD, moving averages, candlesticks, and volume trends.\n"
         "- Include historical price table for trend/resistance/support context.\n"
 
         "- News Scoring Guidance:\n"
@@ -424,14 +427,16 @@ def premarket_analyze_with_gpt(
         "- 📰 News Score: (0–100)\n"
         "   - [Overall impact levels of top news]"
         "   - [Short reasoning about which headlines matter and how price responded]"
+        # "- 📊 **Signal/Technical Analysis**: [Do indicators support continuation or exhaustion?]\n"
         "- 📈 Spike pattern: [Explain any spikes, pullbacks, potential rebound zones, or exhaustion. Also state if re-spike pattern was detected — and if not, why not (e.g. no prior strong spike, new news exists, weak volume, etc).]\n"
         "  [Spike pattern setups: A-S+ ranked news, first spike closed near high, might pullback after spike, last close near low.]\n"
+        # "- Final Comment: [Conclude with a **concise summary and forecast for tomorrow**]\n\n"
         "- 📅 Tomorrow's Action Expectation: Gap direction, morning behavior, and closing tendency\n"
         "- 📊 Wave Stage: [Wave 1 / Wave 2 / Wave 3 / Overextended / Not started]\n"
         "- 🕒 First Spike Summary: [Did it happen? If it did: when? On what news? How strong?]\n"
         "- ⏳ Entry Guidance: [E.g. 'Wait for second spike', 'Buy dip on rebound', 'Risk of exhaustion — wait']\n"
     )
-    print(f"prompt={prompt}")
+    # print(f"prompt={prompt}")
 
     try:
         response = openai.chat.completions.create(

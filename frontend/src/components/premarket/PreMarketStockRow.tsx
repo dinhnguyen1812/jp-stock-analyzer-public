@@ -17,7 +17,7 @@ export interface DailyPrice {
 
 export interface SpikeInfo {
   spike_date: string;
-  first_spike_close_near_high: boolean;
+  first_day_close_near_high: boolean;
   first_spike_pct: number;
   days_since_spike: number;
   number_of_respikes: number;
@@ -351,14 +351,45 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
 
     const breakdown: { label: string; points: number; value?: any }[] = [];
 
+    // 5. First day close near high
+    const highPts = spike.first_day_close_near_high ? 10 : 0; // assign 10 points if true
+    breakdown.push({
+      label: "First Close↑High",
+      value: spike.first_day_close_near_high ? "Yes" : "No",
+      points: highPts,
+    });
+
+    // 3. First spike pct
+    let firstSpikePts = 0;
+    if (spike.first_spike_pct != null) {
+      if (spike.first_spike_pct >= 100) firstSpikePts = 20;
+      else if (spike.first_spike_pct >= 40) firstSpikePts = 10;
+      else if (spike.first_spike_pct >= 20) firstSpikePts = 5;
+      breakdown.push({ label: "First spike pct", value: spike.first_spike_pct + "%", points: firstSpikePts });
+    }
+
     // 1. Days since spike
     let recencyPts = 0;
-    if (spike.days_since_spike !== undefined) {
-      if (spike.days_since_spike <= 5) recencyPts = 35;
-      else if (spike.days_since_spike <= 10) recencyPts = 25;
-      else if (spike.days_since_spike <= 15) recencyPts = 15;
-      breakdown.push({ label: "Days since spike", value: spike.days_since_spike, points: recencyPts });
+    if (spike.days_since_spike != null) { // covers both null and undefined
+      if (spike.days_since_spike <= 5) recencyPts = 25;
+      else if (spike.days_since_spike <= 10) recencyPts = 15;
+      else if (spike.days_since_spike <= 15) recencyPts = 5;
+      breakdown.push({
+        label: "Days since spike",
+        value: spike.days_since_spike,
+        points: recencyPts,
+      });
+    } else {
+      breakdown.push({
+        label: "Days since spike",
+        value: "-",
+        points: 0,
+      });
     }
+
+    // 6. Respikes
+    const respikePts = Math.min(spike.number_of_respikes ?? 0, 1) * 5;
+    breakdown.push({ label: "Respikes", value: spike.number_of_respikes, points: respikePts });
 
     // 2. Drop from high
     let dropPts = 0;
@@ -370,15 +401,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
       breakdown.push({ label: "Current Drop↓High", value: spike.drop_from_high_pct + "%", points: dropPts });
     }
 
-    // 3. First spike pct
-    let firstSpikePts = 0;
-    if (spike.first_spike_pct != null) {
-      if (spike.first_spike_pct >= 100) firstSpikePts = 20;
-      else if (spike.first_spike_pct >= 40) firstSpikePts = 10;
-      else if (spike.first_spike_pct >= 20) firstSpikePts = 5;
-      breakdown.push({ label: "First spike pct", value: spike.first_spike_pct + "%", points: firstSpikePts });
-    }
-
     // 4. Last day close near low
     const lowPts = spike.last_day_close_near_low ? 15 : 0;
     breakdown.push({
@@ -386,10 +408,6 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
       value: spike.last_day_close_near_low ? "Yes" : "No",
       points: lowPts,
     });
-
-    // 5. Respikes
-    const respikePts = Math.min(spike.number_of_respikes ?? 0, 1) * 5;
-    breakdown.push({ label: "Respikes", value: spike.number_of_respikes, points: respikePts });
 
     return (
       <div className="d-flex flex-column gap-1">
@@ -515,14 +533,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           <div>{stock.current_price.toFixed(2)}</div>
           <div>{stock.price_change.toFixed(2)}</div>
         </td>
-        <td className="align-middle text-center">
-          <div>{stock.volume_rate.toFixed(2)}</div>
-          <div>{stock.money_flow_rate.toFixed(2)}</div>
-        </td>
-        <td className="align-middle text-center">
-          <div>{stock.current_volume.toLocaleString()}</div>
-          <div>{stock.avg_volume_5d.toLocaleString()}</div>
-        </td>
+
         {/* 🔑 MiniChart */}
         <td
           className="align-middle text-start"
@@ -643,7 +654,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 </Badge>
               )}
 
-              {stock.momentum_score !== undefined && (
+              {/* {stock.momentum_score !== undefined && (
                 <Badge
                   bg={
                     stock.momentum_score >= 8
@@ -659,7 +670,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                 >
                   Signal: {stock.momentum_score}
                 </Badge>
-              )}
+              )} */}
 
               {Array.isArray(stock.top_news) && stock.top_news.length > 0 && latestThresholdDate && (() => {
                 const newsWithVerdict = stock.top_news.filter(
@@ -731,10 +742,19 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           </div> */}
         </td>
 
-        {/* 🔑 Key Signals column */}
-        <td className="align-middle text-start">
-          {renderKeySignals()}
+        <td className="align-middle text-center">
+          <div>{stock.volume_rate.toFixed(2)}</div>
+          <div>{stock.money_flow_rate.toFixed(2)}</div>
         </td>
+        <td className="align-middle text-center">
+          <div>{stock.current_volume.toLocaleString()}</div>
+          <div>{stock.avg_volume_5d.toLocaleString()}</div>
+        </td>
+
+        {/* 🔑 Key Signals column */}
+        {/* <td className="align-middle text-start">
+          {renderKeySignals()}
+        </td> */}
         <td className="align-middle text-center">
           <span
             style={{
@@ -790,7 +810,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                           1st Spike Date: {analysis.volume_info.spike_info?.[0]?.spike_date ?? "N/A"}
                         </li>
                         <li>
-                          1st Close↑High: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.first_spike_close_near_high ? "Yes" : "No")}
+                          1st Close↑High: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.first_day_close_near_high ? "Yes" : "No")}
                         </li>
                         <li>
                           Respikes: {analysis.volume_info.spike_info?.[0]?.number_of_respikes ?? "N/A"}
@@ -804,7 +824,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       </ul>
                     </Col>
 
-                    <Col md={4}>
+                    {/* <Col md={4}>
                       <h5>Analysis Signals</h5>
                       {analysis.analysis_signal ? (
                         <ul>
@@ -830,7 +850,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                       ) : (
                         <p className="text-muted">(No analysis signal available)</p>
                       )}
-                    </Col>
+                    </Col> */}
 
                     {/* Long-Term Indicator Column */}
                     {/* <Col md={3}>
@@ -924,7 +944,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                   </Row>
 
                   {/* NEW MOMENTUM SIGNALS SECTION */}
-                  <Row className="mt-4">
+                  {/* <Row className="mt-4">
                     <Col>
                       <h5>Momentum Score: {analysis.volume_info.momentum_score ?? "N/A"}</h5>
                       <p>Confidence: {analysis.volume_info.momentum_confidence ?? "N/A"}</p>
@@ -962,7 +982,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                         <p className="text-muted">(No momentum signals available)</p>
                       )}
                     </Col>
-                  </Row>
+                  </Row> */}
 
                   <h5 className="mt-4">Summary</h5>
                   <div className="mb-4">
