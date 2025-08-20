@@ -126,20 +126,20 @@ def premarket_analyze_with_gpt(
     #         print("Skipping because reasoning exists and detected_at < 1 hour ago")
     #         return
 
-    seven_days_ago = datetime.now() - timedelta(days=7)
+    # seven_days_ago = datetime.now() - timedelta(days=7)
 
-    low_score_exists = (
-        db.query(VolumeSnapshot)
-        .filter(
-            VolumeSnapshot.ticker == volume_info.ticker,
-            VolumeSnapshot.news_score <= 50,  # or <= 50 if you want to match the print
-            VolumeSnapshot.detected_at >= seven_days_ago
-        )
-        .first()
-    )
-    if low_score_exists:
-        print("⏩ Skipping: found previous snapshot with news_score <= 50")
-        return
+    # low_score_exists = (
+    #     db.query(VolumeSnapshot)
+    #     .filter(
+    #         VolumeSnapshot.ticker == volume_info.ticker,
+    #         VolumeSnapshot.news_score <= 50,  # or <= 50 if you want to match the print
+    #         VolumeSnapshot.detected_at >= seven_days_ago
+    #     )
+    #     .first()
+    # )
+    # if low_score_exists:
+    #     print("⏩ Skipping: found previous snapshot with news_score <= 50")
+    #     return
 
     # Short term data
     if not news_items:
@@ -381,29 +381,32 @@ def premarket_analyze_with_gpt(
         "    '過去の材料再加熱': 'D'\n"
         "  }\n"
         "\n"
+        # "- 🔧 Booster Instruction:\n"
+        # "  - **HOT/TRENDING SECTORS**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
+        # "  - Boost ranks for these keywords per rules:\n"
+        # "    • 'TOB / MBO': S+ if large premium, notable acquirer, or immediate gap-up with strong volume.\n"
+        # "    • '大型受注': S if from major client, long-term contract, or in HOT/TRENDING SECTOR.\n"
+        # "    • '筆頭株主変更': S if new shareholder is major institution, foreign fund, strategic partner, or HOT/TRENDING SECTOR.\n"
+        # "    • '新市場参入': S if entering HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '新サービス発表': S if service is in HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '特許取得': S if patent is in HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '買収': S if in or enabling entry into HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '事業拡大': S if in HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '黒字転換': A+ if leads to sustained profitability or strong market reaction.\n"
+        # "    • '独占契約': A+ if partner is top-tier or market scale is large.\n"
+        # "    • '中期経営計画': A+ if includes aggressive growth, global expansion, or restructuring in promising areas.\n"
+        # "    • '特別利益': A if significantly improves EPS or valuation.\n"
+        # "    • '今期 業績予想 50%増益以上': A if unexpected or paired with strong catalysts.\n"
+        # "    • '業績予想 上方修正': A if unexpected or paired with strong catalysts.\n"
+        # "    • 'サプライズ決算': A if far above expectations.\n"
+        # "    • '四半期サプライズ決算': A if strong quarterly surprise.\n"
+        # "    • '増益': A+ if >50% and unexpected; A if 30–50% with positive sentiment or low float.\n"
+        # "    • '利益倍増': S if 2倍+ in HOT/TRENDING SECTOR, else A if backed by strong catalyst.\n"
+        # "    • 'fisco注目': A if already trending or with strong catalyst.\n"
+        # "    • '大量保有報告書': A if new investor is activist fund, foreign investor, or shows strategic interest.\n"
         "- 🔧 Booster Instruction:\n"
-        "  - **HOT/TRENDING SECTORS**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
-        "  - Boost ranks for these keywords per rules:\n"
-        "    • 'TOB / MBO': S+ if large premium, notable acquirer, or immediate gap-up with strong volume.\n"
-        "    • '大型受注': S if from major client, long-term contract, or in HOT/TRENDING SECTOR.\n"
-        "    • '筆頭株主変更': S if new shareholder is major institution, foreign fund, strategic partner, or HOT/TRENDING SECTOR.\n"
-        "    • '新市場参入': S if entering HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '新サービス発表': S if service is in HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '特許取得': S if patent is in HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '買収': S if in or enabling entry into HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '事業拡大': S if in HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '黒字転換': A+ if leads to sustained profitability or strong market reaction.\n"
-        "    • '独占契約': A+ if partner is top-tier or market scale is large.\n"
-        "    • '中期経営計画': A+ if includes aggressive growth, global expansion, or restructuring in promising areas.\n"
-        "    • '特別利益': A if significantly improves EPS or valuation.\n"
-        "    • '今期 業績予想 50%増益以上': A if unexpected or paired with strong catalysts.\n"
-        "    • '業績予想 上方修正': A if unexpected or paired with strong catalysts.\n"
-        "    • 'サプライズ決算': A if far above expectations.\n"
-        "    • '四半期サプライズ決算': A if strong quarterly surprise.\n"
-        "    • '増益': A+ if >50% and unexpected; A if 30–50% with positive sentiment or low float.\n"
-        "    • '利益倍増': S if 2倍+ in HOT/TRENDING SECTOR, else A if backed by strong catalyst.\n"
-        "    • 'fisco注目': A if already trending or with strong catalyst.\n"
-        "    • '大量保有報告書': A if new investor is activist fund, foreign investor, or shows strategic interest.\n"
+        "  - HOT/TRENDING SECTORS: Data center, AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
+        "  - Boost ranks according to rules (S+, A+, etc.).\n\n"
 
         "-  Score Instruction"
         "   - News Score = News (mapped D–S+) × recency factor (≤1d=1, <5d=0.9, <10d=0.8, >10d=0.7).\n"
@@ -422,8 +425,8 @@ def premarket_analyze_with_gpt(
 
         "Summary:\n"
         "- 📰 News Score: (0–100)\n"
-        "   - [Overall impact levels of top news]"
-        "   - [Short reasoning about which headlines matter and how price responded]"
+        "   - [Overall impact levels of top news]\n"
+        "   - [Short reasoning about which headlines matter and how price responded]\n"
         "- 📈 Spike pattern: [Explain any spikes, pullbacks, potential rebound zones, or exhaustion. Also state if re-spike pattern was detected — and if not, why not (e.g. no prior strong spike, new news exists, weak volume, etc).]\n"
         "  [Spike pattern setups: A-S+ ranked news, first spike closed near high, might pullback after spike, last close near low.]\n"
         "- 📅 Tomorrow's Action Expectation: Gap direction, morning behavior, and closing tendency\n"
@@ -431,7 +434,7 @@ def premarket_analyze_with_gpt(
         "- 🕒 First Spike Summary: [Did it happen? If it did: when? On what news? How strong?]\n"
         "- ⏳ Entry Guidance: [E.g. 'Wait for second spike', 'Buy dip on rebound', 'Risk of exhaustion — wait']\n"
     )
-    print(f"prompt={prompt}")
+    # print(f"prompt={prompt}")
 
     try:
         response = openai.chat.completions.create(
@@ -726,7 +729,7 @@ def check_market_hours(db):
         print(f"⚠️ Error while scraping 7203: {e}")
         return False
 
-def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", analyze_intraday = False) -> Dict:
+def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", analyze_intraday = False, extra_guidance="") -> Dict:
     # Step 1: Get news
     news = scrape_kabutan_news(ticker, limit=30)
     if not news:
@@ -756,5 +759,6 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         analyze_intraday=analyze_intraday,
         top_n=top_n,
         model=model,
+        extra_guidance=extra_guidance,
     )
     return {"message": f"Analyzing complete. {ticker} analyzed."}

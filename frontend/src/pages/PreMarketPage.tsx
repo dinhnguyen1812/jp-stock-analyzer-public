@@ -16,7 +16,7 @@ import {
 
 const PreMarketPage: React.FC = () => {
   const [surgeThreshold, setSurgeThreshold] = useState<number>(0);
-  const [priceThreshold, setPriceThreshold] = useState<number>(0);
+  const [priceThreshold, setPriceThreshold] = useState<number>(300);
   const [detectedAtMaxDay, setDetectedAtMaxDay] = useState<number>(1.0);
   const [fromPage, setFromPage] = useState<number>(1);
   const [toPage, setToPage] = useState<number>(5);

@@ -480,3 +480,34 @@ export async function scanSpikedStocks(
   if (!res.ok) throw new Error("Spiked stock scan failed");
   return await res.json();
 }
+
+export async function startMarketNewsScanner(
+  interval_minutes = 1,
+  limit = 30
+) {
+  const res = await fetch(`${BASE_URL}/premarket/start_market_news_scanner`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      interval_minutes,
+      limit,
+    }),
+  });
+
+  if (!res.ok) throw new Error("Failed to start market news scanner");
+  return await res.json();
+}
+
+export async function stopMarketNewsScanner() {
+  const res = await fetch(`${BASE_URL}/premarket/stop_market_news_scanner`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) throw new Error("Failed to stop market news scanner");
+  return await res.json();
+}

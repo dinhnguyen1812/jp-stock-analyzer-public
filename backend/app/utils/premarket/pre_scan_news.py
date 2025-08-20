@@ -60,13 +60,27 @@ def scan_and_analyze_news_for_ticker(
     model: str = "gpt-4o"
 ):
     news_items = scrape_kabutan_news(ticker, limit=30, days_threshold=days_threshold)
-    if not news_items:
+
+    existing_headlines = {
+        h[0]
+        for h in (
+            db.query(StockNewsImpact.headline)
+            .order_by(StockNewsImpact.created_at.desc())
+            .filter(StockNewsImpact.ticker == ticker)
+            .limit(20)
+            .all()
+        )
+    }
+
+    new_items = [item for item in news_items if item["headline"] not in existing_headlines]
+
+    if not new_items:
         return None
 
     # ↓↓↓ Apply recency penalty and normalize timestamps ↓↓↓
     now = datetime.now(timezone.utc)
     scored_news = []
-    for item in news_items:
+    for item in new_items:
         published_at = item.get("published_at")
         if not published_at:
             timestamp = now
@@ -107,8 +121,8 @@ def scan_and_analyze_news_for_ticker(
     prompt = (
         f"You are a Japanese market expert AI analyzing stock news for {ticker}, name: {name}.\n\n"
         "### Objective:\n"
-        "- Focus **primarily on news released today**, or Friday/weekend news if it's Sunday or Monday.\n"
-        "- User targets **daily profit of 3–5%** and usually sells the same day **unless upside is very strong**.\n"
+        # "- Focus **primarily on news released today**, or Friday/weekend news if it's Sunday or Monday.\n"
+        # "- User targets **daily profit of 3–5%** and usually sells the same day **unless upside is very strong**.\n"
         "- Identify headlines likely to trigger **intraday price movements**.\n"
         "- Pay special attention to topics like **semiconductors, AI, lithium, stock splits, offerings**, etc.\n"
         "- Even procedural headlines like 株式発行, 剰余金の処分, 業務提携 can move markets — do not dismiss them without consideration.\n"
@@ -176,29 +190,32 @@ def scan_and_analyze_news_for_ticker(
         "    '過去の材料再加熱': 'D'\n"
         "  }\n"
         "\n"
+        # "- 🔧 Booster Instruction:\n"
+        # "  - **HOT/TRENDING SECTORS**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
+        # "  - Boost ranks for these keywords per rules:\n"
+        # "    • 'TOB / MBO': S+ if large premium, notable acquirer, or immediate gap-up with strong volume.\n"
+        # "    • '大型受注': S if from major client, long-term contract, or in HOT/TRENDING SECTOR.\n"
+        # "    • '筆頭株主変更': S if new shareholder is major institution, foreign fund, strategic partner, or HOT/TRENDING SECTOR.\n"
+        # "    • '新市場参入': S if entering HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '新サービス発表': S if service is in HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '特許取得': S if patent is in HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '買収': S if in or enabling entry into HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '事業拡大': S if in HOT/TRENDING SECTOR — no exceptions.\n"
+        # "    • '黒字転換': A+ if leads to sustained profitability or strong market reaction.\n"
+        # "    • '独占契約': A+ if partner is top-tier or market scale is large.\n"
+        # "    • '中期経営計画': A+ if includes aggressive growth, global expansion, or restructuring in promising areas.\n"
+        # "    • '特別利益': A if significantly improves EPS or valuation.\n"
+        # "    • '今期 業績予想 50%増益以上': A if unexpected or paired with strong catalysts.\n"
+        # "    • '業績予想 上方修正': A if unexpected or paired with strong catalysts.\n"
+        # "    • 'サプライズ決算': A if far above expectations.\n"
+        # "    • '四半期サプライズ決算': A if strong quarterly surprise.\n"
+        # "    • '増益': A+ if >50% and unexpected; A if 30–50% with positive sentiment or low float.\n"
+        # "    • '利益倍増': S if 2倍+ in HOT/TRENDING SECTOR, else A if backed by strong catalyst.\n"
+        # "    • 'fisco注目': A if already trending or with strong catalyst.\n"
+        # "    • '大量保有報告書': A if new investor is activist fund, foreign investor, or shows strategic interest.\n"
         "- 🔧 Booster Instruction:\n"
-        "  - **HOT/TRENDING SECTORS**: AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
-        "  - Boost ranks for these keywords per rules:\n"
-        "    • 'TOB / MBO': S+ if large premium, notable acquirer, or immediate gap-up with strong volume.\n"
-        "    • '大型受注': S if from major client, long-term contract, or in HOT/TRENDING SECTOR.\n"
-        "    • '筆頭株主変更': S if new shareholder is major institution, foreign fund, strategic partner, or HOT/TRENDING SECTOR.\n"
-        "    • '新市場参入': S if entering HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '新サービス発表': S if service is in HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '特許取得': S if patent is in HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '買収': S if in or enabling entry into HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '事業拡大': S if in HOT/TRENDING SECTOR — no exceptions.\n"
-        "    • '黒字転換': A+ if leads to sustained profitability or strong market reaction.\n"
-        "    • '独占契約': A+ if partner is top-tier or market scale is large.\n"
-        "    • '中期経営計画': A+ if includes aggressive growth, global expansion, or restructuring in promising areas.\n"
-        "    • '特別利益': A if significantly improves EPS or valuation.\n"
-        "    • '今期 業績予想 50%増益以上': A if unexpected or paired with strong catalysts.\n"
-        "    • '業績予想 上方修正': A if unexpected or paired with strong catalysts.\n"
-        "    • 'サプライズ決算': A if far above expectations.\n"
-        "    • '四半期サプライズ決算': A if strong quarterly surprise.\n"
-        "    • '増益': A+ if >50% and unexpected; A if 30–50% with positive sentiment or low float.\n"
-        "    • '利益倍増': S if 2倍+ in HOT/TRENDING SECTOR, else A if backed by strong catalyst.\n"
-        "    • 'fisco注目': A if already trending or with strong catalyst.\n"
-        "    • '大量保有報告書': A if new investor is activist fund, foreign investor, or shows strategic interest.\n"
+        "  - HOT/TRENDING SECTORS: Data center, AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
+        "  - Boost ranks according to rules (S+, A+, etc.).\n\n"
 
         "### Output Format:\n"
         "Headline List:\n"
@@ -218,15 +235,12 @@ def scan_and_analyze_news_for_ticker(
         reply = response.choices[0].message.content.strip()
         impacts = extract_headline_impacts(reply)
 
-        # Clear old impacts before saving new ones
-        db.query(StockNewsImpact).filter_by(ticker=ticker).delete()
-
         for item in impacts:
             if not item.get("headline") or not item.get("verdict"):
                 continue
 
             matched_news = next(
-                (n for n in news_items if n['headline'] in item['headline']), None
+                (n for n in new_items if n['headline'] in item['headline']), None
             )
 
             impact = StockNewsImpact(
@@ -256,7 +270,7 @@ def scan_news_for_low_cap_stocks(db: Session):
         scan_and_analyze_news_for_ticker(db, ticker)
 
 def get_positive_news(db: Session) -> List[dict]:
-    positive_verdicts = ["S+", "S", "A+", "A", "A-", "B"]
+    positive_verdicts = ["S+", "S", "A+", "A", "A-", "B"] #, "A-", "B"
 
     # Fetch impacts with positive verdicts
     results = (
