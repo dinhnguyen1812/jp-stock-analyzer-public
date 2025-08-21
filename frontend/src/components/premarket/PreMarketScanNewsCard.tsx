@@ -390,7 +390,15 @@ const PreMarketScanNewsCard: React.FC = () => {
                         )}
                       </Button>
                     </td>
-                    <td className="text-center">{item.ticker}</td>
+                    <td className="text-center">
+                      <a
+                        href={`https://kabutan.jp/stock/news?code=${item.ticker}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {item.ticker}
+                      </a>
+                    </td>
                     <td>
                       <a
                         href={item.url || `https://kabutan.jp/stock/news?code=${item.ticker}`}

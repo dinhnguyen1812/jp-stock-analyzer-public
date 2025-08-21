@@ -526,7 +526,15 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
         </td>
 
         <td className="align-middle text-center">
-          <div>{stock.ticker}</div>
+          <div>
+            <a
+              href={`https://kabutan.jp/stock/chart?code=${stock.ticker}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {stock.ticker}
+            </a>
+          </div>
           <div>{stock.name}</div>
         </td>
         <td className="align-middle text-center">

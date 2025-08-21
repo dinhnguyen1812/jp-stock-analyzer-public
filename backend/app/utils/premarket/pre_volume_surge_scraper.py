@@ -103,6 +103,21 @@ def fetch_ranked_volume_tickers(from_page: int = 1, to_page: int = 5) -> List[st
             print(f"❌ Failed to fetch volume ranking page {page}: {e}")
     return list(tickers)
 
+import json
+from pathlib import Path
+
+NOTES_FILE = Path("./notes.json")
+
+def load_ticker_notes() -> dict:
+    if NOTES_FILE.exists():
+        try:
+            with open(NOTES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Failed to load notes: {e}")
+            return {}
+    return {}
+
 def analyze_and_snapshot_ticker(
     db: Session,
     ticker: str,

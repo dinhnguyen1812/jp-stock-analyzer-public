@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { Row, Col, Button, Modal, Form, ListGroup, Alert } from "react-bootstrap";
 import { getWatchlist, addToWatchlistBatch, removeFromWatchlist } from "../../api";
+import MiniCandleChart from "./MiniPriceChart";
 
 export interface TickerInfo {
   ticker: string;
   name: string;
   current_price: number;
+  recent_prices?: {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+  }[];
 }
 
 export function WatchListButton() {
@@ -67,7 +75,7 @@ export function WatchListButton() {
     <>
       <Button onClick={() => setShow(true)}>Manage Watchlist</Button>
 
-      <Modal size="lg" show={show} onHide={() => setShow(false)}>
+      <Modal size="xl" show={show} onHide={() => setShow(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Watchlist</Modal.Title>
         </Modal.Header>
@@ -96,26 +104,40 @@ export function WatchListButton() {
           <hr />
           <h5>Current Watchlist</h5>
           <ListGroup>
-            {tickers.map(({ ticker, name, current_price }, idx) => (
+            {tickers.map(({ ticker, name, current_price, recent_prices }, idx) => (
               <ListGroup.Item key={idx}>
                 <Row className="align-items-center">
                   <Col xs={2} sm={1}>
-                    <strong>{ticker}</strong>
+                    <strong>
+                      <a
+                        href={`https://kabutan.jp/stock/chart?code=${ticker}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {ticker}
+                      </a>
+                    </strong>
                   </Col>
-                  <Col xs={4} sm={5}>
+                  <Col xs={3} sm={3}>
                     {name}
                   </Col>
-                  <Col xs={2} sm={2}>
+                  <Col xs={1} sm={1}>
                     {current_price}円
                   </Col>
-                  <Col xs={2} sm={2}>
-                    <a
-                      href={`https://kabutan.jp/stock/chart?code=${ticker}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Kabutan Chart
-                    </a>
+                  <Col xs={12} sm={4}>
+                    {recent_prices && recent_prices.length > 0 ? (
+                      <MiniCandleChart
+                        data={recent_prices.map(p => ({
+                          date: p.date,
+                          open: p.open,
+                          high: p.high,
+                          low: p.low,
+                          close: p.close,
+                        }))}
+                      />
+                    ) : (
+                      <small className="text-muted">No price data</small>
+                    )}
                   </Col>
                   <Col xs={2} sm={2} className="text-end">
                     <Button

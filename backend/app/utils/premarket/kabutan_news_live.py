@@ -168,12 +168,12 @@ def analyze_market_news(db: Session, news_items: List[Dict], model="gpt-3.5-turb
             ticker = "MARKET"
             current_price = 0  # always include MARKET
 
-        if current_price and current_price <= 500:
+        if current_price and current_price <= 300:
             item["ticker"] = ticker
             item["current_price"] = current_price
             filtered_items.append(item)
         else:
-            print(f"Skipping {ticker} ({current_price}¥) because price > 500")
+            print(f"Skipping {ticker} ({current_price}¥) because price > 300")
 
     if not filtered_items:
         return "No news to analyze after price filter."
@@ -348,12 +348,12 @@ async def background_market_news_scanner(db: Session, interval_minutes: int = 1,
             print(f"💡 Analyzing {len(news_items)} news items with GPT-3.5...")
             impacts = analyze_market_news(db, news_items, model="gpt-3.5-turbo")
 
-            # if impacts:
-            #     high_impact_items = [i for i in impacts if VERDICT_PRIORITY.get(i["verdict"], 0) > VERDICT_PRIORITY["A-"]]
-            #     if high_impact_items:
-            #         print(f"🚀 Re-analyzing {len(high_impact_items)} high-impact items with GPT-4o...")
-            #         temp_news_items = [{"headline": i["headline"], "published_at": i.get("published_at"), "url": i.get("url"), "category": None} for i in high_impact_items]
-            #         analyze_market_news(db, temp_news_items, model="gpt-4o")
+            if impacts:
+                high_impact_items = [i for i in impacts if VERDICT_PRIORITY.get(i["verdict"], 0) > VERDICT_PRIORITY["A-"]]
+                if high_impact_items:
+                    print(f"🚀 Re-analyzing {len(high_impact_items)} high-impact items with GPT-4o...")
+                    temp_news_items = [{"headline": i["headline"], "published_at": i.get("published_at"), "url": i.get("url"), "category": None} for i in high_impact_items]
+                    analyze_market_news(db, temp_news_items, model="gpt-4o")
 
             alert_items = [i for i in impacts if VERDICT_PRIORITY.get(i["verdict"], 0) >= VERDICT_PRIORITY["A"]]
             if alert_items:

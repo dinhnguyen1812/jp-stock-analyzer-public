@@ -126,23 +126,23 @@ def trigger_volume_scan(
         except Exception as e:
             print(f"⚠️ GPT-3.5 analysis failed for {ticker}: {e}")
 
-    # # Step 3: Second pass — GPT-4o for promising tickers
-    # for ticker in tickers:
-    #     volume_info = get_volume_info(db, ticker=ticker)
-    #     if not volume_info:
-    #         continue
-    #     if volume_info.news_score is not None and volume_info.news_score >= 50:
-    #         try:
-    #             print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
-    #             analyze_ticker_by_steps(
-    #                 db=db,
-    #                 ticker=ticker,
-    #                 top_n=3,
-    #                 model="gpt-4o",
-    #                 # is_market_hours=is_market_hours
-    #             )
-    #         except Exception as e:
-    #             print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+    # Step 3: Second pass — GPT-4o for promising tickers
+    for ticker in tickers:
+        volume_info = get_volume_info(db, ticker=ticker)
+        if not volume_info:
+            continue
+        if volume_info.news_score is not None and volume_info.news_score >= 50:
+            try:
+                print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
+                analyze_ticker_by_steps(
+                    db=db,
+                    ticker=ticker,
+                    top_n=3,
+                    model="gpt-4o",
+                    # is_market_hours=is_market_hours
+                )
+            except Exception as e:
+                print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
     return {"message": f"Volume scan complete. {len(tickers)} tickers analyzed."}
 
@@ -199,7 +199,8 @@ def get_all_saved_volume_analyses(
         .filter(VolumeSnapshot.news_score > 0)
     )
 
-    if detected_at_max_age_days:
+    # ✅ Only apply detected_at_max_age_days if NOT starred/watched
+    if detected_at_max_age_days and not (starred_only or watched_only):
         threshold_time = datetime.datetime.utcnow() - datetime.timedelta(days=detected_at_max_age_days)
         query = query.filter(VolumeSnapshot.detected_at >= threshold_time)
 
@@ -211,13 +212,13 @@ def get_all_saved_volume_analyses(
 
     if starred_only and watched_only:
         query = query.outerjoin(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker) \
-                    .outerjoin(WatchList, VolumeSnapshot.ticker == WatchList.ticker) \
-                    .filter(
-                        or_(
-                            StarredStock.ticker != None,
-                            WatchList.ticker != None
-                        )
-                    )
+                     .outerjoin(WatchList, VolumeSnapshot.ticker == WatchList.ticker) \
+                     .filter(
+                         or_(
+                             StarredStock.ticker != None,
+                             WatchList.ticker != None
+                         )
+                     )
     elif starred_only:
         query = query.join(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker)
     elif watched_only:
@@ -236,7 +237,6 @@ def get_all_saved_volume_analyses(
         raise HTTPException(status_code=404, detail="No saved analyses found")
 
     results = []
-
     for vs in latest_snapshots:
         top_news = []
         if vs.top_news:
@@ -246,22 +246,7 @@ def get_all_saved_volume_analyses(
                 top_news = []
 
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
-
-        # downtrend_model = get_downtrend_analysis(db, vs.ticker)
-        # downtrend_info = normalize_downtrend_for_json(downtrend_model)
-
         spike_info = [normalize_spike_for_json(get_spike_analysis(db, vs.ticker))]
-
-        # uptrend_model = get_uptrend_analysis(db, vs.ticker)
-        # uptrend_info = normalize_uptrend_for_json(uptrend_model)
-
-        # price_stats = {
-        #     "highest_price": downtrend_info.get("highest_price"),
-        #     "lowest_price": downtrend_info.get("lowest_price"),
-        #     "drop_from_high_pct": downtrend_info.get("drop_from_high_pct"),
-        #     "rebound_from_low_pct": downtrend_info.get("rebound_from_low_pct"),
-        # }
-
         recent_prices = get_recent_price_data(db, vs.ticker, analyze_intraday=analyze_intraday)
 
         results.append({
@@ -284,17 +269,9 @@ def get_all_saved_volume_analyses(
                     1
                 ),
                 "news_score": vs.news_score,
-                # "spiked": vs.spiked,
-                # "spike_next": vs.spike_next,
                 "top_news": top_news,
                 "highest_impact_keyword": vs.highest_impact_keyword,
                 "highest_impact_rank": vs.highest_impact_rank,
-                # "downtrend": downtrend_info,
-                # "uptrend": uptrend_info,
-                # "drop_from_high_pct": price_stats["drop_from_high_pct"],
-                # "rebound_from_low_pct": price_stats["rebound_from_low_pct"],
-                # "highest_price": price_stats["highest_price"],
-                # "lowest_price": price_stats["lowest_price"],
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
                 "watched": bool(db.query(WatchList).filter_by(ticker=vs.ticker).first()),
                 "momentum_score": vs.momentum_score,
@@ -475,19 +452,19 @@ def analyze_single_ticker(
         # is_market_hours=is_market_hours,
     )
 
-    # # Reanalyze with GPT-4o if promising
-    # volume_info = get_volume_info(db, ticker=ticker)
-    # if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
-    #     try:
-    #         analyze_ticker_by_steps(
-    #             db=db,
-    #             ticker=ticker,
-    #             top_n=top_n,
-    #             model="gpt-4o",
-    #             # is_market_hours=is_market_hours,
-    #         )
-    #     except Exception as e:
-    #         print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+    # Reanalyze with GPT-4o if promising
+    volume_info = get_volume_info(db, ticker=ticker)
+    if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
+        try:
+            analyze_ticker_by_steps(
+                db=db,
+                ticker=ticker,
+                top_n=top_n,
+                model="gpt-4o",
+                # is_market_hours=is_market_hours,
+            )
+        except Exception as e:
+            print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
     # Return confirmation message
     return {"message": f"Analysis complete for {ticker}"}
@@ -511,18 +488,18 @@ def analyze_multiple_tickers(
             model="gpt-3.5-turbo",
         )
 
-        # # Reanalyze with GPT-4o if promising
-        # volume_info = get_volume_info(db, ticker=ticker)
-        # if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
-        #     try:
-        #         analyze_ticker_by_steps(
-        #             db=db,
-        #             ticker=ticker,
-        #             top_n=top_n,
-        #             model="gpt-4o",
-        #         )
-        #     except Exception as e:
-        #         print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+        # Reanalyze with GPT-4o if promising
+        volume_info = get_volume_info(db, ticker=ticker)
+        if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
+            try:
+                analyze_ticker_by_steps(
+                    db=db,
+                    ticker=ticker,
+                    top_n=top_n,
+                    model="gpt-4o",
+                )
+            except Exception as e:
+                print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
         results.append({"ticker": ticker, "status": "Analysis complete"})
 
@@ -559,19 +536,19 @@ def analyze_starred_tickers(
                 # is_market_hours=is_market_hours,
             )
 
-            # # Check if promising for reanalysis
-            # volume_info = get_volume_info(db, ticker=ticker)
-            # if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
-            #     try:
-            #         analyze_ticker_by_steps(
-            #             db=db,
-            #             ticker=ticker,
-            #             top_n=top_n,
-            #             model="gpt-4o",
-            #             # is_market_hours=is_market_hours,
-            #         )
-            #     except Exception as e:
-            #         print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+            # Check if promising for reanalysis
+            volume_info = get_volume_info(db, ticker=ticker)
+            if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
+                try:
+                    analyze_ticker_by_steps(
+                        db=db,
+                        ticker=ticker,
+                        top_n=top_n,
+                        model="gpt-4o",
+                        # is_market_hours=is_market_hours,
+                    )
+                except Exception as e:
+                    print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
             results.append({"message": f"Analysis complete for {ticker}"})
 
@@ -603,20 +580,20 @@ def analyze_watch_list(
                 extra_guidance=extra_guidance,
             )
 
-            # # Check if promising for reanalysis
-            # volume_info = get_volume_info(db, ticker=ticker)
-            # if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
-            #     try:
-            #         analyze_ticker_by_steps(
-            #             db=db,
-            #             ticker=ticker,
-            #             top_n=top_n,
-            #             model="gpt-4o",
-            #             # is_market_hours=is_market_hours,
-            #             extra_guidance=extra_guidance,
-            #         )
-            #     except Exception as e:
-            #         print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+            # Check if promising for reanalysis
+            volume_info = get_volume_info(db, ticker=ticker)
+            if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
+                try:
+                    analyze_ticker_by_steps(
+                        db=db,
+                        ticker=ticker,
+                        top_n=top_n,
+                        model="gpt-4o",
+                        # is_market_hours=is_market_hours,
+                        extra_guidance=extra_guidance,
+                    )
+                except Exception as e:
+                    print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
             results.append({"message": f"Analysis complete for {ticker}"})
 
@@ -674,7 +651,7 @@ def scan_news_for_low_cap_bulk(
     params: ScanParams,
     db: Session = Depends(get_db),
     top_n: int = 3,
-    model: str = "gpt-3.5-turbo",
+    model: str = "gpt-4o",
 ):
     tickers, alert_tickers = scan_and_analyze_low_cap_tickers(
         db,
@@ -708,6 +685,8 @@ def get_watchlist(db: Session = Depends(get_db)):
     tickers = read_watchlist()
     results = []
 
+    analyze_intraday = check_market_hours(db)
+
     for ticker in tickers:
         snapshot = db.query(VolumeSnapshot).filter_by(ticker=ticker).first()
 
@@ -721,10 +700,14 @@ def get_watchlist(db: Session = Depends(get_db)):
             )
 
         if snapshot:
+            recent_prices = get_recent_price_data(
+                db, snapshot.ticker, analyze_intraday=analyze_intraday
+            )
             results.append({
                 "ticker": ticker,
                 "name": snapshot.name,
-                "current_price": snapshot.current_price
+                "current_price": snapshot.current_price,
+                "recent_prices": recent_prices,
             })
 
     return {"watchlist": results}
@@ -846,21 +829,21 @@ def spiked_scan(
         except Exception as e:
             print(f"⚠️ GPT-3.5 analysis failed for {ticker}: {e}")
 
-    # # Step 4: Re-analyze promising stocks with GPT-4o
-    # for ticker in spiked_tickers:
-    #     volume_info = get_volume_info(db, ticker=ticker)
-    #     if volume_info and volume_info.news_score and volume_info.news_score >= 50:
-    #         try:
-    #             print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
-    #             analyze_ticker_by_steps(
-    #                 db=db,
-    #                 ticker=ticker,
-    #                 top_n=3,
-    #                 model="gpt-4o",
-    #                 analyze_intraday=analyze_intraday
-    #             )
-    #         except Exception as e:
-    #             print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+    # Step 4: Re-analyze promising stocks with GPT-4o
+    for ticker in spiked_tickers:
+        volume_info = get_volume_info(db, ticker=ticker)
+        if volume_info and volume_info.news_score and volume_info.news_score >= 50:
+            try:
+                print(f"🔁 Re-analyzing {ticker} with GPT-4o...")
+                analyze_ticker_by_steps(
+                    db=db,
+                    ticker=ticker,
+                    top_n=3,
+                    model="gpt-4o",
+                    analyze_intraday=analyze_intraday
+                )
+            except Exception as e:
+                print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
     return {"spiked_tickers": spiked_tickers, "count": len(spiked_tickers)}
 
