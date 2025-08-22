@@ -22,7 +22,7 @@ from app.api.shortterm_apis import get_latest_analysis_signal_data
 
 from app.utils.premarket.uptrend_detector import get_uptrend_analysis, normalize_uptrend_for_json
 from app.utils.premarket.downtrend_detector import get_downtrend_analysis, normalize_downtrend_for_json
-from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
+from app.utils.premarket.pre_volume_surge_scraper import analyze_and_snapshot_ticker, fetch_name_and_price_change_from_yahoo, fetch_ranked_volume_tickers, scan_and_save_pre_market_volume_surges
 from app.utils.premarket.pre_gpt_analyzer import analyze_ticker_by_steps, get_latest_trading_day, premarket_analyze_with_gpt, check_market_hours
 from app.utils.premarket.pre_scan_news import fetch_low_cap_tickers, get_positive_news, scan_and_analyze_news_for_ticker
 from app.utils.premarket.watchlist import append_batch_to_watchlist, read_watchlist, remove_from_watchlist_csv, add_to_watchlist_csv
@@ -248,11 +248,15 @@ def get_all_saved_volume_analyses(
         analysis_signal_data = get_latest_analysis_signal_data(db, vs.ticker)
         spike_info = [normalize_spike_for_json(get_spike_analysis(db, vs.ticker))]
         recent_prices = get_recent_price_data(db, vs.ticker, analyze_intraday=analyze_intraday)
+        if vs.name == vs.ticker:
+            name, _ = fetch_name_and_price_change_from_yahoo(vs.ticker)
+        else:
+            name = vs.name
 
         results.append({
             "volume_info": {
                 "ticker": vs.ticker,
-                "name": vs.name,
+                "name": name,
                 "current_price": vs.current_price,
                 "price_change": vs.price_change,
                 "volume_rate": vs.volume_rate,
@@ -413,12 +417,35 @@ def get_premarket_saved_analysis(ticker: str, db: Session = Depends(get_db)):
 class NoteRequest(BaseModel):
     note: str
 
+import json
+from pathlib import Path
+
+NOTES_FILE = Path(__file__).parent.parent / "utils" / "premarket" / "notes.json"
+
+def load_ticker_notes() -> dict:
+    if NOTES_FILE.exists():
+        try:
+            with open(NOTES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Failed to load notes: {e}")
+            return {}
+    return {}
+
+def save_ticker_notes(notes: dict):
+    try:
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(notes, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ Failed to save notes: {e}")
+
 @router.post("/set_note/{ticker}")
 def set_note(
     ticker: str,
     request: NoteRequest,
     db: Session = Depends(get_db),
 ):
+    # Update latest snapshot
     latest = (
         db.query(VolumeSnapshot)
         .filter(VolumeSnapshot.ticker == ticker)
@@ -431,6 +458,12 @@ def set_note(
 
     latest.note = request.note
     db.commit()
+
+    # 🔹 Update JSON file
+    notes = load_ticker_notes()
+    notes[ticker] = request.note
+    save_ticker_notes(notes)
+
     return {"status": "ok", "ticker": ticker, "note": request.note}
 
 @router.post("/analyze/{ticker}", response_model=Dict)
@@ -628,23 +661,26 @@ def scan_and_analyze_low_cap_tickers(
     days_threshold: float,
 ) -> Tuple[List[str], List[str]]:
     tickers = fetch_low_cap_tickers(from_page, to_page, price_threshold)
-    alert_tickers = []
+    failed_tickers = []
 
     for ticker in tickers:
         try:
-            impacts = scan_and_analyze_news_for_ticker(
+            scan_and_analyze_news_for_ticker(
                 db, ticker,
                 top_n=top_n,
                 days_threshold=days_threshold,
                 model=model
             )
-            if impacts and any(i["verdict"] in {"S+", "S", "A+", "A", "A-", "B"} for i in impacts):
-                alert_tickers.append(ticker)
         except Exception as e:
             print(f"⚠️ Error scanning {ticker}: {e}")
+            failed_tickers.append(ticker)
             continue
 
-    return tickers, alert_tickers
+    # 🔹 Debug logs
+    print(f"✅ Scanned tickers ({len(tickers)}): {tickers}")
+    print(f"❌ Failed tickers ({len(failed_tickers)}): {failed_tickers}")
+
+    return tickers, failed_tickers
 
 @router.post("/scan_news_bulk", response_model=Dict)
 def scan_news_for_low_cap_bulk(
@@ -653,7 +689,7 @@ def scan_news_for_low_cap_bulk(
     top_n: int = 3,
     model: str = "gpt-4o",
 ):
-    tickers, alert_tickers = scan_and_analyze_low_cap_tickers(
+    tickers, failed_tickers = scan_and_analyze_low_cap_tickers(
         db,
         from_page=params.from_page,
         to_page=params.to_page,
@@ -664,7 +700,7 @@ def scan_news_for_low_cap_bulk(
     )
     return {
         "scanned_tickers": tickers,
-        "alert_tickers": alert_tickers,
+        "failed_tickers": failed_tickers,
         "from_page": params.from_page,
         "to_page": params.to_page,
         "price_threshold": params.price_threshold,
@@ -680,18 +716,31 @@ def get_positive_news_api(db: Session = Depends(get_db)):
 def get_latest_trading_day_api(db: Session = Depends(get_db)):
     return get_latest_trading_day(db)
 
+INFO_FILE = Path(__file__).parent.parent / "utils" / "premarket" / "info.json"
+
+def read_info() -> dict:
+    """Read info.json, returning a dict. Returns empty dict on failure."""
+    if INFO_FILE.exists():
+        try:
+            with open(INFO_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Failed to read info.json: {e}")
+            return {}
+    return {}
+
 @router.get("/get_watchlist")
 def get_watchlist(db: Session = Depends(get_db)):
     tickers = read_watchlist()
     results = []
 
     analyze_intraday = check_market_hours(db)
+    info_dict = read_info()  # load all info once
 
     for ticker in tickers:
         snapshot = db.query(VolumeSnapshot).filter_by(ticker=ticker).first()
 
         if not snapshot:
-            # Analyze and save snapshot if not exists
             snapshot = analyze_and_snapshot_ticker(
                 db=db,
                 ticker=ticker,
@@ -703,11 +752,16 @@ def get_watchlist(db: Session = Depends(get_db)):
             recent_prices = get_recent_price_data(
                 db, snapshot.ticker, analyze_intraday=analyze_intraday
             )
+
+            # Get all info fields from info.json for this ticker, fallback to empty dict
+            ticker_info = info_dict.get(ticker, {})
+
             results.append({
                 "ticker": ticker,
                 "name": snapshot.name,
                 "current_price": snapshot.current_price,
                 "recent_prices": recent_prices,
+                **ticker_info,  # spreads all fields like industry, finance_strength, etc.
             })
 
     return {"watchlist": results}

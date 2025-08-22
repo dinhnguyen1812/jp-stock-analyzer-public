@@ -14,6 +14,9 @@ export interface TickerInfo {
     low: number;
     close: number;
   }[];
+  info?: {
+    [key: string]: string; // e.g., industry, finance_strength, indicators, etc.
+  };
 }
 
 export function WatchListButton() {
@@ -26,9 +29,25 @@ export function WatchListButton() {
   const loadWatchlist = async () => {
     try {
       const data = await getWatchlist();
-      setTickers(data);
+      console.log("Fetched watchlist:", data);
+
+      // Map top-level info fields into `info` object
+      const mapped = data.map((item: any) => {
+        const { ticker, name, current_price, recent_prices, ...rest } = item;
+        return {
+          ticker,
+          name,
+          current_price,
+          recent_prices,
+          info: rest, // all remaining keys go into `info`
+        };
+      });
+
+      console.log("Mapped watchlist:", mapped);
+      setTickers(mapped);
       setError("");
-    } catch {
+    } catch (err) {
+      console.error("Failed to load watchlist:", err);
       setError("Failed to load watchlist.");
     }
   };
@@ -75,39 +94,46 @@ export function WatchListButton() {
     <>
       <Button onClick={() => setShow(true)}>Manage Watchlist</Button>
 
-      <Modal size="xl" show={show} onHide={() => setShow(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Watchlist</Modal.Title>
+      <Modal size="xl" show={show} onHide={() => setShow(false)} centered>
+        <Modal.Header closeButton className="bg-light border-0">
+          <Modal.Title className="fw-bold">📌 Watchlist Manager</Modal.Title>
         </Modal.Header>
 
         <Modal.Body>
           {error && <Alert variant="danger">{error}</Alert>}
           {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-          <Form.Group>
-            <Form.Label>Add New Ticker(s)</Form.Label>
-            <Form.Control
-              type="text"
-              value={newTickerInput}
-              onChange={(e) => setNewTickerInput(e.target.value)}
-              placeholder="e.g., 4565, 7890, 1234"
-            />
-            <Form.Text className="text-muted">
-              Separate multiple tickers with commas
-            </Form.Text>
-          </Form.Group>
+          {/* Add form */}
+          <div className="mb-4 p-3 border rounded bg-light">
+            <Form.Group>
+              <Form.Label className="fw-semibold">➕ Add New Ticker(s)</Form.Label>
+              <Form.Control
+                type="text"
+                value={newTickerInput}
+                onChange={(e) => setNewTickerInput(e.target.value)}
+                placeholder="e.g., 4565, 7890, 1234"
+              />
+              <Form.Text className="text-muted">
+                Separate multiple tickers with commas
+              </Form.Text>
+            </Form.Group>
+            <Button onClick={handleAdd} className="mt-2" variant="primary">
+              Add to Watchlist
+            </Button>
+          </div>
 
-          <Button onClick={handleAdd} className="mt-2">
-            Add
-          </Button>
-
-          <hr />
-          <h5>Current Watchlist</h5>
+          {/* Watchlist */}
+          <h5 className="fw-bold mb-3">📊 Current Watchlist</h5>
           <ListGroup>
-            {tickers.map(({ ticker, name, current_price, recent_prices }, idx) => (
-              <ListGroup.Item key={idx}>
-                <Row className="align-items-center">
-                  <Col xs={2} sm={1}>
+            {tickers.map(({ ticker, name, current_price, recent_prices, info }, idx) => (
+              <ListGroup.Item key={idx} className="py-2">
+                <Row className="align-items-center" style={{ minHeight: "48px" }}>
+                  {/* 🔹 Ticker + Name */}
+                  <Col
+                    xs={2}
+                    sm={2}
+                    className="d-flex flex-column align-items-center border-end"
+                  >
                     <strong>
                       <a
                         href={`https://kabutan.jp/stock/chart?code=${ticker}`}
@@ -117,17 +143,15 @@ export function WatchListButton() {
                         {ticker}
                       </a>
                     </strong>
+                    <div style={{ fontSize: "0.85rem" }}>{name}</div>
+                    <div style={{ fontSize: "0.9rem" }}>{current_price}円</div>
                   </Col>
-                  <Col xs={3} sm={3}>
-                    {name}
-                  </Col>
-                  <Col xs={1} sm={1}>
-                    {current_price}円
-                  </Col>
-                  <Col xs={12} sm={4}>
+
+                  {/* 🔹 Chart */}
+                  <Col xs={8} sm={3} className="border-end">
                     {recent_prices && recent_prices.length > 0 ? (
                       <MiniCandleChart
-                        data={recent_prices.map(p => ({
+                        data={recent_prices.map((p) => ({
                           date: p.date,
                           open: p.open,
                           high: p.high,
@@ -139,7 +163,45 @@ export function WatchListButton() {
                       <small className="text-muted">No price data</small>
                     )}
                   </Col>
-                  <Col xs={2} sm={2} className="text-end">
+
+                  {/* 🔹 Info box */}
+                  <Col xs={6} sm={6} className="border-end">
+                    {info && Object.keys(info).length > 0 && (
+                      <div
+                        className="p-1 border rounded"
+                        style={{
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          backgroundColor: "#f8f9fa",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        {Object.entries(info).map(([key, value], i) => {
+                          // Determine color based on content
+                          let color = "black";
+                          if (value.includes("(good)")) color = "green";
+                          else if (value.includes("(neutral)")) color = "blue";
+                          else if (value.includes("(bad)")) color = "red";
+
+                          return (
+                            <div key={i} style={{ marginBottom: 4 }}>
+                              <strong>{key}:</strong>{" "}
+                              <span style={key === "finance" || key === "indicators" ? { color } : {}}>
+                                {value.split("\n").map((line, idx) => (
+                                  <React.Fragment key={idx}>
+                                    {line.replace(/\s*\(good\)|\s*\(neutral\)|\s*\(bad\)/, "")}
+                                    <br />
+                                  </React.Fragment>
+                                ))}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Col>
+                  {/* 🔹 Remove button */}
+                  <Col xs={1} sm={1} className="text-end">
                     <Button
                       variant="danger"
                       size="sm"
@@ -148,13 +210,14 @@ export function WatchListButton() {
                       &times;
                     </Button>
                   </Col>
+
                 </Row>
               </ListGroup.Item>
             ))}
           </ListGroup>
         </Modal.Body>
 
-        <Modal.Footer>
+        <Modal.Footer className="border-0">
           <Button variant="secondary" onClick={() => setShow(false)}>
             Close
           </Button>

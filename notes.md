@@ -163,3 +163,13 @@ typing-inspection 0.4.1
 tzdata            2025.2
 uvicorn           0.35.0
 wheel             0.45.1
+
+aim for:
+- Good news
+  - rised 10% => entry => keep if it still above stop loss 
+  - Ex: App bank, temona
+- If based on technical or not too strong news:
+  - dont entry when it is high, wait for respike
+  - if it goes sideway for sometimes and not increase => likely decrease after, so exit fast
+  - Ex: yumetsu, app link, ...
+- 

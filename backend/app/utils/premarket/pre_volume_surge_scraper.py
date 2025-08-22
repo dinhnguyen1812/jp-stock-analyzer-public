@@ -6,6 +6,9 @@ import httpx
 from bs4 import BeautifulSoup
 import re
 
+import json
+from pathlib import Path
+
 from app.utils.shortterm.volume_5d_average_updater import update_avg_volume_for_ticker
 from app.utils.shortterm.moneyflow_5d_average_updater import update_avg_money_flow_for_ticker
 from app.utils.shortterm.price_updater import fetch_and_save_price_history
@@ -103,10 +106,7 @@ def fetch_ranked_volume_tickers(from_page: int = 1, to_page: int = 5) -> List[st
             print(f"❌ Failed to fetch volume ranking page {page}: {e}")
     return list(tickers)
 
-import json
-from pathlib import Path
-
-NOTES_FILE = Path("./notes.json")
+NOTES_FILE = Path(__file__).parent / "notes.json"
 
 def load_ticker_notes() -> dict:
     if NOTES_FILE.exists():
@@ -175,7 +175,6 @@ def analyze_and_snapshot_ticker(
 
         # Get name
         name, _ = fetch_name_and_price_change_from_yahoo(ticker)
-        # name, price_change = fetch_name_and_price_change_from_yahoo(ticker)
 
         snapshot = VolumeSnapshot(
             ticker=ticker,
@@ -189,20 +188,16 @@ def analyze_and_snapshot_ticker(
             detected_at=datetime.now(JP_TZ),
         )
 
-        # 🔹 Copy note from the most recent snapshot with a non-empty note
-        prev_snapshot = (
-            db.query(VolumeSnapshot)
-            .filter(VolumeSnapshot.ticker == ticker, VolumeSnapshot.note.isnot(None))
-            .order_by(VolumeSnapshot.detected_at.desc())
-            .first()
-        )
-        if prev_snapshot and prev_snapshot.note:
-            snapshot.note = prev_snapshot.note
+        # 🔹 Load note from JSON
+        notes = load_ticker_notes()
+        if ticker in notes:
+            snapshot.note = notes[ticker]
 
         db.add(snapshot)
         db.commit()
 
         return snapshot
+
     except Exception as e:
         print(f"⚠️ Error analyzing {ticker}: {e}")
         return None

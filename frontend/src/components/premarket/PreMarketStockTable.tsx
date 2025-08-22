@@ -142,7 +142,7 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
       <Table striped bordered hover responsive className="table-sm align-top" style={{ tableLayout: "fixed", width: "100%" }}>
         <thead className="table-light sticky-top">
           <tr style={{ fontSize: "0.8rem"}}>
-            <th style={{ width: "150px"}} className="align-top text-center">Note</th>
+            <th style={{ width: "200px"}} className="align-top text-center">Note</th>
             <th className="align-top text-center" style={{ width: "40px" }}>
               <div> ★ </div>
               <div> ♥ </div>
@@ -169,14 +169,14 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
               Spike pattern {renderSortIndicator("spike_score")}
             </th>
             <th
-              style={{ width: "170px" }}
+              style={{ width: "120px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("news_score")}
             >
               Most Impact {renderSortIndicator("news_score")}
             </th>
             <th
-              style={{ width: "300px" }}
+              style={{ width: "120px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("action_column")}
             >

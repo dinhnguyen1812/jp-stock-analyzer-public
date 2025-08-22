@@ -379,6 +379,7 @@ def premarket_analyze_with_gpt(
         "    '資本金変更': 'D',\n"
         "    '再掲IR': 'D',\n"
         "    '過去の材料再加熱': 'D'\n"
+        "    '上場廃止': 'D'\n"
         "  }\n"
         "\n"
         # "- 🔧 Booster Instruction:\n"
@@ -418,7 +419,7 @@ def premarket_analyze_with_gpt(
         "   - **Keyword: [as guidance above] - Rank: [as guidance above]**\n"
         "   - **Verdict: Same as Rank, one of [S+, S, A+, A, A-, B, C, D, N/A]**\n"
         "   - **Reason: One sentence explaining the expected impact**\n"
-        "- Choose and analyze the **top 10 most impactful headlines** based on rank and relevance.\n"
+        # "- Choose and analyze the **top 10 most impactful headlines** based on rank and relevance.\n"
         "(Repeat for each headline)\n\n"
 
         "- Investment Recommendation: Buy / Hold / Sell\n"
