@@ -456,7 +456,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             value={noteValue}
             onChange={(e) => setNoteValue(e.target.value)}
             onBlur={handleBlur}
-            rows={5}
+            rows={7}
             style={{ width: "100%", fontSize: "0.75rem" }}
           />
         </td>
@@ -525,6 +525,8 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           </div>
         </td>
 
+        {/* <td className="align-middle text-center">
+        </td> */}
         <td className="align-middle text-center">
           <div>
             <a
@@ -536,10 +538,13 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             </a>
           </div>
           <div>{stock.name}</div>
-        </td>
-        <td className="align-middle text-center">
+          <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
           <div>{stock.current_price.toFixed(2)}</div>
-          <div>{stock.price_change.toFixed(2)}</div>
+          <div>(
+            {stock.price_change >= 0
+              ? `+${stock.price_change.toFixed(2)}`
+              : stock.price_change.toFixed(2)})
+          </div>
         </td>
 
         {/* 🔑 MiniChart */}

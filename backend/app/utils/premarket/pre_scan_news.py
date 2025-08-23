@@ -215,7 +215,7 @@ def scan_and_analyze_news_for_ticker(
         # "    • '大量保有報告書': A if new investor is activist fund, foreign investor, or shows strategic interest.\n"
         "- 🔧 Booster Instruction:\n"
         "  - HOT/TRENDING SECTORS: Data center, AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
-        "  - Boost ranks according to rules (S+, A+, etc.).\n\n"
+        "  - Boost ranks (S+, A+, etc.) if the news related to the HOT/TRENDING SECTORS, major institution, foreign fund, strategic partner, or high profitability.\n\n"
 
         "### Output Format:\n"
         "Headline List:\n"

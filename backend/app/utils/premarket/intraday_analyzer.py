@@ -63,7 +63,7 @@ def analyze_live_ticker(
     model: str = "gpt-4o",
     raw_yahoo_json: dict = None
 ):
-    is_market_hours = check_market_hours(db)
+    analyze_intraday = check_market_hours(db)
 
     # 1️⃣ Get previous day snapshot
     vs = (
@@ -79,7 +79,7 @@ def analyze_live_ticker(
             ticker=ticker,
             top_n=top_n,
             model=model,
-            is_market_hours=is_market_hours
+            analyze_intraday=analyze_intraday
         )
         vs = (
             db.query(VolumeSnapshot)

@@ -166,10 +166,39 @@ wheel             0.45.1
 
 aim for:
 - Good news
-  - rised 10% => entry => keep if it still above stop loss 
-  - Ex: App bank, temona
+  - rised 10% => wait for pullback before entry => if entry, keep if it still above stop loss 
+  - rised 10% => sometimes they are soldout fast too
+    - Ex: App bank, temona (both sold too fast)
 - If based on technical or not too strong news:
-  - dont entry when it is high, wait for respike
+  - dont entry when it is high, wait for pullback
   - if it goes sideway for sometimes and not increase => likely decrease after, so exit fast
   - Ex: yumetsu, app link, ...
-- 
+- Respike:
+  - Hot stock + price range has been getting smaller (exhasuted of selling), price has been flat
+    (the period depends on how hot the stock is)
+  - Ex: Yamano Holdings (1 day), Appbank (1 day), Kimono (2-3 days), Monstarlab?
+
+- Friday 8/29:
+- All the hot stocks (crazy several days spikes), following by some massive drops (-20->-30%), calming drop with normal buy/sell day, immediately spike the next day.
+  - Ex: Marusho hotta, Applink (dropped a little then hit S高), Kimono (dropped a little then rised 20%), CAICAD, Defconsulting, Wilson WLW
+- Those with really good news don't really move (not catching attention?)
+  - Ex: SAAF (new contract, had some surge in volume, but still weak?), ブレーキ, NANOMRNA, ダブルスコープ(new longterm contract), 新都 (data center, the price is already high?)
+  - Wait for them to calm down if want to buy, because they rarely hit S高 in one straight up, usually pullback after 15 minutes
+
+- Manual:
+  - Scan spiked
+  - Remove all stars -> Scan (News) Once -> Star -> Analyze starred
+  - Scan Flat -> Check watchlist -> Analyze
+- Never do 成行 again - too risky, never get ones with good prices, normally going down if you successfully buy
+- Those with big drop today might spike tomorrow, but usually dont keep long before dropping (0826: Caica, Kimono)
+
+0824:
+Flat: '3071', '3521', '9423' x, '6494', '6775', '6048', '190A', '1711' x, '6803', '5955', '7624', '3598', '2459', '7897'
+['3113', '5244', '5131', '3266']
+
+注目: 4594, 3777, 6573, 7571
+
+- Fetch watchlist
+  - Use get_saved_vs (all the info without gpt analysis)
+- Add pin to database
+  - Before that, save the current db to a sql file for migration

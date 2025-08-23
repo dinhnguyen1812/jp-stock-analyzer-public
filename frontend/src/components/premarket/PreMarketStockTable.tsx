@@ -57,7 +57,7 @@ type SortKey = keyof Pick<
 >;
 
 const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onStarToggle, onWatchToggle }) => {
-  const [sortKey, setSortKey] = useState<SortKey>("volume_rate");
+  const [sortKey, setSortKey] = useState<SortKey>("promising_score");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [actionSortKey, setActionSortKey] = useState<"promising_score" | "momentum_score">("promising_score");
 
@@ -142,23 +142,25 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({ stocks, onSta
       <Table striped bordered hover responsive className="table-sm align-top" style={{ tableLayout: "fixed", width: "100%" }}>
         <thead className="table-light sticky-top">
           <tr style={{ fontSize: "0.8rem"}}>
-            <th style={{ width: "200px"}} className="align-top text-center">Note</th>
+            <th style={{ width: "250px"}} className="align-top text-center">Note</th>
             <th className="align-top text-center" style={{ width: "40px" }}>
               <div> ★ </div>
               <div> ♥ </div>
             </th>
-            <th style={{ width: "130px" }} className="align-top text-center">Ticker / Name</th>
+            {/* <th style={{ width: "100px" }} className="align-top text-center">Ticker / Name</th> */}
             <th
-              style={{ width: "90px" }}
+              style={{ width: "120px" }}
               className="align-top text-center clickable"
               onClick={() => handleSort("current_price")}
             >
-              <div>Price</div>
+              <div>Ticker / Name</div>
               <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
+              <div>Price</div>
+              {/* <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
               <div>Current (円)</div>
-              <div>Change (%) {renderSortIndicator("current_price")}</div>
+              <div>Change (%) {renderSortIndicator("current_price")}</div> */}
             </th>
-            <th style={{ width: "140px" }} className="align-top text-center">
+            <th style={{ width: "250px" }} className="align-top text-center">
               Mini Chart
             </th>
             <th

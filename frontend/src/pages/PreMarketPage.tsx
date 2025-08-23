@@ -12,6 +12,7 @@ import {
   analyzeWatchList,
   analyzeSingleTicker,
   scanSpikedStocks,
+  scanFlatStocks,
 } from "../api";
 
 const PreMarketPage: React.FC = () => {
@@ -22,6 +23,7 @@ const PreMarketPage: React.FC = () => {
   const [toPage, setToPage] = useState<number>(5);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingSpikeScan, setLoadingSpikeScan] = useState<boolean>(false);
+  const [loadingFlatScan, setLoadingFlatScan] = useState<boolean>(false);
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
   const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState<boolean>(false);
   const [loadingAnalyzeWatchList, setLoadingAnalyzeWatchList] = useState<boolean>(false);
@@ -68,20 +70,37 @@ const PreMarketPage: React.FC = () => {
     }
   };
 
-const handleSpikeScan = async () => {
-  setLoadingSpikeScan(true);
+  const handleSpikeScan = async () => {
+    setLoadingSpikeScan(true);
+    setAnalyzedResults([]);
+    try {
+      const result = await scanSpikedStocks(
+        priceThreshold,
+        fromPage,
+        toPage
+      );
+      setStocks(result);
+    } catch (err) {
+      console.error("Failed to scan spiked stocks", err);
+    } finally {
+      setLoadingSpikeScan(false);
+    }
+  };
+
+const handleFlatScan = async () => {
+  setLoadingFlatScan(true);
   setAnalyzedResults([]);
   try {
-    const result = await scanSpikedStocks(
+    const result = await scanFlatStocks(
       priceThreshold,
       fromPage,
       toPage
     );
     setStocks(result);
   } catch (err) {
-    console.error("Failed to scan spiked stocks", err);
+    console.error("Failed to scan flat pattern stocks", err);
   } finally {
-    setLoadingSpikeScan(false);
+    setLoadingFlatScan(false);
   }
 };
 
@@ -186,6 +205,7 @@ const handleSpikeScan = async () => {
         loading={loading}
         loadingNewsSignals={false}
         loadingSpikeScan={loadingSpikeScan}
+        loadingFlatScan={loadingFlatScan}
         autoScanEnabled={false}
         starredOnly={starredOnly}
         watchedOnly={watchedOnly}
@@ -202,6 +222,7 @@ const handleSpikeScan = async () => {
         onScan={handleScan}
         onFetchNewsSignals={() => { } }
         onSpikeScan={handleSpikeScan}
+        onFlatScan={handleFlatScan}
         onFetchAnalyzed={handleFetchAnalyzed}
         onAnalyzeStarred={handleAnalyzeStarred}
         onAnalyzeWatchList={handleAnalyzeWatchList}

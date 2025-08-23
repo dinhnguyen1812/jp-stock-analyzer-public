@@ -13,6 +13,7 @@ interface PreMarketScanFormProps {
   loading: boolean;
   loadingNewsSignals: boolean;
   loadingSpikeScan: boolean;
+  loadingFlatScan: boolean;
   autoScanEnabled: boolean;
   onSurgeThresholdChange: (value: number) => void;
   onPriceThresholdChange: (value: number) => void;
@@ -24,6 +25,7 @@ interface PreMarketScanFormProps {
   onScan: () => void;
   onFetchNewsSignals: () => void;
   onSpikeScan: () => void;
+  onFlatScan: () => void;
   onFetchAnalyzed: () => void;
   onAnalyzeStarred: () => void;
   onAnalyzeWatchList: () => void;
@@ -45,6 +47,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   watchedOnly,
   loading,
   loadingSpikeScan,
+  loadingFlatScan,
   onSurgeThresholdChange,
   onPriceThresholdChange,
   onDetectedAtMaxDayChange,
@@ -54,6 +57,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onWatchedOnlyChange,
   onScan,
   onSpikeScan,
+  onFlatScan,
   onFetchAnalyzed,
   onAnalyzeStarred,
   onAnalyzeWatchList,
@@ -76,6 +80,19 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
           <Row className="align-items-center mb-3">
             <Col>
               <h5 className="mb-0">📈 Analyzer</h5>
+            </Col>
+
+            {/* NEW Scan Flat button */}
+            <Col style={{ minWidth: 110 }}>
+              <Button
+                variant="danger"
+                className="w-100"
+                onClick={onFlatScan}
+                disabled={loadingFlatScan}
+              >
+                {loadingFlatScan && <Spinner animation="border" size="sm" className="me-2" />}
+                Scan Flat
+              </Button>
             </Col>
 
             {/* NEW Scan Spike button */}

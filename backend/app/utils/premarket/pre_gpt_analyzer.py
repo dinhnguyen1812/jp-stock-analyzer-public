@@ -113,7 +113,9 @@ def premarket_analyze_with_gpt(
     extra_guidance: str = "",
     top_n: int = 3,
     model: str = "gpt-4o",
+    detected_type = ""
 ) -> Dict:
+    latest_trading_day = get_latest_trading_day(db)
     fetch_and_save_price_history(db, ticker)
     update_avg_volume_for_ticker(db, ticker)
     update_avg_money_flow_for_ticker(db, ticker)
@@ -167,7 +169,6 @@ def premarket_analyze_with_gpt(
     jst = timezone(timedelta(hours=9))
     now_jst = now.astimezone(jst)
     date_str = now_jst.date().isoformat()
-    latest_trading_day = get_latest_trading_day(db)
     if analyze_intraday:
         intraday_info = get_intraday_volume_info_for_ticker(db, ticker)
         intraday_summary = (
@@ -283,6 +284,7 @@ def premarket_analyze_with_gpt(
 
         volume_info.latest_news = latest_news_headline
         volume_info.model = "gpt-4o"
+        volume_info.detected_type = latest_vs.detected_type
 
         db.commit()
 
@@ -338,6 +340,9 @@ def premarket_analyze_with_gpt(
         "    '事業拡大': 'A',\n"
         "    '買収': 'A',\n"
         "    '独占契約': 'A',\n"
+        "    '新任紹介': 'A',\n"
+        "    '受賞': 'A',\n"
+        "    '新ビージョン': 'A',\n"
 
         # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"
@@ -407,7 +412,7 @@ def premarket_analyze_with_gpt(
         # "    • '大量保有報告書': A if new investor is activist fund, foreign investor, or shows strategic interest.\n"
         "- 🔧 Booster Instruction:\n"
         "  - HOT/TRENDING SECTORS: Data center, AI, Web3, semiconductors, space, quantum computing, medical tech, robotics, FinTech, crypto, mobility, biotech, data centers, EV, hydrogen.\n"
-        "  - Boost ranks according to rules (S+, A+, etc.).\n\n"
+        "  - Boost ranks (S+, A+, etc.) if the news related to the HOT/TRENDING SECTORS, major institution, foreign fund, strategic partner, or high profitability.\n\n"
 
         "-  Score Instruction"
         "   - News Score = News (mapped D–S+) × recency factor (≤1d=1, <5d=0.9, <10d=0.8, >10d=0.7).\n"
@@ -501,6 +506,7 @@ def premarket_analyze_with_gpt(
 
         volume_info.latest_news = latest_news_headline
         volume_info.model = model
+        volume_info.detected_type = detected_type
 
         db.commit()
 
@@ -730,7 +736,7 @@ def check_market_hours(db):
         print(f"⚠️ Error while scraping 7203: {e}")
         return False
 
-def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", analyze_intraday = False, extra_guidance="") -> Dict:
+def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str = "gpt-4o", analyze_intraday = False, extra_guidance = "", detected_type = "") -> Dict:
     # Step 1: Get news
     news = scrape_kabutan_news(ticker, limit=30)
     if not news:
@@ -761,5 +767,6 @@ def analyze_ticker_by_steps(db: Session, ticker: str, top_n: int = 3, model: str
         top_n=top_n,
         model=model,
         extra_guidance=extra_guidance,
+        detected_type=detected_type
     )
     return {"message": f"Analyzing complete. {ticker} analyzed."}

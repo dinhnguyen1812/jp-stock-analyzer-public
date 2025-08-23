@@ -68,6 +68,8 @@ class VolumeSnapshot(Base):
     latest_news = Column(Text, nullable=True)
     model = Column(Text, nullable=True)
 
+    detected_type = Column(Text, nullable = True)
+
     __table_args__ = (
         PrimaryKeyConstraint("id"),
         UniqueConstraint("ticker", "detected_at", name="uq_ticker_detected_at"),
@@ -263,3 +265,31 @@ class StockSpikeAnalysis(Base):
 
     # ✅ New column
     score = Column(Integer, default=0)  # 0–100 spike strength score
+
+class FlatAnalysis(Base):
+    __tablename__ = "flat_analysis"
+
+    ticker = Column(String, primary_key=True, index=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Pattern detection
+    pattern_detected = Column(Boolean, default=False)
+
+    # Flat window
+    flat_start = Column(Date)
+    flat_end = Column(Date)
+    flat_days = Column(Integer)
+    flat_price_range_pct = Column(Float)
+    flat_avg_volume = Column(Float)
+
+    # Surge window
+    surge_start = Column(Date)
+    surge_end = Column(Date)
+    surge_pct = Column(Float)
+    surge_volume_multiple = Column(Float)
+
+    # Signal
+    signal_day = Column(Date)
+
+    # Optional score (0–100) for ranking
+    score = Column(Integer, default=0)

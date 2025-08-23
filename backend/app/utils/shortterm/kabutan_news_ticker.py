@@ -47,7 +47,7 @@ def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: float = 60
 
             news_table = soup.find("table", class_="s_news_list mgbt0")
             if not news_table:
-                print(f"❌ Could not find news table on Kabutan page {page}")
+                print(f"❌ Ticker: {ticker}. Could not find news table on Kabutan page {page}")
                 break  # no more news pages
 
             rows = news_table.find_all("tr")

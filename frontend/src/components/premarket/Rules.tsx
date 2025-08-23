@@ -26,71 +26,44 @@ Avoid overexposing to a single volatile stock.
 `
 
 const TRADING_RULES = `
-📊 Trading Rules
+📌 Do
+Strong news → Multiple spikes
+Pattern: 連続 S高 → then S安 → goes flat → spikes again.
+✔ Trade normally for 1–3 days during the flat phase.
+Ex: Marusho Hotta, Applink (drop → S高), Kimono (drop → +20%), CAICAD, Defconsulting, Wilson
 
-🔍 1. Scan & Analyze Guidance (Night Before or Premarket)
-- ❌ Remove all previously ⭐️ starred stocks.
-- 📈 Scan Volume Surge (VS):
-  - Criteria: surge >= 1, price <= 300
-  - Pages: 1–10
-- 📰 Scan News:
-  - Criteria: price <= 500
-  - Pages: 1–40
-- ⭐️ Star the stocks with good or decisive news.
-- 🧠 Analyze starred stocks using GPT-based evaluation.
-- 👀 Manually inspect chart and volume of each starred stock to pick 3 most promising stocks.
-- 👀 Ask ChatGPT for opinion: Is the news fresh? How likely does it impact the certain stocks?
-- All-in stocks: 
+Strong news → End of parabolic run, then flat 2–3 days
+✔ Often still has energy for another move.
+Ex: Brightpath Biotech
 
-🌊 2. Aim for the Wave 1 (Pre-order if very strong news) else wait for wave 2
-- Look for stocks with:
-  - 📰 Decisive news released after 3:30pm
-  - 📉 Price hasn't yet reacted to the news
-  - ✅ Promising score (from news + chart + potential rebound) > 70
+Strong news → Likely continuation in coming days
+✔ Momentum usually carries.
+Ex: Anges, Temona, Astra Group
 
-🚨 3. Market Open Guidance (09:00)
-- Focus on the 3 selected stocks.
-- 📈 If price immediately moves upward, buy early.
-- ⚠️ Avoid buying if price is shaking/volatile.
-- 🕒 Wait until price stabilizes before entering.
+Strong news → Ends day near high
+✔ Can go higher next day, but only enter if news is very strong.
+Ex: Appbank
 
-💰 4. Sell Guidance
-- 🟢 If it's a Wave 1 (news-based spike):
-  - OK to wait for peak.
-  - 📌 Sell when price meets your expectation.
-- 🔴 If it's post-Wave 1 (likely profit-taking phase):
-  - 📉 Sell quickly, especially on early spikes.
+Strong news → Pullback → Rise
+✔ Possible entry, but small size.
+⚠ Risky: can drop hard if momentum fails.
+
+Big Drop Today → Possible Spike Tomorrow
+⚠ Often short-lived, drops again after rebound.
+
+📌 Don’t
+Chase the first spike
+Entering at the top of the initial move usually = instant loss.
+Ex: S Science, Quantum Solution, Kidwell
+
+Never use Market Order (成行)
+⚠ Too risky → rarely get good entry price → usually falls right after you buy.
 `;
 
-const PREORDER_GUIDANCE = `
-🕒 When to Make Pre-Orders
-
-📅 Night Before (18:00–23:59)
-- Place after market close when news is released.
-- Useful for reacting to good IR/news ahead of others.
-
-🕗 Early Morning (7:00–8:59)
-- Adjust if ranking/sentiment/news changes by morning.
-- Ideal for reacting to premarket scans.
-
-🛒 How to Make Pre-Orders
-
-✅ Option 1: Market Order (成行)
-- Use if: You must enter at open, regardless of price.
-- Risk: High opening price ("寄り天" = open is the day's high).
-- Tip: Use only if the stock isn’t expected to gap too much or has room to run.
-
-✅ Option 2: Limit Order (指値)
-- Use if: You want to buy only below a set price.
-- Tip: Set limit slightly above previous close or technical support.
-
-🧠 Rule: Priority goes to the highest bid.
-  • If multiple buyers set the same price, the earlier order gets priority.
-  • But a later order with a higher price will always be matched first.
-
-✅ Option 3: Conditional Orders
-- Example: 逆指値 (stop order) + 指値 (limit to prevent overpaying)
-- Useful to enter only if breakout is confirmed, e.g., price > yesterday’s high.
+const MANUAL = `
+Clear all ⭐
+Scan news once → ⭐ strong ones → Analyze ⭐
+Scan flat stocks → Check watchlist → Analyze
 `;
 
 const WAVE_RULES = `
@@ -133,14 +106,13 @@ const REFERENCES = `
 2134: 北浜ＣＰ x5: Funding usage, Multiple technical signals, reduction in stakes
 6731: Pixela x3: 主要株主及び主要株主である筆頭株主の異動に関するお知らせpdf
 6029: Artra group x1.5
-3823: Why how do company
 7603: Mac house x6: 暗号資産
 5985: Suncall x2.5: Data center
 7111: INEST x2: new mid-term business plan + technical
 3664: mobcast x2: technical
 5255: monstarlab x3.5: strong fundamental: AI
 8105: Horita Marusho x9: foreign investor entry
-7615: 京都友禅ＨＤ x2: technical
+7615: 京都友禅ＨＤ x3.5: 黒転 -26.5％→6.8％
 2743: pixel x2: technical, after that data center news did not affect because priced in?
 2586: fruta fruta x2.5: new products
 3777: 環境フレンド x2: new products + partnership
@@ -168,6 +140,11 @@ const REFERENCES = `
 3077: ホリイフードサービス x3: 黒字浮上 + 業務連携
 5618: ナイル x2: technical
 155A: 情報戦略テクノロジー x2: AI
+3985: Temona S高: bitcoin mining machine
+3823: TWHD S高: partner with Rakuten
+x 4563: Anges: did not react with news: HGF 製造開始
+6177: Appbank x4: AI service
+8783: GFA x1.5: Stablecoin
 `;
 
 const NewsImpactRankingTable = () => {
@@ -329,14 +306,14 @@ const Rules: React.FC<RulesProps> = ({
                 {CORE_RULES}
               </pre>
             </Tab>
-            <Tab eventKey="rules" title="📊 Trading Rules">
+            <Tab eventKey="rules" title="📊 EXP">
               <pre style={{ whiteSpace: "pre-wrap", padding: "1rem", margin: 0 }}>
                 {TRADING_RULES}
               </pre>
             </Tab>
-            <Tab eventKey="preorder" title="🕒 Pre-Order Guidance">
+            <Tab eventKey="preorder" title="🕒 Manual">
               <pre style={{ whiteSpace: "pre-wrap", padding: "1rem", margin: 0 }}>
-                {PREORDER_GUIDANCE}
+                {MANUAL}
               </pre>
             </Tab>
             <Tab eventKey="waves" title="🌊 Wave Insights">

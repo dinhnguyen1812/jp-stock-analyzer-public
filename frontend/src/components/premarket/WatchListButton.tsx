@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { Row, Col, Button, Modal, Form, ListGroup, Alert } from "react-bootstrap";
-import { getWatchlist, addToWatchlistBatch, removeFromWatchlist } from "../../api";
+import {
+  Row,
+  Col,
+  Button,
+  Modal,
+  Form,
+  ListGroup,
+  Alert,
+  Spinner,
+} from "react-bootstrap";
+import {
+  getWatchlist,
+  addToWatchlistBatch,
+  removeFromWatchlist,
+  analyzeSingleTicker,
+} from "../../api";
 import MiniCandleChart from "./MiniPriceChart";
 
 export interface TickerInfo {
@@ -15,7 +29,7 @@ export interface TickerInfo {
     close: number;
   }[];
   info?: {
-    [key: string]: string; // e.g., industry, finance_strength, indicators, etc.
+    [key: string]: string;
   };
 }
 
@@ -25,13 +39,13 @@ export function WatchListButton() {
   const [newTickerInput, setNewTickerInput] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [loadingTicker, setLoadingTicker] = useState<string | null>(null); // 🔹 track ticker loading
 
   const loadWatchlist = async () => {
     try {
       const data = await getWatchlist();
       console.log("Fetched watchlist:", data);
 
-      // Map top-level info fields into `info` object
       const mapped = data.map((item: any) => {
         const { ticker, name, current_price, recent_prices, ...rest } = item;
         return {
@@ -39,11 +53,10 @@ export function WatchListButton() {
           name,
           current_price,
           recent_prices,
-          info: rest, // all remaining keys go into `info`
+          info: rest,
         };
       });
 
-      console.log("Mapped watchlist:", mapped);
       setTickers(mapped);
       setError("");
     } catch (err) {
@@ -68,7 +81,6 @@ export function WatchListButton() {
       setNewTickerInput("");
       setError("");
 
-      // Refresh full watchlist with details
       const updated = await getWatchlist();
       setTickers(updated);
     } catch (err: any) {
@@ -165,7 +177,7 @@ export function WatchListButton() {
                   </Col>
 
                   {/* 🔹 Info box */}
-                  <Col xs={6} sm={6} className="border-end">
+                  <Col xs={6} sm={5} className="border-end">
                     {info && Object.keys(info).length > 0 && (
                       <div
                         className="p-1 border rounded"
@@ -177,7 +189,6 @@ export function WatchListButton() {
                         }}
                       >
                         {Object.entries(info).map(([key, value], i) => {
-                          // Determine color based on content
                           let color = "black";
                           if (value.includes("(good)")) color = "green";
                           else if (value.includes("(neutral)")) color = "blue";
@@ -186,10 +197,19 @@ export function WatchListButton() {
                           return (
                             <div key={i} style={{ marginBottom: 4 }}>
                               <strong>{key}:</strong>{" "}
-                              <span style={key === "finance" || key === "indicators" ? { color } : {}}>
+                              <span
+                                style={
+                                  key === "finance" || key === "indicators"
+                                    ? { color }
+                                    : {}
+                                }
+                              >
                                 {value.split("\n").map((line, idx) => (
                                   <React.Fragment key={idx}>
-                                    {line.replace(/\s*\(good\)|\s*\(neutral\)|\s*\(bad\)/, "")}
+                                    {line.replace(
+                                      /\s*\(good\)|\s*\(neutral\)|\s*\(bad\)/,
+                                      ""
+                                    )}
                                     <br />
                                   </React.Fragment>
                                 ))}
@@ -200,8 +220,40 @@ export function WatchListButton() {
                       </div>
                     )}
                   </Col>
-                  {/* 🔹 Remove button */}
-                  <Col xs={1} sm={1} className="text-end">
+
+                  {/* 🔹 Action buttons */}
+                  <Col xs={4} sm={2} className="d-flex justify-content-end gap-2">
+                    <Button
+                      variant="info"
+                      size="sm"
+                      disabled={loadingTicker === ticker}
+                      onClick={async () => {
+                        try {
+                          setLoadingTicker(ticker);
+                          const res = await analyzeSingleTicker(ticker);
+                          setSuccessMessage(res.message || `Analyzed ${ticker}`);
+                          setError("");
+                        } catch (err: any) {
+                          setError(err.message || `Failed to analyze ${ticker}`);
+                          setSuccessMessage("");
+                        } finally {
+                          setLoadingTicker(null);
+                        }
+                      }}
+                    >
+                      {loadingTicker === ticker ? (
+                        <Spinner
+                          as="span"
+                          animation="border"
+                          size="sm"
+                          role="status"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        "Analyze"
+                      )}
+                    </Button>
+
                     <Button
                       variant="danger"
                       size="sm"
@@ -210,7 +262,6 @@ export function WatchListButton() {
                       &times;
                     </Button>
                   </Col>
-
                 </Row>
               </ListGroup.Item>
             ))}
