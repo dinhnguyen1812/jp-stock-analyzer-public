@@ -17,6 +17,7 @@ import {
   unstarStock,
   startMarketNewsScanner,
   stopMarketNewsScanner,
+  analyzeSingleTicker,
 } from "../../api";
 
 interface PositiveNewsItem {
@@ -68,6 +69,8 @@ const PreMarketScanNewsCard: React.FC = () => {
   // Track seen news
   const seenNewsRef = useRef<Set<string>>(new Set<string>());
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [loadingTickers, setLoadingTickers] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     alertAudioRef.current = new Audio("/sounds/alert.mp3");
@@ -361,7 +364,13 @@ const PreMarketScanNewsCard: React.FC = () => {
               </thead>
               <tbody>
                 {sortedTickers.map((item, idx) => (
-                  <tr key={`${item.ticker}-${item.published_at || item.created_at}-${idx}`}>
+                  <tr
+                    key={`${item.ticker}-${item.published_at || item.created_at}-${idx}`}
+                    style={{
+                      backgroundColor: starred[item.ticker] ? "#fff8dc" : undefined,
+                      transition: "background-color 0.3s",
+                    }}
+                  >
                     <td className="text-center align-middle">
                       <Button
                         variant="outline-secondary"
@@ -390,14 +399,48 @@ const PreMarketScanNewsCard: React.FC = () => {
                         )}
                       </Button>
                     </td>
+
                     <td className="text-center">
-                      <a
-                        href={`https://kabutan.jp/stock/news?code=${item.ticker}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {item.ticker}
-                      </a>
+                      <div>
+                        <a
+                          href={`https://kabutan.jp/stock/news?code=${item.ticker}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {item.ticker}
+                        </a>
+                      </div>
+                      <div className="mt-1">
+                        <Button
+                          variant="info"
+                          size="sm"
+                          disabled={loadingTickers[item.ticker]}
+                          onClick={async () => {
+                            try {
+                              setLoadingTickers(prev => ({ ...prev, [item.ticker]: true }));
+                              const res = await analyzeSingleTicker(item.ticker);
+                              console.log(res.message || `Analyzed ${item.ticker}`);
+                            } catch (err: any) {
+                              console.error(err.message || `Failed to analyze ${item.ticker}`);
+                            } finally {
+                              setLoadingTickers(prev => ({ ...prev, [item.ticker]: false }));
+                            }
+                          }}
+                          style={{ fontSize: "0.7rem", padding: "0.2rem 0.4rem", minWidth: "60px" }}
+                        >
+                          {loadingTickers[item.ticker] ? (
+                            <Spinner
+                              as="span"
+                              animation="border"
+                              size="sm"
+                              role="status"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            "Analyze"
+                          )}
+                        </Button>
+                      </div>
                     </td>
                     <td>
                       <a
@@ -408,6 +451,7 @@ const PreMarketScanNewsCard: React.FC = () => {
                         {item.headline || item.ticker}
                       </a>
                     </td>
+
                     <td className="text-center">
                       {item.published_at
                         ? new Date(item.published_at).toLocaleString()
@@ -415,11 +459,11 @@ const PreMarketScanNewsCard: React.FC = () => {
                         ? new Date(item.created_at).toLocaleString()
                         : "N/A"}
                     </td>
+
                     <td className="text-center">
-                      {item.verdict && (
-                        <Badge bg={getVerdictColor(item.verdict)}>{item.verdict}</Badge>
-                      )}
+                      {item.verdict && <Badge bg={getVerdictColor(item.verdict)}>{item.verdict}</Badge>}
                     </td>
+
                     <td>{item.reason || ""}</td>
                   </tr>
                 ))}

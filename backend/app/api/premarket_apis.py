@@ -474,7 +474,8 @@ def set_note(
 def analyze_single_ticker(
     ticker: str,
     top_n: int = 3,
-    model: str = "gpt-4o",
+    # model: str = "gpt-4o",
+    model: str = "gpt-3.5-turbo",
     db: Session = Depends(get_db)
 ):
     # is_market_hours = check_market_hours(db)
@@ -484,8 +485,7 @@ def analyze_single_ticker(
         db=db,
         ticker=ticker,
         top_n=top_n,
-        # model="gpt-3.5-turbo",
-        model="gpt-4o",
+        model=model,
         # is_market_hours=is_market_hours,
         detected_type="single"
     )
