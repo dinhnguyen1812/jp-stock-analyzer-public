@@ -1,0 +1,856 @@
+import React, { useState, useCallback, type JSX, useEffect } from "react";
+import { Button, Modal, Spinner, Badge, Row, Col, Tabs, Tab } from "react-bootstrap";
+import { formatDistance } from "date-fns";
+import { fetchSavedPremarketAnalysis, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
+import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
+import MiniCandleChart from "./MiniPriceChart";
+import IntradayAnalyzeTab from "./IntradayAnalyzeTab";
+
+export interface DailyPrice {
+  date: string;   // ISO date string, e.g. "2025-08-09"
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+export interface SpikeInfo {
+  spike_date: string;
+  first_day_close_near_high: boolean;
+  first_spike_pct: number;
+  days_since_spike: number;
+  number_of_respikes: number;
+  drop_from_high_pct: number;
+  last_day_close_near_low: boolean;
+  score: number;
+}
+
+export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
+  recent_prices?: DailyPrice[];
+  spike_info?: SpikeInfo[];
+  reasoning?: string;
+  recommendation?: "Buy" | "Hold" | "Sell" | null;
+  promising_score?: number;
+  news_score?: number;
+  top_news?: {
+    published_at: string;
+    category: string;
+    headline: string;
+    url: string;
+    score: number;
+    impact_verdict: string;
+    impact_reason: string;
+    keyword: string;
+    rank: string;
+  }[];
+  highest_impact_keyword?: string;
+  highest_impact_rank?: string;
+  drop_from_high_pct?: number;
+  rebound_from_low_pct?: number;
+  highest_price?: number;
+  lowest_price?: number;
+  kabutan_chart_url?: string;
+  momentum_score?: number;
+  momentum_confidence?: string;
+  momentum_signals?: {
+    score: number;
+    passed: boolean;
+    label: string;
+    points: number;
+    condition: boolean;
+    meaning: string;
+  }[];
+}
+
+export interface SavedAnalysis {
+  volume_info: AnalyzedVolumeInfo;
+  analysis_signal: AnalysisSignal;
+}
+
+interface PreMarketStockRowProps {
+  stock: VolumeSurgeStock & {
+    recent_prices?: DailyPrice[];
+    spike_info?: SpikeInfo[];
+    highest_impact_keyword?: string;
+    highest_impact_rank?: string;
+    promising_score?: number;
+    news_score?: number;
+    recommendation?: string | null;
+    starred?: boolean;
+    watched?: boolean;
+    detected_at: string;
+    momentum_score?: number;
+    momentum_signals?: {
+      score: number;
+      passed: boolean;
+      label: string;
+      points: number;
+      condition: boolean;
+      meaning: string;
+    }[];
+  };
+  latestDetectedAt: string;
+  latestThresholdDate: Date | null;
+  onStarToggle: (ticker: string, starred: boolean) => void;
+  onWatchToggle: (ticker: string, watched: boolean) => void;
+  onNoteChange: (ticker: string, newNote: string) => void;
+}
+
+const keywordMap = [
+  { word: "bullish", variant: "success" },
+  { word: "bearish", variant: "danger" },
+  { word: "neutral", variant: "secondary" },
+  { word: "Buy", variant: "success" },
+  { word: "Sell", variant: "danger" },
+  { word: "Hold", variant: "warning" },
+  { word: "short-term", variant: "warning" },
+  { word: "Yes", variant: "success" },
+  { word: "3_bullish", variant: "success" },
+  { word: "3_bearish", variant: "danger" },
+  { word: "likely re-spike", variant: "success" }
+];
+
+const highlightKeywords = (text: string): JSX.Element => {
+  if (!text) return <span>(No text)</span>;
+  const cleanText = text.replace(/\*\*/g, "");
+  const keywordRegex = new RegExp(`(${keywordMap.map((k) => k.word).join("|")})`, "gi");
+  const parts = cleanText.split(keywordRegex);
+
+  return (
+    <>
+      {parts.map((part, idx) => {
+        const match = keywordMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
+        return match ? (
+          <Badge key={idx} bg={match.variant} className="mx-1">
+            {part}
+          </Badge>
+        ) : (
+          <span key={idx}>{part}</span>
+        );
+      })}
+    </>
+  );
+};
+
+const rankMap = [
+  { word: "S+", variant: "danger" },
+  { word: "A+", variant: "primary" },
+  { word: "A-", variant: "info" },
+  { word: "S", variant: "success" },
+  { word: "A", variant: "warning" },
+  { word: "B", variant: "secondary" },
+  { word: "C", variant: "dark" },
+  { word: "D", variant: "danger" }
+];
+
+// Escape regex special characters
+const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+
+// Sort by length so A+ / A- match before A
+const sortedRankMap = [...rankMap].sort((a, b) => b.word.length - a.word.length);
+
+const highlightRank = (text: string): JSX.Element => {
+  if (!text) return <span>(No text)</span>;
+  const cleanText = text.replace(/\*\*/g, "");
+  const keywordRegex = new RegExp(
+    `(${sortedRankMap.map((k) => escapeRegex(k.word)).join("|")})`,
+    "gi"
+  );
+  const parts = cleanText.split(keywordRegex);
+
+  return (
+    <>
+      {parts.map((part, idx) => {
+        const match = sortedRankMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
+        return match ? (
+          <Badge key={idx} bg={match.variant} className="mx-1">
+            {part}
+          </Badge>
+        ) : (
+          <span key={idx}>{part}</span>
+        );
+      })}
+    </>
+  );
+};
+
+const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
+  stock,
+  latestDetectedAt,
+  latestThresholdDate,
+  onStarToggle,
+  onWatchToggle,
+  onNoteChange,
+}) => {
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<SavedAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [starLoading, setStarLoading] = useState(false);
+  const [watchLoading, setWatchLoading] = useState(false);
+  const [, setForceUpdate] = useState(0);
+
+  const [noteValue, setNoteValue] = useState(stock.note || "");
+  useEffect(() => {
+    setNoteValue(stock.note || "");
+  }, [stock.note]);
+
+  const handleBlur = () => {
+    if (noteValue !== stock.note) {
+      onNoteChange(stock.ticker, noteValue);
+    }
+  };
+
+  const handleAnalysisClick = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result: SavedAnalysis = await fetchSavedPremarketAnalysis(stock.ticker);
+      setAnalysis(result);
+      setShowModal(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to load analysis");
+    } finally {
+      setLoading(false);
+    }
+  }, [stock.ticker]);
+
+  const handleToggleStar = useCallback(async () => {
+    setStarLoading(true);
+    try {
+      const newStarredStatus = !stock.starred;
+      if (newStarredStatus) await starStock(stock.ticker);
+      else await unstarStock(stock.ticker);
+      onStarToggle(stock.ticker, newStarredStatus);
+      setForceUpdate((prev) => prev + 1);
+    } catch {
+      alert("Failed to update star status.");
+    } finally {
+      setStarLoading(false);
+    }
+  }, [stock, onStarToggle]);
+
+  const handleToggleWatch = useCallback(async () => {
+    setWatchLoading(true);
+    try {
+      const newWatchedStatus = !stock.watched;
+      if (newWatchedStatus) await watchStock(stock.ticker);
+      else await unwatchStock(stock.ticker);
+      onWatchToggle(stock.ticker, newWatchedStatus);
+      setForceUpdate((prev) => prev + 1);
+    } catch {
+      alert("Failed to update watch status.");
+    } finally {
+      setWatchLoading(false);
+    }
+  }, [stock, onWatchToggle]);
+
+  const ONE_HOUR_MS = 1000 * 60 * 60;
+  const isOld =
+    new Date(stock.detected_at).getTime() <
+    new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
+
+  const verdictRank: Record<string, number> = {
+    "S+": 7,
+    "S": 6,
+    "A+": 5,
+    "A": 4,
+    "A-": 3,
+    "B": 2,
+    "C": 1,
+    "D": 0
+  };
+
+  const getScoreColor = (score: number): string => {
+    if (score >= 80) return "success";
+    if (score >= 60) return "info";
+    if (score >= 40) return "warning";
+    return "danger";
+  };
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  // const compareIndicator = (
+  //   stockValue: string | number | null | undefined,
+  //   industryValue: string | number | null | undefined,
+  //   type: "higher" | "lower" = "higher"
+  // ): string => {
+  //   if (stockValue == null || industryValue == null) return "➖";
+
+  //   const s = typeof stockValue === "number" ? stockValue : parseFloat(stockValue);
+  //   const i = typeof industryValue === "number" ? industryValue : parseFloat(industryValue);
+
+  //   if (isNaN(s) || isNaN(i)) return "➖";
+
+  //   if (type === "higher") return s >= i ? "✅" : "❌";
+  //   if (type === "lower") return s <= i ? "✅" : "❌";
+
+  //   return "➖";
+  // };
+  const renderSpikeScoreBreakdown = () => {
+    const spike = stock.spike_info?.[0];
+    if (!spike) return null;
+
+    const breakdown: { label: string; points: number; value?: any }[] = [];
+
+    // 5. First day close near high
+    const highPts = spike.first_day_close_near_high ? 10 : 0; // assign 10 points if true
+    breakdown.push({
+      label: "First Close↑High",
+      value: spike.first_day_close_near_high ? "Yes" : "No",
+      points: highPts,
+    });
+
+    // 3. First spike pct
+    let firstSpikePts = 0;
+    if (spike.first_spike_pct != null) {
+      if (spike.first_spike_pct >= 100) firstSpikePts = 20;
+      else if (spike.first_spike_pct >= 40) firstSpikePts = 10;
+      else if (spike.first_spike_pct >= 20) firstSpikePts = 5;
+      breakdown.push({ label: "First spike pct", value: spike.first_spike_pct + "%", points: firstSpikePts });
+    }
+
+    // 1. Days since spike
+    let recencyPts = 0;
+    if (spike.days_since_spike != null) { // covers both null and undefined
+      if (spike.days_since_spike <= 5) recencyPts = 25;
+      else if (spike.days_since_spike <= 10) recencyPts = 15;
+      else if (spike.days_since_spike <= 15) recencyPts = 5;
+      breakdown.push({
+        label: "Days since spike",
+        value: spike.days_since_spike,
+        points: recencyPts,
+      });
+    } else {
+      breakdown.push({
+        label: "Days since spike",
+        value: "-",
+        points: 0,
+      });
+    }
+
+    // 6. Respikes
+    const respikePts = Math.min(spike.number_of_respikes ?? 0, 1) * 5;
+    breakdown.push({ label: "Respikes", value: spike.number_of_respikes, points: respikePts });
+
+    // 2. Drop from high
+    let dropPts = 0;
+    if (spike.drop_from_high_pct != null) {
+      if (spike.drop_from_high_pct >= 40) dropPts = 25;
+      else if (spike.drop_from_high_pct >= 20) dropPts = 18;
+      else if (spike.drop_from_high_pct >= 10) dropPts = 10;
+      else dropPts = 5;
+      breakdown.push({ label: "Current Drop↓High", value: spike.drop_from_high_pct + "%", points: dropPts });
+    }
+
+    // 4. Last day close near low
+    const lowPts = spike.last_day_close_near_low ? 15 : 0;
+    breakdown.push({
+      label: "Current Close↓Low",
+      value: spike.last_day_close_near_low ? "Yes" : "No",
+      points: lowPts,
+    });
+
+    return (
+      <div className="d-flex flex-column gap-1">
+        {/* Spike date and total score */}
+        <div style={{ fontSize: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          Spike Day: 
+          <span style={{ fontWeight: spike.spike_date ? "bold" : "normal", color: spike.spike_date ? "green" : "gray" }}>
+            {spike.spike_date || "-"}
+          </span>
+          {spike.score != null && (
+            <Badge
+              bg={getScoreColor(spike.score)}
+              className="border"
+              style={{ fontSize: "0.75rem" }}
+            >
+              {spike.score}
+            </Badge>
+          )}
+        </div>
+
+        {/* Per-metric breakdown */}
+        {breakdown.map((item, idx) => {
+          const highlight = item.value !== null && item.value !== undefined && item.value !== "No" && item.value !== 0;
+          return (
+            <div
+              key={idx}
+              style={{ fontSize: "0.75rem", display: "flex", gap: "0.25rem", alignItems: "center" }}
+            >
+              <span>{item.label}:</span>
+              <span style={{ fontWeight: highlight ? "bold" : "normal", color: highlight ? "green" : "black" }}>
+                {item.value}
+              </span>
+              {item.points > 0 && <span style={{ color: "red" }}> +{item.points}</span>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <tr>
+        <td className="align-middle small" style={{ maxWidth: "160px", whiteSpace: "pre-wrap" }}>
+          <textarea
+            value={noteValue}
+            onChange={(e) => setNoteValue(e.target.value)}
+            onBlur={handleBlur}
+            rows={7}
+            style={{ width: "100%", fontSize: "0.75rem" }}
+          />
+        </td>
+        <td className="text-center align-middle" style={{ width: 40 }}>
+          <div>
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              title={stock.starred ? "Unstar stock" : "Star stock"}
+              aria-pressed={stock.starred}
+              onClick={handleToggleStar}
+              disabled={starLoading}
+              className="p-0 d-flex justify-content-center align-items-center"
+              style={{ width: 32, height: 32 }}
+            >
+              {starLoading ? (
+                <Spinner animation="border" size="sm" />
+              ) : (
+                <span
+                  style={{
+                    fontSize: "1.25rem",
+                    lineHeight: 1,
+                    userSelect: "none",
+                    color: stock.starred ? "#ffc107" : "#6c757d",
+                    textShadow: stock.starred
+                      ? "0 0 2px #ffc107, 0 0 4px #ffc107"
+                      : "none",
+                  }}
+                  aria-hidden="true"
+                >
+                  ★
+                </span>
+              )}
+            </Button>
+          </div>
+          <div>
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              title={stock.watched ? "Unwatch stock" : "Watch stock"}
+              aria-pressed={stock.watched}
+              onClick={handleToggleWatch}
+              disabled={watchLoading}
+              className="p-0 d-flex justify-content-center align-items-center"
+              style={{ width: 32, height: 32 }}
+            >
+              {watchLoading ? (
+                <Spinner animation="border" size="sm" />
+              ) : (
+                <span
+                  style={{
+                    fontSize: "1.25rem",
+                    lineHeight: 1,
+                    userSelect: "none",
+                    color: stock.watched ? "#ffc107" : "#6c757d",
+                    textShadow: stock.watched
+                      ? "0 0 2px #ffc107, 0 0 4px #ffc107"
+                      : "none",
+                  }}
+                  aria-hidden="true"
+                >
+                  ♥
+                </span>
+              )}
+            </Button>
+          </div>
+        </td>
+
+        {/* <td className="align-middle text-center">
+        </td> */}
+        <td className="align-middle text-center">
+          <div>
+            <a
+              href={`https://kabutan.jp/stock/chart?code=${stock.ticker}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {stock.ticker}
+            </a>
+          </div>
+          <div>{stock.name}</div>
+          <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
+          <div>{stock.current_price.toFixed(2)}</div>
+          <div>(
+            {stock.price_change >= 0
+              ? `+${stock.price_change.toFixed(2)}`
+              : stock.price_change.toFixed(2)})
+          </div>
+        </td>
+
+        {/* 🔑 MiniChart */}
+        <td
+          className="align-middle text-start"
+          style={{ minWidth: 120, maxWidth: 160 }}
+        >
+          {stock.recent_prices && stock.recent_prices.length > 0 ? (
+            <MiniCandleChart
+              data={stock.recent_prices.map(p => ({
+                date: p.date,
+                open: p.open,
+                high: p.high,
+                low: p.low,
+                close: p.close,
+              }))}
+            />
+          ) : (
+            <small className="text-muted">No price data</small>
+          )}
+        </td>
+        {/* Spike pattern column */}
+        <td>
+          <div>
+            {renderSpikeScoreBreakdown()}
+          </div>
+        </td>
+
+        {/* Most impact column */}
+        <td className="align-middle text-center">
+          {stock.highest_impact_rank && (
+            <div className="d-flex justify-content-center mb-2">
+              <Badge
+                bg="light"
+                className="border border-secondary"
+                style={{
+                  fontSize: "1rem",
+                  backgroundColor: "white",
+                  color: {
+                    "S+": "#dc3545",
+                    "S": "#e5533d",
+                    "A+": "#fd7e14",
+                    "A": "#0d6efd",
+                    "A-": "#f0ad4e",
+                    "B": "#0dcaf0",
+                    "C": "#6c757d",
+                    "D": "#212529"
+                  }[stock.highest_impact_rank] ?? "#000000",
+                  maxWidth: "120px",
+                  whiteSpace: "normal",
+                  overflowWrap: "break-word"
+                }}
+              >
+                <span style={{ fontSize: "0.75rem", color: "gray", marginRight: 4 }}>
+                  {stock.highest_impact_keyword}:
+                </span>
+                {stock.highest_impact_rank.replace(/\*/g, "").trim()}
+              </Badge>
+            </div>
+          )}
+
+          {stock.news_score !== undefined && (
+            <div className="d-flex justify-content-center">
+              <Badge
+                bg={getScoreColor(stock.news_score)}
+                className="border"
+                style={{ fontSize: "0.75rem" }}
+              >
+                {stock.news_score}
+              </Badge>
+            </div>
+          )}
+        </td>
+
+        {/* Action / GPT */}
+        <td className="align-middle text-center">
+          <div className="d-flex flex-column align-items-center justify-content-center gap-2">
+            {/* Promising Score Badge */}
+            {stock.promising_score !== undefined && (
+              <div className="d-flex justify-content-center">
+                <Badge
+                  bg={getScoreColor(stock.promising_score)}
+                  className="border"
+                  style={{ fontSize: "0.75rem" }}
+                >
+                  Score: {stock.promising_score}
+                </Badge>
+              </div>
+            )}
+
+            {/* Top News Verdict Badge */}
+            {Array.isArray(stock.top_news) && stock.top_news.length > 0 && latestThresholdDate && (() => {
+              const newsWithVerdict = stock.top_news.filter(
+                (n) => typeof n.impact_verdict === "string"
+              );
+              if (newsWithVerdict.length === 0) return null;
+
+              const bestNews = newsWithVerdict.sort((a, b) => {
+                const aRank = verdictRank[a.impact_verdict?.toUpperCase() ?? ""] ?? 0;
+                const bRank = verdictRank[b.impact_verdict?.toUpperCase() ?? ""] ?? 0;
+                return bRank - aRank;
+              })[0];
+
+              const verdict = bestNews.impact_verdict?.toUpperCase() ?? "";
+
+              const badgeColor =
+                verdict === "S+" ? "danger" :
+                verdict === "S" ? "success" :
+                verdict === "A+" ? "primary" :
+                verdict === "A" ? "warning" :
+                verdict === "A-" ? "info" :
+                verdict === "B" ? "secondary" :
+                verdict === "C" ? "dark" :
+                verdict === "D" ? "danger" : "light";
+
+              const textColor = verdict === "C" || verdict === "D" ? "light" : "light";
+
+              const publishedAt = new Date(bestNews.published_at);
+              const thresholdDate = new Date(
+                Date.UTC(
+                  latestThresholdDate.getUTCFullYear(),
+                  latestThresholdDate.getUTCMonth(),
+                  latestThresholdDate.getUTCDate(),
+                  6, 29, 0
+                )
+              );
+
+              const isVeryRecent = publishedAt >= thresholdDate;
+              const verdictLabel = `${verdict}${isVeryRecent ? " ⭐️" : ""}`;
+
+              return (
+                <div className="d-flex justify-content-center">
+                  <Badge
+                    bg={badgeColor}
+                    text={textColor}
+                    className="border"
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    {verdictLabel}
+                  </Badge>
+                </div>
+              );
+            })()}
+
+            {/* Analysis Button */}
+            <div className="d-flex justify-content-center">
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={handleAnalysisClick}
+                disabled={loading}
+                style={{
+                  minWidth: 90,
+                  fontSize: "0.75rem",
+                  padding: "0.25rem 0.5rem",
+                }}
+              >
+                {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
+              </Button>
+            </div>
+          </div>
+        </td>
+
+        <td className="align-middle text-center">
+          <div>{stock.volume_rate.toFixed(2)}</div>
+          <div>{stock.money_flow_rate.toFixed(2)}</div>
+        </td>
+        <td className="align-middle text-center">
+          <div>{stock.current_volume.toLocaleString()}</div>
+          <div>{stock.avg_volume_5d.toLocaleString()}</div>
+        </td>
+        <td className="align-middle text-center">
+          <span
+            style={{
+              color: isOld ? "#999" : undefined,
+              fontStyle: isOld ? "italic" : undefined,
+            }}
+            title={new Date(stock.detected_at + "Z").toLocaleString()}
+          >
+            {formatDistance(new Date(stock.detected_at + "Z"), new Date(), {
+              addSuffix: true,
+            })}
+          </span>
+        </td>
+      </tr>
+
+      <Modal size="xl" show={showModal} onHide={() => setShowModal(false)} scrollable>
+        <Modal.Header closeButton>
+          <Modal.Title>Analysis for {stock.ticker}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Tabs defaultActiveKey="volume" id="analysis-tabs" className="mb-3">
+            <Tab eventKey="volume" title="Pre-market">
+              {error && <p className="text-danger">{error}</p>}
+              {!error && !analysis && <p>Loading analysis...</p>}
+              {analysis && (
+                <>
+                  <Row>
+                    <Col md={4}>
+                      <h5>Volume Info</h5>
+                      <ul>
+                        <li>Name: {analysis.volume_info.name}</li>
+                        <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
+                        <li>Price Change: {analysis.volume_info.price_change.toFixed(2)}</li>
+                        <li>Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}</li>
+                        <li>Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}</li>
+                        <li>Current Volume: {analysis.volume_info.current_volume.toLocaleString()}</li>
+                        <li>Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}</li>
+                        <li>
+                          Detected At:{" "}
+                          {formatDistance(new Date(analysis.volume_info.detected_at + "Z"), new Date(), {
+                            addSuffix: true,
+                          })}
+                        </li>
+                        <li>
+                          1st Spike Date: {analysis.volume_info.spike_info?.[0]?.spike_date ?? "N/A"}
+                        </li>
+                        <li>
+                          1st Close↑High: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.first_day_close_near_high ? "Yes" : "No")}
+                        </li>
+                        <li>
+                          Respikes: {analysis.volume_info.spike_info?.[0]?.number_of_respikes ?? "N/A"}
+                        </li>
+                        <li>
+                          Drop↓High (%): {analysis.volume_info.spike_info?.[0]?.drop_from_high_pct?.toFixed(2) ?? "N/A"}
+                        </li>
+                        <li>
+                          Close↓Low: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.last_day_close_near_low ? "Yes" : "No")}
+                        </li>
+                      </ul>
+                    </Col>
+
+                    <Col md={4}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 300px", minWidth: 300 }}>
+                          <h5 className="mb-3">📉 15-Day Chart</h5>
+                          {analysis.volume_info.recent_prices && analysis.volume_info.recent_prices.length > 0 ? (
+                            <MiniCandleChart
+                              data={analysis.volume_info.recent_prices.map(p => ({
+                                date: p.date,
+                                open: p.open,
+                                high: p.high,
+                                low: p.low,
+                                close: p.close,
+                              }))}
+                            />
+                          ) : (
+                            <p className="text-muted">No price data</p>
+                          )}
+                        </div>
+
+                        <div style={{ flexShrink: 0, marginTop: "1.5rem" }}>
+                          <h5 style={{ marginBottom: "0.25rem" }}>
+                            📈{" "}
+                            <a
+                              href={analysis.volume_info.kabutan_chart_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ whiteSpace: "nowrap" }}
+                            >
+                              View Kabutan Chart
+                            </a>
+                          </h5>
+                        </div>
+                      </div>
+                    </Col>
+                  </Row>
+
+                  <h5 className="mt-4">Summary</h5>
+                  <div className="mb-4">
+                    {analysis.volume_info.recommendation && (
+                      <div className="mb-1">
+                        Recommendation: {highlightKeywords(analysis.volume_info.recommendation)}
+                      </div>
+                    )}
+                    <div className="mb-1">Promising Score: {analysis.volume_info.promising_score ?? "?"}</div>
+                  </div>
+
+                  <h5 className="mt-4">GPT Reasoning</h5>
+                  <p style={{ whiteSpace: "pre-wrap" }}>
+                    {analysis.volume_info.reasoning || "(No reasoning provided)"}
+                  </p>
+
+                  {Array.isArray(analysis.volume_info.top_news) && analysis.volume_info.top_news.length > 0 && (
+                    <>
+                      <h5 className="mt-4">Top News</h5>
+                      <ul className="list-unstyled">
+                        {analysis.volume_info.top_news.map((item, idx) => (
+                          <li key={idx} className="mb-3">
+                            <a href={item.url} target="_blank" rel="noopener noreferrer">
+                              {item.headline}
+                            </a>
+                            <br />
+                            <small className="text-muted">
+                              [{item.category}] {new Date(item.published_at).toLocaleString()}
+                            </small>
+                            <br />
+                            <strong>Keyword:</strong> {highlightKeywords(item.keyword)}: {highlightRank(item.rank)}
+                            <br />
+                            <em style={{ display: "block", marginTop: "0.25rem" }}>
+                              {item.impact_reason}
+                            </em>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Sticky bottom-right note box */}
+              <div
+                style={{
+                  position: "sticky",
+                  bottom: 0,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  background: "transparent",
+                  zIndex: 2,
+                }}
+              >
+                <div
+                  style={{
+                    width: "35%",
+                    background: "white",
+                    padding: "8px",
+                    borderTop: "1px solid #ddd",
+                    boxShadow: "0 -2px 6px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  <label htmlFor="stock-note" className="form-label fw-bold">
+                    📝 Note
+                  </label>
+                  <textarea
+                    id="stock-note"
+                    className="form-control"
+                    rows={3}
+                    value={noteValue}
+                    onChange={(e) => setNoteValue(e.target.value)}
+                    disabled={isSaving}
+                  />
+                  <button
+                    className="btn btn-primary btn-sm mt-2"
+                    onClick={() => onNoteChange(stock.ticker, noteValue)}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Saving..." : "Save Note"}
+                  </button>
+                </div>
+              </div>
+            </Tab>
+            <Tab eventKey="intraday" title="Intraday Analyze">
+              <IntradayAnalyzeTab ticker={stock.ticker} />
+            </Tab>
+          </Tabs>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </>
+  );
+};
+
+export default PreMarketStockRow;

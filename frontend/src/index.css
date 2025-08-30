@@ -84,3 +84,8 @@ button:focus-visible {
   overflow-y: auto;
   flex-grow: 1;
 }
+
+.tr-starred {
+  background-color: #fff8dc !important; /* light yellow */
+}
+

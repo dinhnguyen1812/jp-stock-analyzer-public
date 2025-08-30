@@ -329,7 +329,6 @@ def premarket_analyze_with_gpt(
 
         # A+ rank - very strong positive
         "    '大型受注': 'A+',\n"
-        "    '筆頭株主変更': 'A+',\n"
 
         # A rank - strong positive
         "    '黒字転換': 'A',\n"
@@ -343,6 +342,7 @@ def premarket_analyze_with_gpt(
         "    '新任紹介': 'A',\n"
         "    '受賞': 'A',\n"
         "    '新ビージョン': 'A',\n"
+        "    '筆頭株主変更': 'A',\n"
 
         # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"

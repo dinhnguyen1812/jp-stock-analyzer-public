@@ -1,113 +1,30 @@
-import React, { useState, useCallback, type JSX, useEffect } from "react";
-import { Button, Modal, Spinner, Badge, Row, Col, Tabs, Tab } from "react-bootstrap";
+// components/premarket/PreMarketStockRow.tsx
+import React, { useState, useCallback, useEffect } from "react";
+import { Badge, Button, Spinner } from "react-bootstrap";
 import { formatDistance } from "date-fns";
-import { fetchSavedPremarketAnalysis, fetchSetNote, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
-import type { VolumeSurgeStock, AnalysisSignal } from "../../types";
 import MiniCandleChart from "./MiniPriceChart";
-// import IntradayAnalyzeButton from "./IntradayAnalyzeButton";
-import IntradayAnalyzeTab from "./IntradayAnalyzeTab";
+import PreMarketStockModal from "./PreMarketStockModal";
+import SpikeScoreBreakdown from "./SpikeScoreBreakdown";
+import type { SavedAnalysis } from "./types";
+import type { VolumeSurgeStock } from "../../types";
+import { fetchSavedPremarketAnalysis, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
+import PromisingScoreBadge from "./PromisingScoreBadge";
+import TopNewsVerdictBadge from "./TopNewsVerdictBadge";
+import HighestImpactBadge from "./HighestImpactBadge";
 
-export interface DailyPrice {
-  date: string;   // ISO date string, e.g. "2025-08-09"
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
-export interface SpikeInfo {
-  spike_date: string;
-  first_day_close_near_high: boolean;
-  first_spike_pct: number;
-  days_since_spike: number;
-  number_of_respikes: number;
-  drop_from_high_pct: number;
-  last_day_close_near_low: boolean;
-  score: number;
-}
-
-export interface AnalyzedVolumeInfo extends VolumeSurgeStock {
-  recent_prices?: DailyPrice[];
-  spike_info?: SpikeInfo[];
-  reasoning?: string;
-  recommendation?: "Buy" | "Hold" | "Sell" | null;
-  promising_score?: number;
-  news_score?: number;
-  // spiked?: string;
-  // spike_next?: number;
-  top_news?: {
-    published_at: string;
-    category: string;
-    headline: string;
-    url: string;
-    score: number;
-    impact_verdict: string;
-    impact_reason: string;
-    keyword: string;
-    rank: string;
-  }[];
-  highest_impact_keyword?: string;
-  highest_impact_rank?: string;
-  drop_from_high_pct?: number;
-  rebound_from_low_pct?: number;
-  highest_price?: number;
-  lowest_price?: number;
-  // downtrend?: {
-  //   ticker: string;
-  //   had_downtrend: boolean;
-  //   drop_pct: number;
-  //   from_date: string;
-  //   to_date: string;
-  // };
-  // uptrend?: {
-  //   ticker: string;
-  //   had_uptrend: boolean;
-  //   rise_pct: number;
-  //   from_date: string;
-  //   to_date: string;
-  // };
-  kabutan_chart_url?: string;
-  momentum_score?: number;
-  momentum_confidence?: string;
-  momentum_signals?: {
-    score: number;
-    passed: boolean;
-    label: string;
-    points: number;
-    condition: boolean;
-    meaning: string;
-  }[];
-}
-
-export interface SavedAnalysis {
-  // longterm_info: any;
-  volume_info: AnalyzedVolumeInfo;
-  analysis_signal: AnalysisSignal;
-}
-
-interface PreMarketStockRowProps {
+interface Props {
   stock: VolumeSurgeStock & {
-    recent_prices?: DailyPrice[];
-    spike_info?: SpikeInfo[];
+    recent_prices?: any[];
+    spike_info?: any[];
     highest_impact_keyword?: string;
     highest_impact_rank?: string;
     promising_score?: number;
     news_score?: number;
-    // spiked?: string;
-    // spike_next?: number;
     recommendation?: string | null;
     starred?: boolean;
     watched?: boolean;
     detected_at: string;
-    momentum_score?: number;
-    momentum_signals?: {
-      score: number;
-      passed: boolean;
-      label: string;
-      points: number;
-      condition: boolean;
-      meaning: string;
-    }[];
+    note?: string;
   };
   latestDetectedAt: string;
   latestThresholdDate: Date | null;
@@ -116,85 +33,7 @@ interface PreMarketStockRowProps {
   onNoteChange: (ticker: string, newNote: string) => void;
 }
 
-const keywordMap = [
-  { word: "bullish", variant: "success" },
-  { word: "bearish", variant: "danger" },
-  { word: "neutral", variant: "secondary" },
-  { word: "Buy", variant: "success" },
-  { word: "Sell", variant: "danger" },
-  { word: "Hold", variant: "warning" },
-  { word: "short-term", variant: "warning" },
-  { word: "Yes", variant: "success" },
-  { word: "3_bullish", variant: "success" },
-  { word: "3_bearish", variant: "danger" },
-  { word: "likely re-spike", variant: "success" }
-];
-
-const highlightKeywords = (text: string): JSX.Element => {
-  if (!text) return <span>(No text)</span>;
-  const cleanText = text.replace(/\*\*/g, "");
-  const keywordRegex = new RegExp(`(${keywordMap.map((k) => k.word).join("|")})`, "gi");
-  const parts = cleanText.split(keywordRegex);
-
-  return (
-    <>
-      {parts.map((part, idx) => {
-        const match = keywordMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
-        return match ? (
-          <Badge key={idx} bg={match.variant} className="mx-1">
-            {part}
-          </Badge>
-        ) : (
-          <span key={idx}>{part}</span>
-        );
-      })}
-    </>
-  );
-};
-
-const rankMap = [
-  { word: "S+", variant: "danger" },
-  { word: "A+", variant: "primary" },
-  { word: "A-", variant: "info" },
-  { word: "S", variant: "success" },
-  { word: "A", variant: "warning" },
-  { word: "B", variant: "secondary" },
-  { word: "C", variant: "dark" },
-  { word: "D", variant: "danger" }
-];
-
-// Escape regex special characters
-const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
-
-// Sort by length so A+ / A- match before A
-const sortedRankMap = [...rankMap].sort((a, b) => b.word.length - a.word.length);
-
-const highlightRank = (text: string): JSX.Element => {
-  if (!text) return <span>(No text)</span>;
-  const cleanText = text.replace(/\*\*/g, "");
-  const keywordRegex = new RegExp(
-    `(${sortedRankMap.map((k) => escapeRegex(k.word)).join("|")})`,
-    "gi"
-  );
-  const parts = cleanText.split(keywordRegex);
-
-  return (
-    <>
-      {parts.map((part, idx) => {
-        const match = sortedRankMap.find((k) => k.word.toLowerCase() === part.toLowerCase());
-        return match ? (
-          <Badge key={idx} bg={match.variant} className="mx-1">
-            {part}
-          </Badge>
-        ) : (
-          <span key={idx}>{part}</span>
-        );
-      })}
-    </>
-  );
-};
-
-const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
+const PreMarketStockRow: React.FC<Props> = ({
   stock,
   latestDetectedAt,
   latestThresholdDate,
@@ -209,8 +48,9 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   const [starLoading, setStarLoading] = useState(false);
   const [watchLoading, setWatchLoading] = useState(false);
   const [, setForceUpdate] = useState(0);
-
   const [noteValue, setNoteValue] = useState(stock.note || "");
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
     setNoteValue(stock.note || "");
   }, [stock.note]);
@@ -238,10 +78,10 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   const handleToggleStar = useCallback(async () => {
     setStarLoading(true);
     try {
-      const newStarredStatus = !stock.starred;
-      if (newStarredStatus) await starStock(stock.ticker);
+      const newStarred = !stock.starred;
+      if (newStarred) await starStock(stock.ticker);
       else await unstarStock(stock.ticker);
-      onStarToggle(stock.ticker, newStarredStatus);
+      onStarToggle(stock.ticker, newStarred);
       setForceUpdate((prev) => prev + 1);
     } catch {
       alert("Failed to update star status.");
@@ -253,10 +93,10 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   const handleToggleWatch = useCallback(async () => {
     setWatchLoading(true);
     try {
-      const newWatchedStatus = !stock.watched;
-      if (newWatchedStatus) await watchStock(stock.ticker);
+      const newWatched = !stock.watched;
+      if (newWatched) await watchStock(stock.ticker);
       else await unwatchStock(stock.ticker);
-      onWatchToggle(stock.ticker, newWatchedStatus);
+      onWatchToggle(stock.ticker, newWatched);
       setForceUpdate((prev) => prev + 1);
     } catch {
       alert("Failed to update watch status.");
@@ -269,189 +109,13 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
   const isOld =
     new Date(stock.detected_at).getTime() <
     new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
-
-  const verdictRank: Record<string, number> = {
-    "S+": 7,
-    "S": 6,
-    "A+": 5,
-    "A": 4,
-    "A-": 3,
-    "B": 2,
-    "C": 1,
-    "D": 0
-  };
-
-  const renderKeySignals = () => {
-    const signals = stock.momentum_signals || [];
-    return (
-      <div className="d-flex flex-wrap gap-2">
-        {signals.map((s, i) => (
-          <span
-            key={i}
-            style={{
-              fontSize: "0.75rem",
-              color: s.passed ? "green" : "gray",
-              fontWeight: "bold",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {shortenLabel(s.label)}: {s.passed ? "✅" : "⛔"}
-            {s.score > 0 ? `+${s.score}` : s.score}
-          </span>
-        ))}
-      </div>
-    );
-  };
-
-  const getScoreColor = (score: number): string => {
-    if (score >= 80) return "success";
-    if (score >= 60) return "info";
-    if (score >= 40) return "warning";
-    return "danger";
-  };
-
-  // Helper to shorten the signal label
-  const shortenLabel = (label: string): string => {
-    const map: Record<string, string> = {
-      "Volume Rate > 3 / 5 / 10": "VR>3",
-      "Price vs SMA50": "SMA50",
-      "MACD Bullish Crossover": "MACD",
-      "RSI Rising into 70+": "RSI↑70",
-      "Price Broke Upper BB + Big Candle": "BBBreak",
-      "No lower lows in last 5 days": "NoLL",
-      "Price above band with reversal wick": "ReversalWick",
-      "RSI > 70 but falling": "RSI>70↓",
-      "MACD > 0 and rising": "MACD>0↑",
-    };
-    return map[label] || label.slice(0, 10);
-  };
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  // const compareIndicator = (
-  //   stockValue: string | number | null | undefined,
-  //   industryValue: string | number | null | undefined,
-  //   type: "higher" | "lower" = "higher"
-  // ): string => {
-  //   if (stockValue == null || industryValue == null) return "➖";
-
-  //   const s = typeof stockValue === "number" ? stockValue : parseFloat(stockValue);
-  //   const i = typeof industryValue === "number" ? industryValue : parseFloat(industryValue);
-
-  //   if (isNaN(s) || isNaN(i)) return "➖";
-
-  //   if (type === "higher") return s >= i ? "✅" : "❌";
-  //   if (type === "lower") return s <= i ? "✅" : "❌";
-
-  //   return "➖";
-  // };
-  const renderSpikeScoreBreakdown = () => {
-    const spike = stock.spike_info?.[0];
-    if (!spike) return null;
-
-    const breakdown: { label: string; points: number; value?: any }[] = [];
-
-    // 5. First day close near high
-    const highPts = spike.first_day_close_near_high ? 10 : 0; // assign 10 points if true
-    breakdown.push({
-      label: "First Close↑High",
-      value: spike.first_day_close_near_high ? "Yes" : "No",
-      points: highPts,
-    });
-
-    // 3. First spike pct
-    let firstSpikePts = 0;
-    if (spike.first_spike_pct != null) {
-      if (spike.first_spike_pct >= 100) firstSpikePts = 20;
-      else if (spike.first_spike_pct >= 40) firstSpikePts = 10;
-      else if (spike.first_spike_pct >= 20) firstSpikePts = 5;
-      breakdown.push({ label: "First spike pct", value: spike.first_spike_pct + "%", points: firstSpikePts });
-    }
-
-    // 1. Days since spike
-    let recencyPts = 0;
-    if (spike.days_since_spike != null) { // covers both null and undefined
-      if (spike.days_since_spike <= 5) recencyPts = 25;
-      else if (spike.days_since_spike <= 10) recencyPts = 15;
-      else if (spike.days_since_spike <= 15) recencyPts = 5;
-      breakdown.push({
-        label: "Days since spike",
-        value: spike.days_since_spike,
-        points: recencyPts,
-      });
-    } else {
-      breakdown.push({
-        label: "Days since spike",
-        value: "-",
-        points: 0,
-      });
-    }
-
-    // 6. Respikes
-    const respikePts = Math.min(spike.number_of_respikes ?? 0, 1) * 5;
-    breakdown.push({ label: "Respikes", value: spike.number_of_respikes, points: respikePts });
-
-    // 2. Drop from high
-    let dropPts = 0;
-    if (spike.drop_from_high_pct != null) {
-      if (spike.drop_from_high_pct >= 40) dropPts = 25;
-      else if (spike.drop_from_high_pct >= 20) dropPts = 18;
-      else if (spike.drop_from_high_pct >= 10) dropPts = 10;
-      else dropPts = 5;
-      breakdown.push({ label: "Current Drop↓High", value: spike.drop_from_high_pct + "%", points: dropPts });
-    }
-
-    // 4. Last day close near low
-    const lowPts = spike.last_day_close_near_low ? 15 : 0;
-    breakdown.push({
-      label: "Current Close↓Low",
-      value: spike.last_day_close_near_low ? "Yes" : "No",
-      points: lowPts,
-    });
-
-    return (
-      <div className="d-flex flex-column gap-1">
-        {/* Spike date and total score */}
-        <div style={{ fontSize: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          Spike Day: 
-          <span style={{ fontWeight: spike.spike_date ? "bold" : "normal", color: spike.spike_date ? "green" : "gray" }}>
-            {spike.spike_date || "-"}
-          </span>
-          {spike.score != null && (
-            <Badge
-              bg={getScoreColor(spike.score)}
-              className="border"
-              style={{ fontSize: "0.75rem" }}
-            >
-              {spike.score}
-            </Badge>
-          )}
-        </div>
-
-        {/* Per-metric breakdown */}
-        {breakdown.map((item, idx) => {
-          const highlight = item.value !== null && item.value !== undefined && item.value !== "No" && item.value !== 0;
-          return (
-            <div
-              key={idx}
-              style={{ fontSize: "0.75rem", display: "flex", gap: "0.25rem", alignItems: "center" }}
-            >
-              <span>{item.label}:</span>
-              <span style={{ fontWeight: highlight ? "bold" : "normal", color: highlight ? "green" : "black" }}>
-                {item.value}
-              </span>
-              {item.points > 0 && <span style={{ color: "red" }}> +{item.points}</span>}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+  
+  const bgColor = !!stock.starred ? "#fff8dc" : undefined;
 
   return (
     <>
       <tr>
-        <td className="align-middle small" style={{ maxWidth: "160px", whiteSpace: "pre-wrap" }}>
+        <td className="align-middle small" style={{ maxWidth: "160px", whiteSpace: "pre-wrap", backgroundColor: bgColor }}>
           <textarea
             value={noteValue}
             onChange={(e) => setNoteValue(e.target.value)}
@@ -460,7 +124,8 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             style={{ width: "100%", fontSize: "0.75rem" }}
           />
         </td>
-        <td className="text-center align-middle" style={{ width: 40 }}>
+
+        <td className="text-center align-middle" style={{ width: 40, backgroundColor: bgColor }}>
           <div>
             <Button
               variant="outline-secondary"
@@ -481,9 +146,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     lineHeight: 1,
                     userSelect: "none",
                     color: stock.starred ? "#ffc107" : "#6c757d",
-                    textShadow: stock.starred
-                      ? "0 0 2px #ffc107, 0 0 4px #ffc107"
-                      : "none",
+                    textShadow: stock.starred ? "0 0 2px #ffc107, 0 0 4px #ffc107" : "none",
                   }}
                   aria-hidden="true"
                 >
@@ -512,9 +175,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
                     lineHeight: 1,
                     userSelect: "none",
                     color: stock.watched ? "#ffc107" : "#6c757d",
-                    textShadow: stock.watched
-                      ? "0 0 2px #ffc107, 0 0 4px #ffc107"
-                      : "none",
+                    textShadow: stock.watched ? "0 0 2px #ffc107, 0 0 4px #ffc107" : "none",
                   }}
                   aria-hidden="true"
                 >
@@ -525,9 +186,7 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           </div>
         </td>
 
-        {/* <td className="align-middle text-center">
-        </td> */}
-        <td className="align-middle text-center">
+        <td className="align-middle text-center" style={{ backgroundColor: bgColor }}>
           <div>
             <a
               href={`https://kabutan.jp/stock/chart?code=${stock.ticker}`}
@@ -541,17 +200,11 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           <hr style={{ margin: "2px 0", borderTop: "1px solid #0d6efd" }} />
           <div>{stock.current_price.toFixed(2)}</div>
           <div>(
-            {stock.price_change >= 0
-              ? `+${stock.price_change.toFixed(2)}`
-              : stock.price_change.toFixed(2)})
-          </div>
+            {stock.price_change >= 0 ? `+${stock.price_change.toFixed(2)}` : stock.price_change.toFixed(2)}
+          )</div>
         </td>
 
-        {/* 🔑 MiniChart */}
-        <td
-          className="align-middle text-start"
-          style={{ minWidth: 120, maxWidth: 160 }}
-        >
+        <td className="align-middle text-start" style={{ minWidth: 120, maxWidth: 160 }}>
           {stock.recent_prices && stock.recent_prices.length > 0 ? (
             <MiniCandleChart
               data={stock.recent_prices.map(p => ({
@@ -566,187 +219,32 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
             <small className="text-muted">No price data</small>
           )}
         </td>
-        {/* Spike pattern column */}
-        <td>
-          <div>
-            {renderSpikeScoreBreakdown()}
-          </div>
+
+        <td className="align-middle text-center">
+          {/* Spike Breakdown */}
+          <SpikeScoreBreakdown spikeInfo={stock.spike_info?.[0]} />
         </td>
 
-        {/* Most impact column */}
         <td className="align-middle text-center">
           {stock.highest_impact_rank && (
             <div className="d-flex justify-content-center mb-2">
-              <Badge
-                bg="light"
-                className="border border-secondary"
-                style={{
-                  fontSize: "1rem",
-                  backgroundColor: "white",
-                  color: {
-                    "S+": "#dc3545",
-                    "S": "#e5533d",
-                    "A+": "#fd7e14",
-                    "A": "#0d6efd",
-                    "A-": "#f0ad4e",
-                    "B": "#0dcaf0",
-                    "C": "#6c757d",
-                    "D": "#212529"
-                  }[stock.highest_impact_rank] ?? "#000000",
-                  maxWidth: "120px",
-                  whiteSpace: "normal",
-                  overflowWrap: "break-word"
-                }}
-              >
-                <span style={{ fontSize: "0.75rem", color: "gray", marginRight: 4 }}>
-                  {stock.highest_impact_keyword}:
-                </span>
-                {stock.highest_impact_rank.replace(/\*/g, "").trim()}
-              </Badge>
+              {/* <span>{stock.highest_impact_keyword}: {stock.highest_impact_rank}</span> */}
+              <HighestImpactBadge keyword={stock.highest_impact_keyword} rank={stock.highest_impact_rank} />
             </div>
           )}
-
-          {stock.news_score !== undefined && (
-            <div className="d-flex justify-content-center">
-              <Badge
-                bg={getScoreColor(stock.news_score)}
-                className="border"
-                style={{ fontSize: "0.75rem" }}
-              >
-                {stock.news_score}
-              </Badge>
-            </div>
-          )}
-          {/* Space between rows */}
-          {/* {stock.spiked !== undefined && (
-            <Badge
-              bg={stock.spiked.toLowerCase() === "yes" ? "success" : "danger"}
-              className="border me-2"
-              style={{ fontSize: "0.75rem" }}
-            >
-              Spiked: {stock.spiked}
-            </Badge>
-          )}
-          {stock.spike_next !== undefined && (
-            <Badge
-              bg={
-                stock.spike_next >= 80
-                  ? "success"
-                  : stock.spike_next >= 60
-                  ? "info"
-                  : stock.spike_next >= 40
-                  ? "warning"
-                  : "danger"
-              }
-              className="border"
-              style={{ fontSize: "0.75rem" }}
-            >
-              Spike next: {stock.spike_next}
-            </Badge>
-          )} */}
         </td>
 
-        {/* Action / GPT */}
         <td className="align-middle text-center">
           <div className="d-flex flex-column align-items-center justify-content-center gap-2">
-            
-            {/* Recommendation Badge */}
-            {/* {stock.recommendation && (
-              <div className="d-flex justify-content-center">
-                <Badge
-                  pill
-                  bg={
-                    stock.recommendation === "Buy"
-                      ? "success"
-                      : stock.recommendation === "Sell"
-                      ? "danger"
-                      : "warning"
-                  }
-                >
-                  {stock.recommendation}
-                </Badge>
-              </div>
-            )} */}
-
-            {/* Promising Score Badge */}
-            {stock.promising_score !== undefined && (
-              <div className="d-flex justify-content-center">
-                <Badge
-                  bg={getScoreColor(stock.promising_score)}
-                  className="border"
-                  style={{ fontSize: "0.75rem" }}
-                >
-                  Score: {stock.promising_score}
-                </Badge>
-              </div>
-            )}
-
-            {/* Top News Verdict Badge */}
-            {Array.isArray(stock.top_news) && stock.top_news.length > 0 && latestThresholdDate && (() => {
-              const newsWithVerdict = stock.top_news.filter(
-                (n) => typeof n.impact_verdict === "string"
-              );
-              if (newsWithVerdict.length === 0) return null;
-
-              const bestNews = newsWithVerdict.sort((a, b) => {
-                const aRank = verdictRank[a.impact_verdict?.toUpperCase() ?? ""] ?? 0;
-                const bRank = verdictRank[b.impact_verdict?.toUpperCase() ?? ""] ?? 0;
-                return bRank - aRank;
-              })[0];
-
-              const verdict = bestNews.impact_verdict?.toUpperCase() ?? "";
-
-              const badgeColor =
-                verdict === "S+" ? "danger" :
-                verdict === "S" ? "success" :
-                verdict === "A+" ? "primary" :
-                verdict === "A" ? "warning" :
-                verdict === "A-" ? "info" :
-                verdict === "B" ? "secondary" :
-                verdict === "C" ? "dark" :
-                verdict === "D" ? "danger" : "light";
-
-              const textColor = verdict === "C" || verdict === "D" ? "light" : "light";
-
-              const publishedAt = new Date(bestNews.published_at);
-              const thresholdDate = new Date(
-                Date.UTC(
-                  latestThresholdDate.getUTCFullYear(),
-                  latestThresholdDate.getUTCMonth(),
-                  latestThresholdDate.getUTCDate(),
-                  6, 29, 0
-                )
-              );
-
-              const isVeryRecent = publishedAt >= thresholdDate;
-              const verdictLabel = `${verdict}${isVeryRecent ? " ⭐️" : ""}`;
-
-              return (
-                <div className="d-flex justify-content-center">
-                  <Badge
-                    bg={badgeColor}
-                    text={textColor}
-                    className="border"
-                    style={{ fontSize: "0.75rem" }}
-                  >
-                    {verdictLabel}
-                  </Badge>
-                </div>
-              );
-            })()}
-
-            {/* Analysis Button */}
+            <PromisingScoreBadge score={stock.promising_score} />
+            <TopNewsVerdictBadge topNews={stock.top_news} latestThresholdDate={latestThresholdDate} />
             <div className="d-flex justify-content-center">
               <Button
                 variant="outline-secondary"
                 size="sm"
                 onClick={handleAnalysisClick}
                 disabled={loading}
-                style={{
-                  minWidth: 90,
-                  fontSize: "0.75rem",
-                  padding: "0.25rem 0.5rem",
-                }}
+                style={{ minWidth: 90, fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
               >
                 {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
               </Button>
@@ -758,338 +256,34 @@ const PreMarketStockRow: React.FC<PreMarketStockRowProps> = ({
           <div>{stock.volume_rate.toFixed(2)}</div>
           <div>{stock.money_flow_rate.toFixed(2)}</div>
         </td>
+
         <td className="align-middle text-center">
           <div>{stock.current_volume.toLocaleString()}</div>
           <div>{stock.avg_volume_5d.toLocaleString()}</div>
         </td>
 
-        {/* 🔑 Key Signals column */}
-        {/* <td className="align-middle text-start">
-          {renderKeySignals()}
-        </td> */}
         <td className="align-middle text-center">
           <span
-            style={{
-              color: isOld ? "#999" : undefined,
-              fontStyle: isOld ? "italic" : undefined,
-            }}
+            style={{ color: isOld ? "#999" : undefined, fontStyle: isOld ? "italic" : undefined }}
             title={new Date(stock.detected_at + "Z").toLocaleString()}
           >
-            {formatDistance(new Date(stock.detected_at + "Z"), new Date(), {
-              addSuffix: true,
-            })}
+            {formatDistance(new Date(stock.detected_at + "Z"), new Date(), { addSuffix: true })}
           </span>
         </td>
       </tr>
 
-      <Modal size="xl" show={showModal} onHide={() => setShowModal(false)} scrollable>
-        <Modal.Header closeButton>
-          <Modal.Title>Analysis for {stock.ticker}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Tabs defaultActiveKey="volume" id="analysis-tabs" className="mb-3">
-            <Tab eventKey="volume" title="Pre-market">
-              {error && <p className="text-danger">{error}</p>}
-              {!error && !analysis && <p>Loading analysis...</p>}
-              {analysis && (
-                <>
-                  <Row>
-                    <Col md={4}>
-                      <h5>Volume Info</h5>
-                      <ul>
-                        <li>Name: {analysis.volume_info.name}</li>
-                        <li>Current Price: {analysis.volume_info.current_price.toFixed(2)}</li>
-                        <li>Price Change: {analysis.volume_info.price_change.toFixed(2)}</li>
-                        <li>Volume Rate: {analysis.volume_info.volume_rate.toFixed(2)}</li>
-                        <li>Money Flow Rate: {analysis.volume_info.money_flow_rate.toFixed(2)}</li>
-                        <li>Current Volume: {analysis.volume_info.current_volume.toLocaleString()}</li>
-                        <li>Avg Volume (5d): {analysis.volume_info.avg_volume_5d.toLocaleString()}</li>
-                        <li>
-                          Detected At:{" "}
-                          {formatDistance(new Date(analysis.volume_info.detected_at + "Z"), new Date(), {
-                            addSuffix: true,
-                          })}
-                        </li>
-                        {/* <li>
-                          Drop From High (%): {analysis.volume_info.drop_from_high_pct?.toFixed(2) ?? "N/A"}
-                        </li>
-                        <li>
-                          Rebound From Low (%): {analysis.volume_info.rebound_from_low_pct?.toFixed(2) ?? "N/A"}
-                        </li>
-                        <li>Highest Price: {analysis.volume_info.highest_price ?? "N/A"}</li>
-                        <li>Lowest Price: {analysis.volume_info.lowest_price ?? "N/A"}</li> */}
-                        <li>
-                          1st Spike Date: {analysis.volume_info.spike_info?.[0]?.spike_date ?? "N/A"}
-                        </li>
-                        <li>
-                          1st Close↑High: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.first_day_close_near_high ? "Yes" : "No")}
-                        </li>
-                        <li>
-                          Respikes: {analysis.volume_info.spike_info?.[0]?.number_of_respikes ?? "N/A"}
-                        </li>
-                        <li>
-                          Drop↓High (%): {analysis.volume_info.spike_info?.[0]?.drop_from_high_pct?.toFixed(2) ?? "N/A"}
-                        </li>
-                        <li>
-                          Close↓Low: {highlightKeywords(analysis.volume_info.spike_info?.[0]?.last_day_close_near_low ? "Yes" : "No")}
-                        </li>
-                      </ul>
-                    </Col>
-
-                    {/* <Col md={4}>
-                      <h5>Analysis Signals</h5>
-                      {analysis.analysis_signal ? (
-                        <ul>
-                          <li>Candle Pattern: {highlightKeywords(analysis.analysis_signal.candle_pattern ?? "None")}</li>
-                          <li>
-                            Breakout: {highlightKeywords(analysis.analysis_signal.breakout_detected ? "Yes" : "No")},{" "}
-                            Resistance: {analysis.analysis_signal.resistance_level ?? "N/A"},{" "}
-                            Close: {analysis.analysis_signal.close_today ?? "N/A"}
-                          </li>
-                          <li>RSI: {analysis.analysis_signal.rsi ?? "N/A"}</li>
-                          <li>
-                            MACD: Line={analysis.analysis_signal.macd_line ?? "N/A"}, Signal={analysis.analysis_signal.macd_signal ?? "N/A"}, Hist={analysis.analysis_signal.macd_hist ?? "N/A"}
-                          </li>
-                          <li>
-                            BBands: Upper={analysis.analysis_signal.bb_upper?.toFixed(2) ?? "N/A"}, Middle={analysis.analysis_signal.bb_middle?.toFixed(2) ?? "N/A"}, Lower={analysis.analysis_signal.bb_lower?.toFixed(2) ?? "N/A"}, Price={analysis.analysis_signal.bb_current_price?.toFixed(2) ?? "N/A"}
-                          </li>
-                          <li>SMA50: {analysis.analysis_signal.sma_50 ?? "N/A"}</li>
-                          <li>SMA200: {analysis.analysis_signal.sma_200 ?? "N/A"}, EMA20: {analysis.analysis_signal.ema_20 ?? "N/A"}, Crossover: {analysis.analysis_signal.sma_crossover ?? "N/A"}</li>
-                          <li>
-                            Patterns: W-Shape={highlightKeywords(analysis.analysis_signal.w_shape ? "Yes" : "No")}, Flags/Pennants={highlightKeywords(analysis.analysis_signal.flags_pennants ? "Yes" : "No")}, Triangle={highlightKeywords(analysis.analysis_signal.triangle ? "Yes" : "No")}
-                          </li>
-                        </ul>
-                      ) : (
-                        <p className="text-muted">(No analysis signal available)</p>
-                      )}
-                    </Col> */}
-
-                    {/* Long-Term Indicator Column */}
-                    {/* <Col md={3}>
-                      <h5>📊 Long-Term Indicators</h5>
-                      <ul>
-                        <li>
-                          PER: {analysis.longterm_info.stock_per} vs Industry Avg: {analysis.longterm_info.industry_per}{" "}
-                          {compareIndicator(analysis.longterm_info.stock_per, analysis.longterm_info.industry_per, "lower")}
-                        </li>
-                        <li>
-                          PBR: {analysis.longterm_info.stock_pbr} vs Industry Avg: {analysis.longterm_info.industry_pbr}{" "}
-                          {compareIndicator(analysis.longterm_info.stock_pbr, analysis.longterm_info.industry_pbr, "lower")}
-                        </li>
-                        <li>
-                          ROE: {analysis.longterm_info.stock_roe}% vs Industry Avg: {analysis.longterm_info.industry_roe}%{" "}
-                          {compareIndicator(analysis.longterm_info.stock_roe, analysis.longterm_info.industry_roe, "higher")}
-                        </li>
-                        <li>
-                          EPS: {analysis.longterm_info.eps} / BPS: {analysis.longterm_info.bps}
-                        </li>
-                        <li>
-                          Dividend Yield: {analysis.longterm_info.dividend_yield}%{" "}
-                          {compareIndicator(analysis.longterm_info.dividend_yield, 1, "higher")}
-                        </li>
-                        <li>
-                          Debt Ratio: {analysis.longterm_info.debt_ratio}%{" "}
-                          {compareIndicator(analysis.longterm_info.debt_ratio, 100, "lower")}
-                        </li>
-                        <li>Market Cap: ¥{analysis.longterm_info.market_cap}</li>
-                        <li>
-                          Industry: {analysis.longterm_info.industry_name || "N/A"}
-                        </li>
-                      </ul>
-                    </Col> */}
-
-                    <Col md={4}>
-                      {/* <h5>Recent Uptrend</h5>
-                      {analysis.volume_info.uptrend ? (
-                        <ul>
-                          <li>Had Uptrend: {highlightKeywords(analysis.volume_info.uptrend.had_uptrend ? "Yes" : "No")}</li>
-                          <li>Rise %: {analysis.volume_info.uptrend.rise_pct !== undefined ? analysis.volume_info.uptrend.rise_pct.toFixed(2) : "N/A"}</li>
-                          <li>From: {analysis.volume_info.uptrend.from_date ?? "N/A"} To: {analysis.volume_info.uptrend.to_date ?? "N/A"}</li>
-                        </ul>
-                      ) : (
-                        <p className="text-muted">(No uptrend data)</p>
-                      )}
-
-                      <h5>Recent Downtrend</h5>
-                      {analysis.volume_info.downtrend ? (
-                        <ul>
-                          <li>Had Downtrend: {highlightKeywords(analysis.volume_info.downtrend.had_downtrend ? "Yes" : "No")}</li>
-                          <li>Drop %: {analysis.volume_info.downtrend.drop_pct !== undefined ? analysis.volume_info.downtrend.drop_pct.toFixed(2) : "N/A"}</li>
-                          <li>From: {analysis.volume_info.downtrend.from_date ?? "N/A"} To: {analysis.volume_info.downtrend.to_date ?? "N/A"}</li>
-                        </ul>
-                      ) : (
-                        <p className="text-muted">(No downtrend data)</p>
-                      )} */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                        <div style={{ flex: "1 1 300px", minWidth: 300 }}>
-                          <h5 className="mb-3">📉 15-Day Chart</h5>
-                          {analysis.volume_info.recent_prices && analysis.volume_info.recent_prices.length > 0 ? (
-                            <MiniCandleChart
-                              data={analysis.volume_info.recent_prices.map(p => ({
-                                date: p.date,
-                                open: p.open,
-                                high: p.high,
-                                low: p.low,
-                                close: p.close,
-                              }))}
-                            />
-                          ) : (
-                            <p className="text-muted">No price data</p>
-                          )}
-                        </div>
-
-                        <div style={{ flexShrink: 0, marginTop: "1.5rem" }}>
-                          <h5 style={{ marginBottom: "0.25rem" }}>
-                            📈{" "}
-                            <a
-                              href={analysis.volume_info.kabutan_chart_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ whiteSpace: "nowrap" }}
-                            >
-                              View Kabutan Chart
-                            </a>
-                          </h5>
-                        </div>
-                      </div>
-                    </Col>
-                  </Row>
-
-                  {/* NEW MOMENTUM SIGNALS SECTION */}
-                  {/* <Row className="mt-4">
-                    <Col>
-                      <h5>Momentum Score: {analysis.volume_info.momentum_score ?? "N/A"}</h5>
-                      <p>Confidence: {analysis.volume_info.momentum_confidence ?? "N/A"}</p>
-                      <h5>Momentum Signals (🔑 must be satisfied)</h5>
-                      {analysis.volume_info.momentum_signals && analysis.volume_info.momentum_signals.length > 0 ? (
-                        <ul>
-                          {analysis.volume_info.momentum_signals.map((signal, idx) => {
-                            const isCritical =
-                              signal.label === "Volume Rate > 3 / 5 / 10" ||
-                              signal.label === "Price vs SMA50" ||
-                              signal.label === "MACD Bullish Crossover";
-
-                            const scoreColor =
-                              signal.score < 0
-                                ? { color: "red", fontWeight: "bold" }
-                                : signal.passed
-                                ? { color: "#0d6efd", fontWeight: "bold" }
-                                : {};
-
-                            return (
-                              <li key={idx}>
-                                <strong style={isCritical ? { color: "#8f2825" } : {}}>
-                                  {isCritical ? "🔑 " : ""}
-                                  {signal.label}
-                                </strong>
-                                :{" "}
-                                <span style={scoreColor}>
-                                  {signal.passed ? "✅" : "❌"} {signal.score > 0 ? `+${signal.score}` : signal.score} — {signal.meaning}
-                                </span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-muted">(No momentum signals available)</p>
-                      )}
-                    </Col>
-                  </Row> */}
-
-                  <h5 className="mt-4">Summary</h5>
-                  <div className="mb-4">
-                    {analysis.volume_info.recommendation && (
-                      <div className="mb-1">
-                        Recommendation: {highlightKeywords(analysis.volume_info.recommendation)}
-                      </div>
-                    )}
-                    <div className="mb-1">Promising Score: {analysis.volume_info.promising_score ?? "?"}</div>
-                  </div>
-
-                  <h5 className="mt-4">GPT Reasoning</h5>
-                  <p style={{ whiteSpace: "pre-wrap" }}>
-                    {analysis.volume_info.reasoning || "(No reasoning provided)"}
-                  </p>
-
-                  {Array.isArray(analysis.volume_info.top_news) && analysis.volume_info.top_news.length > 0 && (
-                    <>
-                      <h5 className="mt-4">Top News</h5>
-                      <ul className="list-unstyled">
-                        {analysis.volume_info.top_news.map((item, idx) => (
-                          <li key={idx} className="mb-3">
-                            <a href={item.url} target="_blank" rel="noopener noreferrer">
-                              {item.headline}
-                            </a>
-                            <br />
-                            <small className="text-muted">
-                              [{item.category}] {new Date(item.published_at).toLocaleString()}
-                            </small>
-                            <br />
-                            <strong>Keyword:</strong> {highlightKeywords(item.keyword)}: {highlightRank(item.rank)}
-                            <br />
-                            <em style={{ display: "block", marginTop: "0.25rem" }}>
-                              {item.impact_reason}
-                            </em>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* Sticky bottom-right note box */}
-              <div
-                style={{
-                  position: "sticky",
-                  bottom: 0,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  background: "transparent",
-                  zIndex: 2,
-                }}
-              >
-                <div
-                  style={{
-                    width: "35%",
-                    background: "white",
-                    padding: "8px",
-                    borderTop: "1px solid #ddd",
-                    boxShadow: "0 -2px 6px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  <label htmlFor="stock-note" className="form-label fw-bold">
-                    📝 Note
-                  </label>
-                  <textarea
-                    id="stock-note"
-                    className="form-control"
-                    rows={3}
-                    value={noteValue}
-                    onChange={(e) => setNoteValue(e.target.value)}
-                    disabled={isSaving}
-                  />
-                  <button
-                    className="btn btn-primary btn-sm mt-2"
-                    onClick={() => onNoteChange(stock.ticker, noteValue)}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? "Saving..." : "Save Note"}
-                  </button>
-                </div>
-              </div>
-            </Tab>
-            <Tab eventKey="intraday" title="Intraday Analyze">
-              <IntradayAnalyzeTab ticker={stock.ticker} />
-            </Tab>
-          </Tabs>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>
-            Close
-          </Button>
-        </Modal.Footer>
-      </Modal>
+      <PreMarketStockModal
+        stockTicker={stock.ticker}
+        show={showModal}
+        onClose={() => setShowModal(false)}
+        analysis={analysis}
+        error={error}
+        latestThresholdDate={latestThresholdDate}
+        onNoteChange={onNoteChange}
+        noteValue={noteValue}
+        setNoteValue={setNoteValue}
+        isSaving={isSaving}
+      />
     </>
   );
 };
