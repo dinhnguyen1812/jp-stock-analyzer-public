@@ -138,7 +138,6 @@ def scan_and_analyze_news_for_ticker(
         "    '大型受注': 'A+',\n"
 
         # A rank - strong positive
-        "    '筆頭株主変更': 'A',\n"
         "    '黒字転換': 'A',\n"
         "    '新市場参入': 'A',\n"
         "    '新サービス発表': 'A',\n"
@@ -147,6 +146,15 @@ def scan_and_analyze_news_for_ticker(
         "    '事業拡大': 'A',\n"
         "    '買収': 'A',\n"
         "    '独占契約': 'A',\n"
+        "    '新任紹介': 'A',\n"
+        "    '受賞': 'A',\n"
+        "    '新ビージョン': 'A',\n"
+        "    '販売契約': 'A',\n"
+        "    '増益': 'A',\n"
+        "    '今期 業績予想 50%増益以上': 'A',\n"
+        "    'サプライズ決算': 'A',\n"
+        "    '四半期サプライズ決算': 'A',\n"
+        "    '利益倍増': 'A',\n"
 
         # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"
@@ -155,6 +163,8 @@ def scan_and_analyze_news_for_ticker(
         "    'fisco注目': 'A-',\n"
         "    'ストップ高': 'A-',\n"
         "    '動意株': 'A-',\n"
+        "    'Technical': 'A-',\n"
+        "    '業績予想 上方修正': 'A-',\n"
 
         # B rank - moderate positive
         "    '中期経営計画': 'B',\n"
@@ -162,16 +172,10 @@ def scan_and_analyze_news_for_ticker(
         "    '特別利益': 'B',\n"
         "    '株主優待増額': 'B',\n"
         "    '配当増額': 'B',\n"
-        "    '販売契約': 'B',\n"
         "    '大量保有報告書': 'B',\n"
-        "    'サプライズ決算': 'B',\n"
-        "    '四半期サプライズ決算': 'B',\n"
-        "    '増益': 'B',\n"
         "    '赤字縮小': 'B',\n"
-        "    '利益倍増': 'B',\n"
-        "    '今期 業績予想 50%増益以上': 'B',\n"
-        "    '業績予想 上方修正': 'B',\n"
         "    '月次売上・業績データ': 'B',\n"
+        "    '筆頭株主変更': 'B',\n"
 
         # C rank - negative or neutral
         "    '施設閉鎖': 'C',\n"
@@ -188,6 +192,7 @@ def scan_and_analyze_news_for_ticker(
         "    '資本金変更': 'D',\n"
         "    '再掲IR': 'D',\n"
         "    '過去の材料再加熱': 'D'\n"
+        "    '上場廃止': 'D'\n"
         "  }\n"
         "\n"
         # "- 🔧 Booster Instruction:\n"

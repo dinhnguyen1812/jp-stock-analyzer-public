@@ -198,10 +198,11 @@ Flat: '3071', '3521', '9423' x, '6494', '6775', '6048', '190A', '1711' x, '6803'
 
 注目: 4594, 3777, 6573, 7571
 
-- Fetch watchlist
+<!-- - Fetch watchlist
   - Use get_saved_vs (all the info without gpt analysis)
 - Add pin to database
-  - Before that, save the current db to a sql file for migration
+  - Before that, save the current db to a sql file for migration -->
+- Add delete data button
 
 Package            Version
 ------------------ -----------
@@ -247,3 +248,5 @@ tzdata             2025.2
 urllib3            2.5.0
 uvicorn            0.35.0
 wheel              0.45.1
+
+remove 8107, 8836, 7035,

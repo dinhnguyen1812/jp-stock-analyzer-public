@@ -166,6 +166,7 @@ def create_entry_and_analyze(db: Session, ticker: str, amount: int, entry_price:
     volume_info = get_intraday_volume_info_for_ticker(db, ticker)
     if not volume_info:
         raise HTTPException(status_code=404, detail="Volume info not available")
+        # print("Volume info not available")
 
     # 3. Get signal
     analysis_signal = (

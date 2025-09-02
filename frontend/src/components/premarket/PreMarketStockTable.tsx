@@ -66,6 +66,8 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({
     starred: (stock as any).starred ?? false,
     watched: (stock as any).watched ?? false,
     detected_at: stock.detected_at || new Date().toISOString(),
+    // pull spike score from first spike_info (option b)
+    spike_score: (stock as any).spike_info?.[0]?.score ?? 0,
   });
 
   const handleSort = (key: SortKey | "action_column") => {
@@ -82,7 +84,10 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({
     }
   };
 
-  const sortedStocks = [...stocks].sort((a, b) => {
+  // --- IMPORTANT: normalize stocks first, then sort the normalized array ---
+  const normalizedStocks = stocks.map(normalizeStock);
+
+  const sortedStocks = [...normalizedStocks].sort((a, b) => {
     const aStar = a.starred ? 1 : 0;
     const bStar = b.starred ? 1 : 0;
 
@@ -90,8 +95,8 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({
     if (bStar !== aStar) return bStar - aStar;
 
     // Then sort by selected sortKey
-    const aVal = a[sortKey] ?? 0;
-    const bVal = b[sortKey] ?? 0;
+    const aVal = (a as any)[sortKey] ?? 0;
+    const bVal = (b as any)[sortKey] ?? 0;
 
     if (sortKey === "detected_at") {
       return sortOrder === "asc"
@@ -99,7 +104,10 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({
         : new Date(bVal as string).getTime() - new Date(aVal as string).getTime();
     }
 
-    return sortOrder === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    // fallback numeric comparison (treat missing as 0)
+    return sortOrder === "asc"
+      ? (Number(aVal) || 0) - (Number(bVal) || 0)
+      : (Number(bVal) || 0) - (Number(aVal) || 0);
   });
 
   const latestDetectedAt = sortedStocks.length
@@ -221,12 +229,11 @@ const PreMarketStockTable: React.FC<PreMarketStockTableProps> = ({
         </thead>
         <tbody>
           {sortedStocks.map((stock) => {
-            const normalized = normalizeStock(stock);
-
+            // stock is already normalized (we sorted normalizedStocks)
             return (
               <PreMarketStockRow
                 key={stock.ticker}
-                stock={{ ...normalized }}
+                stock={{ ...stock }}
                 latestDetectedAt={latestDetectedAt}
                 latestThresholdDate={latestTradingDay}
                 onStarToggle={onStarToggle}

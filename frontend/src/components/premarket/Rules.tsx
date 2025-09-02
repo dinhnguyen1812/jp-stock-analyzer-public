@@ -28,7 +28,11 @@ Avoid overexposing to a single volatile stock.
 const TRADING_RULES = `
 📌 Do
 Strong news → Multiple spikes
-Pattern: 連続 S高 → then S安 → goes flat → spikes again.
+Pattern: 連続 S高 → then S安 → goes flat (not near S安) → spikes again.
+All MA go flat.
+Lower high -> bearish
+Higher low -> bullish
+Look at volume surge
 ✔ Trade normally for 1–3 days during the flat phase.
 Ex: Marusho Hotta, Applink (drop → S高), Kimono (drop → +20%), CAICAD, Defconsulting, Wilson
 
@@ -61,9 +65,10 @@ Never use Market Order (成行)
 `;
 
 const MANUAL = `
-Clear all ⭐
-Scan news once → ⭐ strong ones → Analyze ⭐
-Scan flat stocks → Check watchlist → Analyze
+Scan news once → Analyze those with good news (gpt-4o)
+Scan flat stocks → Check watchlist → Remove bad ones → Analyze watchlist (gpt-3.5) - to see more information like volume,...
+Fetch → Analyze further (gpt-4o)
+Star promising ones to keep them pinned
 `;
 
 const WAVE_RULES = `

@@ -7,7 +7,7 @@ import PreMarketStockModal from "./PreMarketStockModal";
 import SpikeScoreBreakdown from "./SpikeScoreBreakdown";
 import type { SavedAnalysis } from "./types";
 import type { VolumeSurgeStock } from "../../types";
-import { fetchSavedPremarketAnalysis, starStock, unstarStock, watchStock, unwatchStock } from "../../api";
+import { fetchSavedPremarketAnalysis, starStock, unstarStock, watchStock, unwatchStock, analyzeSingleTicker } from "../../api";
 import PromisingScoreBadge from "./PromisingScoreBadge";
 import TopNewsVerdictBadge from "./TopNewsVerdictBadge";
 import HighestImpactBadge from "./HighestImpactBadge";
@@ -18,6 +18,7 @@ interface Props {
     spike_info?: any[];
     highest_impact_keyword?: string;
     highest_impact_rank?: string;
+    model?: string;
     promising_score?: number;
     news_score?: number;
     recommendation?: string | null;
@@ -111,6 +112,8 @@ const PreMarketStockRow: React.FC<Props> = ({
     new Date(latestDetectedAt).getTime() - ONE_HOUR_MS;
   
   const bgColor = !!stock.starred ? "#fff8dc" : undefined;
+
+  const [loadingTickers, setLoadingTickers] = useState<Record<string, boolean>>({});
 
   return (
     <>
@@ -228,9 +231,22 @@ const PreMarketStockRow: React.FC<Props> = ({
         <td className="align-middle text-center">
           {stock.highest_impact_rank && (
             <div className="d-flex justify-content-center mb-2">
-              {/* <span>{stock.highest_impact_keyword}: {stock.highest_impact_rank}</span> */}
-              <HighestImpactBadge keyword={stock.highest_impact_keyword} rank={stock.highest_impact_rank} />
+              <HighestImpactBadge
+                keyword={stock.highest_impact_keyword}
+                rank={stock.highest_impact_rank}
+                newsScore={stock.news_score}
+              />
             </div>
+          )}
+          {stock.model && (
+            <span
+              className={`badge ${
+                stock.model === "gpt-4o" ? "bg-primary" : "bg-success"
+              }`}
+              style={{ fontSize: "0.7rem" }}
+            >
+              {stock.model}
+            </span>
           )}
         </td>
 
@@ -249,6 +265,39 @@ const PreMarketStockRow: React.FC<Props> = ({
                 {loading ? <Spinner animation="border" size="sm" /> : "Analysis"}
               </Button>
             </div>
+            {/* Extra Analyze button */}
+            <div className="mt-1 d-flex justify-content-center">
+              <Button
+                variant="info"
+                size="sm"
+                disabled={loadingTickers[stock.ticker]}
+                onClick={async () => {
+                  try {
+                    setLoadingTickers(prev => ({ ...prev, [stock.ticker]: true }));
+                    const res = await analyzeSingleTicker(stock.ticker);
+                    console.log(res.message || `Analyzed ${stock.ticker}`);
+                  } catch (err: any) {
+                    console.error(err.message || `Failed to analyze ${stock.ticker}`);
+                  } finally {
+                    setLoadingTickers(prev => ({ ...prev, [stock.ticker]: false }));
+                  }
+                }}
+                style={{ fontSize: "0.7rem", padding: "0.2rem 0.4rem", minWidth: "60px" }}
+              >
+                {loadingTickers[stock.ticker] ? (
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  "Analyze"
+                )}
+              </Button>
+            </div>
+
           </div>
         </td>
 

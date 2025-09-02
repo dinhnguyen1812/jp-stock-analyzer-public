@@ -121,28 +121,6 @@ def premarket_analyze_with_gpt(
     update_avg_money_flow_for_ticker(db, ticker)
     now = datetime.now(timezone.utc)
 
-    # if volume_info.reasoning is not None:
-    #     detected_at = volume_info.detected_at
-    #     if detected_at is not None and (now - detected_at) < timedelta(hours=2):
-    #         # Skip processing
-    #         print("Skipping because reasoning exists and detected_at < 1 hour ago")
-    #         return
-
-    # seven_days_ago = datetime.now() - timedelta(days=7)
-
-    # low_score_exists = (
-    #     db.query(VolumeSnapshot)
-    #     .filter(
-    #         VolumeSnapshot.ticker == volume_info.ticker,
-    #         VolumeSnapshot.news_score <= 50,  # or <= 50 if you want to match the print
-    #         VolumeSnapshot.detected_at >= seven_days_ago
-    #     )
-    #     .first()
-    # )
-    # if low_score_exists:
-    #     print("⏩ Skipping: found previous snapshot with news_score <= 50")
-    #     return
-
     # Short term data
     if not news_items:
         return {"ticker": ticker, "volume_info": None, "top_news": [], "gpt_summary": "No recent news available."}
@@ -187,14 +165,6 @@ def premarket_analyze_with_gpt(
         # f"Detected At: {volume_info.detected_at.isoformat()}\n"
     )
 
-    # tech_summary = (
-    #     f"RSI: {signal.rsi or 'N/A'}\n"
-    #     f"MACD: {signal.macd_line}/{signal.macd_signal}\n"
-    #     f"Pattern: {signal.candle_pattern or 'N/A'}\n"
-    # ) if signal else "N/A"
-
-    # analysis_signal_data = get_latest_analysis_signal_data(db, ticker)
-
     recent_prices_query = (
         db.query(DailyPrice)
         .filter(DailyPrice.ticker == ticker)
@@ -212,19 +182,6 @@ def premarket_analyze_with_gpt(
         }
         for p in recent_prices_query
     ]
-
-    # momentum_result = calculate_momentum_score(volume_info, analysis_signal_data, recent_prices=recent_prices)
-    # volume_info.momentum_score = momentum_result["momentum_score"]
-    # volume_info.momentum_confidence = momentum_result["momentum_confidence"]
-    # volume_info.momentum_signals = momentum_result["momentum_signals"]
-
-    # momentum_summary = (
-    #     f"Confidence: {momentum_result['momentum_confidence']}\n"
-    #     f"Score: {momentum_result['momentum_score']}/10\n"
-    #     f"Signals:\n" +
-    #     "\n".join([f"- {signal}" for signal in momentum_result['momentum_signals']]) +
-    #     "\n"
-    # )
 
     # ↓↓↓ Apply recency penalty & prepare headline prompt ↓↓↓
     scored_news = []
@@ -251,7 +208,13 @@ def premarket_analyze_with_gpt(
         ]
     )
 
-    reference_summary = ""
+    if model is None:
+        volume_info.news_score = 1
+        volume_info.top_news = news_items
+        volume_info.model = model
+
+        db.commit()
+        return
 
     # Fetch the two most recent snapshots for this ticker
     vs_list = (
@@ -267,8 +230,9 @@ def premarket_analyze_with_gpt(
     # Extract latest news headline from Kabutan scrape
     latest_news_headline = news_items[0]["headline"] if news_items else None
 
-    if latest_vs and latest_news_headline == latest_vs.latest_news and latest_vs.model == "gpt-4o":
+    if latest_vs and latest_news_headline == latest_vs.latest_news and (latest_vs.model == "gpt-4o" or latest_vs.model == model):
         print(f"⏩ Skipping: Skip gpt analyze because no new news")
+        print(f"latest_news_headline={latest_news_headline}, latest_vs.latest_news={latest_vs.latest_news}")
 
         # Reuse GPT analysis since news hasn't changed
         volume_info.reasoning = latest_vs.reasoning
@@ -277,10 +241,6 @@ def premarket_analyze_with_gpt(
         volume_info.highest_impact_keyword = latest_vs.highest_impact_keyword
         volume_info.highest_impact_rank = latest_vs.highest_impact_rank
         volume_info.top_news = latest_vs.top_news
-
-        # volume_info.momentum_score = momentum_result["momentum_score"]
-        # volume_info.momentum_confidence = momentum_result["momentum_confidence"]
-        # volume_info.momentum_signals = momentum_result["momentum_signals"]
 
         volume_info.latest_news = latest_news_headline
         volume_info.model = "gpt-4o"
@@ -294,9 +254,6 @@ def premarket_analyze_with_gpt(
             "news_score": latest_vs.news_score,
             "headline_impacts": json.loads(latest_vs.top_news) if latest_vs.top_news else [],
             "summary": latest_vs.reasoning,
-            # "momentum_score": momentum_result["momentum_score"],
-            # "momentum_confidence": momentum_result["momentum_confidence"],
-            # "momentum_signals": momentum_result["momentum_signals"],
         }
 
     prompt = (
@@ -342,7 +299,12 @@ def premarket_analyze_with_gpt(
         "    '新任紹介': 'A',\n"
         "    '受賞': 'A',\n"
         "    '新ビージョン': 'A',\n"
-        "    '筆頭株主変更': 'A',\n"
+        "    '販売契約': 'A',\n"
+        "    '増益': 'A',\n"
+        "    '今期 業績予想 50%増益以上': 'A',\n"
+        "    'サプライズ決算': 'A',\n"
+        "    '四半期サプライズ決算': 'A',\n"
+        "    '利益倍増': 'A',\n"
 
         # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"
@@ -351,6 +313,8 @@ def premarket_analyze_with_gpt(
         "    'fisco注目': 'A-',\n"
         "    'ストップ高': 'A-',\n"
         "    '動意株': 'A-',\n"
+        "    'Technical': 'A-',\n"
+        "    '業績予想 上方修正': 'A-',\n"
 
         # B rank - moderate positive
         "    '中期経営計画': 'B',\n"
@@ -358,16 +322,10 @@ def premarket_analyze_with_gpt(
         "    '特別利益': 'B',\n"
         "    '株主優待増額': 'B',\n"
         "    '配当増額': 'B',\n"
-        "    '販売契約': 'B',\n"
         "    '大量保有報告書': 'B',\n"
-        "    'サプライズ決算': 'B',\n"
-        "    '四半期サプライズ決算': 'B',\n"
-        "    '増益': 'B',\n"
         "    '赤字縮小': 'B',\n"
-        "    '利益倍増': 'B',\n"
-        "    '今期 業績予想 50%増益以上': 'B',\n"
-        "    '業績予想 上方修正': 'B',\n"
         "    '月次売上・業績データ': 'B',\n"
+        "    '筆頭株主変更': 'B',\n"
 
         # C rank - negative or neutral
         "    '施設閉鎖': 'C',\n"
@@ -452,18 +410,13 @@ def premarket_analyze_with_gpt(
 
         recommendation, news_score = extract_recommendation_and_score(reply)
 
-        # spiked, spike_next = extract_spiked_and_spike_next(reply)
-
         impacts = extract_headline_impacts(reply)
-        # summary_match = re.search(r"Summary:\s*(.*?)\s*(- Investment|$)", reply, re.DOTALL)
-        # summary = summary_match.group(1).strip() if summary_match else ""
         summary_match = re.search(
-            r"##+ Summary:\s*(.*?)(?=\n##+|\Z)",
+            r"Summary:\s*(.*?)(?=\n[A-Z][^\n]*:|\Z)",
             reply,
             re.DOTALL
         )
         summary = summary_match.group(1).strip() if summary_match else ""
-
 
         highest_impact_keyword = None
         highest_impact_rank = None
@@ -495,14 +448,9 @@ def premarket_analyze_with_gpt(
         volume_info.reasoning = summary
         volume_info.recommendation = recommendation
         volume_info.news_score = news_score
-        # volume_info.spiked = spiked
-        # volume_info.spike_next = spike_next
         volume_info.highest_impact_keyword = highest_impact_keyword
         volume_info.highest_impact_rank = highest_impact_rank
         volume_info.top_news = json.dumps(top_enriched_news, ensure_ascii=False)
-        # volume_info.momentum_score = momentum_result["momentum_score"]
-        # volume_info.momentum_confidence = momentum_result["momentum_confidence"]
-        # volume_info.momentum_signals = momentum_result["momentum_signals"]
 
         volume_info.latest_news = latest_news_headline
         volume_info.model = model
@@ -517,15 +465,6 @@ def premarket_analyze_with_gpt(
             "headline_impacts": impacts,
             "summary": summary,
             "gpt_raw_response": reply,
-            # "downtrend": downtrend_info,
-            # "uptrend": uptrend_info,
-            # "drop_from_high_pct": drop_from_high_pct,
-            # "rebound_from_low_pct": rebound_from_low_pct,
-            # "highest_price": highest_price,
-            # "lowest_price": lowest_price,
-            # "momentum_score": momentum_result["momentum_score"],
-            # "momentum_confidence": momentum_result["momentum_confidence"],
-            # "momentum_signals": momentum_result["momentum_signals"],
         }
 
     except Exception as e:

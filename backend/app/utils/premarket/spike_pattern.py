@@ -196,7 +196,9 @@ def compute_spike_score(spike: StockSpikeAnalysis) -> int:
         score += 10
 
     # 1. Recency of spike (35 pts)
-    if spike.days_since_spike <= 5:
+    if spike.days_since_spike <= 2:
+        score += 35
+    elif spike.days_since_spike <= 5:
         score += 25
     elif spike.days_since_spike <= 10:
         score += 15
@@ -227,8 +229,12 @@ def compute_spike_score(spike: StockSpikeAnalysis) -> int:
     if spike.last_day_close_near_low:
         score += 15
 
-    # 5. Respikes (5 pts max)
-    score += min(spike.number_of_respikes, 1) * 5
+    # 5. Respikes
+    if spike.number_of_respikes > 3:
+        score += 0  # too many respikes → no points
+    else:
+        score += min(spike.number_of_respikes, 1) * 5
+
 
     return score
 

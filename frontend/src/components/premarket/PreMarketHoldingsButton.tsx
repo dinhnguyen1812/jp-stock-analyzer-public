@@ -162,10 +162,11 @@ const PreMarketHoldingButton: React.FC = () => {
                     <th>Current Price</th>
                     <th>Amount</th>
                     <th>Entry Time</th>
-                    <th>P/L (¥)</th>
-                    <th>P/L (%)</th>
-                    <th>Current Vol Rate</th>
-                    <th>Current Money Flow Rate</th>
+                    <th>P/L (¥/%)</th>
+                    <th>Stop Loss</th>
+                    <th>Sell Price</th>
+                    <th>Vol Rate</th>
+                    <th>Money Flow Rate</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -180,10 +181,16 @@ const PreMarketHoldingButton: React.FC = () => {
                         {formatToJST(entry.entry_time)}
                       </td>
                       <td style={{ color: entry.profit_amount >= 0 ? "green" : "red" }}>
-                        {entry.profit_amount}
-                      </td>
-                      <td style={{ color: entry.profit_percent >= 0 ? "green" : "red" }}>
+                        {entry.profit_amount}¥
                         {entry.profit_percent}%
+                      </td>
+                      {/* 🆕 Stop Loss */}
+                      <td style={{ color: "red" }}>
+                        {(entry.entry_price * 0.95).toFixed(2)}
+                      </td>
+                      {/* 🆕 Sell Price */}
+                      <td style={{ color: "green" }}>
+                        {(entry.entry_price * 1.2).toFixed(2)}
                       </td>
                       <td>{entry.volume_rate?.toFixed(2) ?? "-"}</td>
                       <td>{entry.money_flow_rate?.toFixed(2) ?? "-"}</td>

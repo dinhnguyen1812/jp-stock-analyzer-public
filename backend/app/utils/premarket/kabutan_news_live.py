@@ -192,9 +192,13 @@ def analyze_market_news(db: Session, news_items: List[Dict], model="gpt-3.5-turb
         "- 🧠 News Impact Ranking:\n"
         "- For each top headline, assign a keyword and rank based on this table:\n"
         "  {\n"
+        # S rank - strongest triggers
         "    'TOB / MBO': 'S',\n"
+
+        # A+ rank - very strong positive
         "    '大型受注': 'A+',\n"
-        "    '筆頭株主変更': 'A',\n"
+
+        # A rank - strong positive
         "    '黒字転換': 'A',\n"
         "    '新市場参入': 'A',\n"
         "    '新サービス発表': 'A',\n"
@@ -203,39 +207,53 @@ def analyze_market_news(db: Session, news_items: List[Dict], model="gpt-3.5-turb
         "    '事業拡大': 'A',\n"
         "    '買収': 'A',\n"
         "    '独占契約': 'A',\n"
+        "    '新任紹介': 'A',\n"
+        "    '受賞': 'A',\n"
+        "    '新ビージョン': 'A',\n"
+        "    '販売契約': 'A',\n"
+        "    '増益': 'A',\n"
+        "    '今期 業績予想 50%増益以上': 'A',\n"
+        "    'サプライズ決算': 'A',\n"
+        "    '四半期サプライズ決算': 'A',\n"
+        "    '利益倍増': 'A',\n"
+
+        # A- rank - technical signals
         "    'ゴールデンクロス': 'A-',\n"
         "    '±３σブレイク': 'A-',\n"
         "    'ボリンジャーバンド上抜け': 'A-',\n"
         "    'fisco注目': 'A-',\n"
         "    'ストップ高': 'A-',\n"
         "    '動意株': 'A-',\n"
+        "    'Technical': 'A-',\n"
+        "    '業績予想 上方修正': 'A-',\n"
+
+        # B rank - moderate positive
         "    '中期経営計画': 'B',\n"
         "    '株式買戻し': 'B',\n"
         "    '特別利益': 'B',\n"
         "    '株主優待増額': 'B',\n"
         "    '配当増額': 'B',\n"
-        "    '販売契約': 'B',\n"
         "    '大量保有報告書': 'B',\n"
-        "    'サプライズ決算': 'B',\n"
-        "    '四半期サプライズ決算': 'B',\n"
-        "    '増益': 'B',\n"
         "    '赤字縮小': 'B',\n"
-        "    '利益倍増': 'B',\n"
-        "    '今期 業績予想 50%増益以上': 'B',\n"
-        "    '業績予想 上方修正': 'B',\n"
         "    '月次売上・業績データ': 'B',\n"
+        "    '筆頭株主変更': 'B',\n"
+
+        # C rank - negative or neutral
         "    '施設閉鎖': 'C',\n"
         "    '運営終了': 'C',\n"
         "    '事業報告': 'C',\n"
         "    '株式発行': 'C',\n"
         "    '株主総会': 'C',\n"
         "    '一目均衡表・雲抜け': 'C',\n"
+
+        # D rank - negative
         "    '減益': 'D',\n"
         "    '赤字転落': 'D',\n"
         "    '赤字拡大': 'D'\n"
         "    '資本金変更': 'D',\n"
         "    '再掲IR': 'D',\n"
         "    '過去の材料再加熱': 'D'\n"
+        "    '上場廃止': 'D'\n"
         "  }\n\n"
 
         "- 🔧 Booster Instruction:\n"

@@ -4,6 +4,7 @@ import PreMarketScanNewsCard from "../components/premarket/PreMarketScanNewsCard
 import PreMarketStockTable from "../components/premarket/PreMarketStockTable";
 import PreMarketHoldingButton from "../components/premarket/PreMarketHoldingsButton";
 import Rules from "../components/premarket/Rules";
+import AlwaysVisibleNote from "../components/premarket/AlwaysVisibleNote";
 import type { VolumeSurgeStock } from "../types";
 import {
   scanPreMarketVolumeSurges,
@@ -191,6 +192,9 @@ const handleFlatScan = async () => {
         <PreMarketHoldingButton />
         <Rules />
       </div>
+
+      {/* Always Visible Notes */}
+      <AlwaysVisibleNote />
 
       {/* News Scanner Section */}
       <PreMarketScanNewsCard />

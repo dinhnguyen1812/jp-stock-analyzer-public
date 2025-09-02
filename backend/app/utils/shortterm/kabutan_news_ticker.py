@@ -39,7 +39,7 @@ def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: float = 60
     page = 1
 
     try:
-        while len(news_items) < limit and page < 3:
+        while len(news_items) < limit and page < 5:
             url = base_url + str(page)
             resp = httpx.get(url, headers=headers, timeout=10)
             resp.raise_for_status()
@@ -89,14 +89,15 @@ def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: float = 60
                 if href and not href.startswith("http"):
                     href = f"https://kabutan.jp{href}"
 
-                score = relevance_score(headline)
+                # ❌ Skip "本日の【" or "前日に動いた"
+                if headline.startswith("本日の【") or headline.startswith("前日に動いた"):
+                    continue
 
                 news_items.append({
                     "published_at": published_at,
                     "category": category,
                     "headline": headline,
                     "url": href,
-                    "score": score
                 })
 
                 if len(news_items) >= limit:
@@ -107,7 +108,7 @@ def scrape_kabutan_news(ticker: str, limit: int = 30, days_threshold: float = 60
 
             page += 1  # move to next page
 
-        news_items.sort(key=lambda x: (x["score"], x["published_at"]), reverse=True)
+        # news_items.sort(key=lambda x: (x["score"], x["published_at"]), reverse=True)
         return news_items
 
     except Exception as e:

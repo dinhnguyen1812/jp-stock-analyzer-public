@@ -195,6 +195,7 @@ def get_all_saved_volume_analyses(
 ):
     analyze_intraday = check_market_hours(db)
 
+    # Base query for latest snapshots
     query = (
         db.query(
             VolumeSnapshot.ticker,
@@ -203,37 +204,55 @@ def get_all_saved_volume_analyses(
         .filter(VolumeSnapshot.news_score > 0)
     )
 
-    # ✅ Only apply detected_at_max_age_days if NOT starred/watched
-    if detected_at_max_age_days and not (starred_only or watched_only):
-        threshold_time = datetime.datetime.utcnow() - datetime.timedelta(days=detected_at_max_age_days)
-        query = query.filter(VolumeSnapshot.detected_at >= threshold_time)
+    # Compute time threshold
+    threshold_time = datetime.datetime.utcnow() - datetime.timedelta(days=detected_at_max_age_days)
+
+    # Always include recent snapshots
+    time_filter = VolumeSnapshot.detected_at >= threshold_time
+
+    # Always include starred or watched stocks, regardless of time
+    starred_subq = db.query(StarredStock.ticker).subquery()
+    watched_subq = db.query(WatchList.ticker).subquery()
+
+    query = query.filter(
+        or_(
+            time_filter,
+            VolumeSnapshot.ticker.in_(starred_subq),
+            VolumeSnapshot.ticker.in_(watched_subq),
+        )
+    )
 
     if surge_threshold > 0:
         query = query.filter(VolumeSnapshot.volume_rate >= surge_threshold)
 
-    if price_threshold > 0:
-        query = query.filter(VolumeSnapshot.current_price <= price_threshold)
+    # if price_threshold > 0:
+    #     query = query.filter(VolumeSnapshot.current_price <= price_threshold)
 
+    # Narrow down to explicit flags if user requested
     if starred_only and watched_only:
-        query = query.outerjoin(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker) \
-                     .outerjoin(WatchList, VolumeSnapshot.ticker == WatchList.ticker) \
+        query = query.outerjoin(starred_subq, VolumeSnapshot.ticker == starred_subq.c.ticker) \
+                     .outerjoin(watched_subq, VolumeSnapshot.ticker == watched_subq.c.ticker) \
                      .filter(
                          or_(
-                             StarredStock.ticker != None,
-                             WatchList.ticker != None
+                             starred_subq.c.ticker != None,
+                             watched_subq.c.ticker != None
                          )
                      )
     elif starred_only:
-        query = query.join(StarredStock, VolumeSnapshot.ticker == StarredStock.ticker)
+        query = query.join(starred_subq, VolumeSnapshot.ticker == starred_subq.c.ticker)
     elif watched_only:
-        query = query.join(WatchList, VolumeSnapshot.ticker == WatchList.ticker)
+        query = query.join(watched_subq, VolumeSnapshot.ticker == watched_subq.c.ticker)
 
     query = query.group_by(VolumeSnapshot.ticker)
     subq = query.subquery()
 
     latest_snapshots = (
         db.query(VolumeSnapshot)
-        .join(subq, (VolumeSnapshot.ticker == subq.c.ticker) & (VolumeSnapshot.detected_at == subq.c.latest_detected_at))
+        .join(
+            subq,
+            (VolumeSnapshot.ticker == subq.c.ticker)
+            & (VolumeSnapshot.detected_at == subq.c.latest_detected_at)
+        )
         .all()
     )
 
@@ -280,6 +299,7 @@ def get_all_saved_volume_analyses(
                 "top_news": top_news,
                 "highest_impact_keyword": vs.highest_impact_keyword,
                 "highest_impact_rank": vs.highest_impact_rank,
+                "model": vs.model,
                 "starred": bool(db.query(StarredStock).filter_by(ticker=vs.ticker).first()),
                 "watched": bool(db.query(WatchList).filter_by(ticker=vs.ticker).first()),
                 "momentum_score": vs.momentum_score,
@@ -474,8 +494,8 @@ def set_note(
 def analyze_single_ticker(
     ticker: str,
     top_n: int = 3,
-    # model: str = "gpt-4o",
-    model: str = "gpt-3.5-turbo",
+    model: str = "gpt-4o",
+    # model: str = "gpt-3.5-turbo",
     db: Session = Depends(get_db)
 ):
     # is_market_hours = check_market_hours(db)
@@ -606,7 +626,7 @@ def analyze_watch_list(
     top_n: int = 3,
     db: Session = Depends(get_db)
 ):
-    extra_guidance = "### FOCUS ON **POSSIBLE RE-SPIKE**. If there is possible re-spike, provide more details about **HOW TO ENTRY**"
+    extra_guidance = "### FOCUS ON **FLAT PATTERN** OR **POSSIBLE RE-SPIKE**."
     # is_market_hours = check_market_hours(db)
     watchlist_tickers = [t[0] for t in db.query(WatchList.ticker).all()]
     results = []
@@ -624,21 +644,21 @@ def analyze_watch_list(
                 detected_type="watchlist"
             )
 
-            # Check if promising for reanalysis
-            volume_info = get_volume_info(db, ticker=ticker)
-            if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
-                try:
-                    analyze_ticker_by_steps(
-                        db=db,
-                        ticker=ticker,
-                        top_n=top_n,
-                        model="gpt-4o",
-                        # is_market_hours=is_market_hours,
-                        extra_guidance=extra_guidance,
-                        detected_type="watchlist"
-                    )
-                except Exception as e:
-                    print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+            # # Check if promising for reanalysis
+            # volume_info = get_volume_info(db, ticker=ticker)
+            # if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
+            #     try:
+            #         analyze_ticker_by_steps(
+            #             db=db,
+            #             ticker=ticker,
+            #             top_n=top_n,
+            #             model="gpt-4o",
+            #             # is_market_hours=is_market_hours,
+            #             extra_guidance=extra_guidance,
+            #             detected_type="watchlist"
+            #         )
+            #     except Exception as e:
+            #         print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
             results.append({"message": f"Analysis complete for {ticker}"})
 
