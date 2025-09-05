@@ -495,12 +495,10 @@ def analyze_single_ticker(
     ticker: str,
     top_n: int = 3,
     model: str = "gpt-4o",
-    # model: str = "gpt-3.5-turbo",
     db: Session = Depends(get_db)
 ):
     # is_market_hours = check_market_hours(db)
 
-    # Run analysis with GPT-3.5 first
     analyze_ticker_by_steps(
         db=db,
         ticker=ticker,
@@ -510,25 +508,10 @@ def analyze_single_ticker(
         detected_type="single"
     )
 
-    # # Reanalyze with GPT-4o if promising
-    # volume_info = get_volume_info(db, ticker=ticker)
-    # if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
-    #     try:
-    #         analyze_ticker_by_steps(
-    #             db=db,
-    #             ticker=ticker,
-    #             top_n=top_n,
-    #             model="gpt-4o",
-    #             # is_market_hours=is_market_hours,
-    #             detected_type="single"
-    #         )
-    #     except Exception as e:
-    #         print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
-
     # Return confirmation message
     return {"message": f"Analysis complete for {ticker}"}
 
-@router.post("/analyze_tickers", response_model=Dict)
+@router.post("/multi_analyze/{tickers}", response_model=Dict)
 def analyze_multiple_tickers(
     tickers: str,  # Comma-separated string
     top_n: int = 3,
@@ -536,6 +519,7 @@ def analyze_multiple_tickers(
     db: Session = Depends(get_db)
 ):
     tickers_list = [t.strip() for t in tickers.split(",") if t.strip()]
+    # print(f"====tickers_list={tickers_list}")
     results = []
 
     for ticker in tickers_list:
@@ -544,23 +528,23 @@ def analyze_multiple_tickers(
             db=db,
             ticker=ticker,
             top_n=top_n,
-            model="gpt-3.5-turbo",
+            model=model,
             detected_type="multiple"
         )
 
-        # Reanalyze with GPT-4o if promising
-        volume_info = get_volume_info(db, ticker=ticker)
-        if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
-            try:
-                analyze_ticker_by_steps(
-                    db=db,
-                    ticker=ticker,
-                    top_n=top_n,
-                    model="gpt-4o",
-                    detected_type="multiple"
-                )
-            except Exception as e:
-                print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
+        # # Reanalyze with GPT-4o if promising
+        # volume_info = get_volume_info(db, ticker=ticker)
+        # if volume_info and volume_info.news_score is not None and volume_info.news_score >= 50:
+        #     try:
+        #         analyze_ticker_by_steps(
+        #             db=db,
+        #             ticker=ticker,
+        #             top_n=top_n,
+        #             model="gpt-4o",
+        #             detected_type="multiple"
+        #         )
+        #     except Exception as e:
+        #         print(f"⚠️ GPT-4o analysis failed for {ticker}: {e}")
 
         results.append({"ticker": ticker, "status": "Analysis complete"})
 

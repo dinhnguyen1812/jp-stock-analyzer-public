@@ -33,8 +33,8 @@ interface PreMarketScanFormProps {
   loadingAnalyzeWatchList: boolean;
 
   // New props for single ticker analyze
-  onAnalyze: (ticker: string) => void;
-  loadingAnalyze: boolean;
+  onAnalyzeMulti: (ticker: string) => void;
+  loadingAnalyzeMulti: boolean;
 }
 
 const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
@@ -60,11 +60,11 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
   onFlatScan,
   onFetchAnalyzed,
   onAnalyzeStarred,
-  onAnalyzeWatchList,
+  // onAnalyzeWatchList,
   loadingAnalyzeStarred,
-  loadingAnalyzeWatchList,
-  onAnalyze,
-  loadingAnalyze,
+  // loadingAnalyzeWatchList,
+  onAnalyzeMulti,
+  loadingAnalyzeMulti,
 }) => {
   // Local state for the ticker input
   const [tickerInput, setTickerInput] = useState("");
@@ -112,7 +112,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
               <WatchListButton />
             </Col>
 
-            <Col xs="auto" className="ms-auto">
+            {/* <Col xs="auto" className="ms-auto">
               <Button
                 variant="secondary"
                 onClick={onAnalyzeWatchList}
@@ -127,7 +127,7 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                   "Analyze Watchlist"
                 )}
               </Button>
-            </Col>
+            </Col> */}
 
             <Col xs="auto" className="ms-auto">
               <Button
@@ -155,18 +155,18 @@ const PreMarketScanForm: React.FC<PreMarketScanFormProps> = ({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      onAnalyze(tickerInput);
+                      onAnalyzeMulti(tickerInput);
                     }
                   }}
-                  disabled={loadingAnalyze}
+                  disabled={loadingAnalyzeMulti}
                 />
                 <Button
                   variant="primary"
-                  onClick={() => onAnalyze(tickerInput)}
-                  disabled={loadingAnalyze || tickerInput.trim() === ""}
+                  onClick={() => onAnalyzeMulti(tickerInput)}
+                  disabled={loadingAnalyzeMulti || tickerInput.trim() === ""}
                   style={{ whiteSpace: "nowrap" }}
                 >
-                  {loadingAnalyze ? (
+                  {loadingAnalyzeMulti ? (
                     <>
                       <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
                       {" "}Analyze...

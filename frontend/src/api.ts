@@ -284,6 +284,23 @@ export async function analyzeSingleTicker(ticker: string) {
   return await res.json();
 }
 
+export async function analyzeMultipleTickers(tickers: string) {
+  if (!tickers) throw new Error("Ticker is required");
+  const res = await fetch(`${BASE_URL}/premarket/multi_analyze/${tickers}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Analyze failed: ${errorText}`);
+  }
+
+  return await res.json();
+}
+
 export async function scanNewsForTicker(ticker: string) {
   if (!ticker) throw new Error("Ticker is required");
   const res = await fetch(`${BASE_URL}/scan_news/${ticker}`, {

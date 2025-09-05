@@ -12,6 +12,7 @@ import {
   analyzeAllStarredTickers,
   analyzeWatchList,
   analyzeSingleTicker,
+  analyzeMultipleTickers,
   scanSpikedStocks,
   scanFlatStocks,
 } from "../api";
@@ -28,7 +29,8 @@ const PreMarketPage: React.FC = () => {
   const [loadingFetchAnalyzed, setLoadingFetchAnalyzed] = useState<boolean>(false);
   const [loadingAnalyzeStarred, setLoadingAnalyzeStarred] = useState<boolean>(false);
   const [loadingAnalyzeWatchList, setLoadingAnalyzeWatchList] = useState<boolean>(false);
-  const [loadingAnalyze, setLoadingAnalyze] = useState<boolean>(false);
+  // const [loadingAnalyze, setLoadingAnalyze] = useState<boolean>(false);
+  const [loadingAnalyzeMulti, setloadingAnalyzeMulti] = useState<boolean>(false);
   const [starredOnly, setStarredOnly] = useState<boolean>(false);
   const [watchedOnly, setWatchedOnly] = useState<boolean>(false);
   const [stocks, setStocks] = useState<VolumeSurgeStock[]>([]);
@@ -144,18 +146,18 @@ const handleFlatScan = async () => {
     }
   };
 
-  const handleAnalyze = async (ticker: string) => {
+  const handleAnalyzeMulti = async (ticker: string) => {
     if (!ticker.trim()) return;
-    setLoadingAnalyze(true);
+    setloadingAnalyzeMulti(true);
     try {
-      const result = await analyzeSingleTicker(ticker.trim().toUpperCase());
+      const result = await analyzeMultipleTickers(ticker.trim().toUpperCase());
       setAnalyzedResults([result, ...analyzedResults]);
       setStocks([]);
       setTickerInput(""); // Clear input after analysis
     } catch (err) {
       console.error("Failed to analyze ticker", err);
     } finally {
-      setLoadingAnalyze(false);
+      setloadingAnalyzeMulti(false);
     }
   };
 
@@ -215,7 +217,7 @@ const handleFlatScan = async () => {
         watchedOnly={watchedOnly}
         loadingAnalyzeStarred={loadingAnalyzeStarred}
         loadingAnalyzeWatchList={loadingAnalyzeWatchList}
-        loadingAnalyze={loadingAnalyze}
+        loadingAnalyzeMulti={loadingAnalyzeMulti}
         onSurgeThresholdChange={setSurgeThreshold}
         onPriceThresholdChange={setPriceThreshold}
         onDetectedAtMaxDayChange={setDetectedAtMaxDay}
@@ -230,7 +232,8 @@ const handleFlatScan = async () => {
         onFetchAnalyzed={handleFetchAnalyzed}
         onAnalyzeStarred={handleAnalyzeStarred}
         onAnalyzeWatchList={handleAnalyzeWatchList}
-        onAnalyze={handleAnalyze}
+        // onAnalyze={handleAnalyze}
+        onAnalyzeMulti={handleAnalyzeMulti}
       />
 
       {/* Scan Results */}
