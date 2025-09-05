@@ -250,3 +250,9 @@ uvicorn            0.35.0
 wheel              0.45.1
 
 remove 8107, 8836, 7035,
+
+- Buy hot stocks at the end of Thursday => usually spike at Friday, set sell at +15%
+  - Ex: A lot, Appbank, Yume (2 times), Kubota Phar
+- Not a hot stock (pullback for a while) and buy at close 
+  => If open the same price, keep
+  => If going down below stop loss, look for way out
