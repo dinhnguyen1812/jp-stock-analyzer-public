@@ -1,7 +1,9 @@
 # JP Stock Analyzer
 
 A full-stack application for analyzing Japanese stocks using fundamentals, news, and technical indicators.
+
 The app helps traders spot volume surges, news-driven spikes, and premarket opportunities by combining real-time data with AI-powered analysis.
+
 Built with FastAPI (backend), PostgreSQL (database), React + Vite + TypeScript + React Bootstrap (frontend), and OpenAI GPT.
 
 ---
