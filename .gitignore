@@ -42,3 +42,8 @@ pgdata/
 # Other files
 .TRADING_RULES.*
 .GIAODICH.*
+
+# # App-specific
+# backend/app/utils/
+# backend/app/api/
+# frontend/src

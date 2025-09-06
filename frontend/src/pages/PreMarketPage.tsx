@@ -188,7 +188,7 @@ const handleFlatScan = async () => {
   };
 
   return (
-    <div className="container mt-3">
+    <div className="container mt-3" style={{ marginLeft: 10, marginRight: "auto" }}>
       {/* Holdings Button */}
       <div className="d-flex justify-content-start align-items-center gap-2 mb-3">
         <PreMarketHoldingButton />
